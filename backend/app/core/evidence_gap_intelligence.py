@@ -48,9 +48,9 @@ def build_evidence_gap_report(
 
     evidence_ids = {str(item.evidence_id) for item in bundle.items}
     observation_ids = {str(value) for item in bundle.items for value in item.observation_ids}
-    if set(assessment.evidence_ids) != evidence_ids:
+    if {str(value) for value in assessment.evidence_ids} != evidence_ids:
         raise ValueError("assessment evidence IDs do not match evidence bundle")
-    if set(assessment.observation_ids) != observation_ids:
+    if {str(value) for value in assessment.observation_ids} != observation_ids:
         raise ValueError("assessment observation IDs do not match evidence bundle")
     expected_counts = {
         "supporting_evidence_count": sum(item.relationship == "supports" for item in bundle.items),

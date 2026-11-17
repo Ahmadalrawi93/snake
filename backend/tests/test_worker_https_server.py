@@ -276,3 +276,20 @@ def test_http_handler_replays_exact_acknowledgement_after_duplicate_delivery(tmp
         server.shutdown()
         server.server_close()
         thread.join(timeout=3)
+
+
+def test_worker_response_contract_is_strict_and_allows_no_batch():
+    from app.schemas.worker_transport import WorkerTaskResponse
+    backend_private, backend_public = keypair()
+    worker_private, _ = keypair()
+    task = sign_worker_task(make_task(), backend_private, worker_id="worker-1", key_id="key-1")
+    raw = validate_task_request(
+        task.model_dump_json().encode(), backend_public_key=backend_public,
+        worker_private_key=worker_private, worker_id="worker-1", key_id="key-1",
+    )
+    response = WorkerTaskResponse.model_validate_json(raw)
+    assert response.observation_batch is None
+    payload = json.loads(raw)
+    payload["unexpected"] = True
+    with pytest.raises(Exception):
+        WorkerTaskResponse.model_validate(payload)

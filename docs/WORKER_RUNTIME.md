@@ -29,7 +29,7 @@ Required HTTPS listener environment:
 - `SNAKE_WORKER_ID`
 - `SNAKE_WORKER_KEY_ID`
 - `SNAKE_WORKER_REPLAY_DB_PATH` (required durable SQLite ledger path)
-- Optional bind host/port: `SNAKE_WORKER_BIND_HOST`, `SNAKE_WORKER_BIND_PORT`
+- Optional bind host/port: `SNAKE_WORKER_BIND_HOST`, `SNAKE_WORKER_BIND_PORT`. The default bind is `127.0.0.1:8443`; host must be an explicit IP address and wildcard binds (`0.0.0.0` / `::`) are rejected. Remote deployment must explicitly bind a private interface address and enforce ingress with the host/network firewall.
 
 Run the HTTPS listener in the worker image by overriding its one-shot entrypoint:
 ```sh
@@ -45,7 +45,9 @@ docker run --rm --entrypoint python \
 ```
 
 The command above is an example deployment shape, not a production-ready
-orchestrator. The `install` command creates the host directory with restrictive
+orchestrator. It must be amended with an explicit private-interface
+`SNAKE_WORKER_BIND_HOST` when remote backend connectivity is required; without
+that setting the listener is reachable only through loopback. The `install` command creates the host directory with restrictive
 permissions and ownership for UID/GID 10001; otherwise the non-root listener
 cannot write its replay ledger. The SQLite database file is restricted to mode
 0600 by the worker at initialization. Do not share this directory with

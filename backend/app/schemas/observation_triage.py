@@ -28,7 +28,7 @@ class ObservationTriage(BaseModel):
     def validate_output(self):
         if len(self.supporting_observation_ids) != len(set(self.supporting_observation_ids)):
             raise ValueError("duplicate supporting observation reference")
-        for value in [*self.missing_evidence, *self.validation_questions]:
-            if len(value) > 1000 or any(ord(char) < 32 and char not in "\t" for char in value):
+        for value in [self.hypothesis, *self.missing_evidence, *self.validation_questions]:
+            if len(value) > 2000 or any(ord(char) < 32 or ord(char) == 127 for char in value):
                 raise ValueError("triage text contains invalid control characters")
         return self

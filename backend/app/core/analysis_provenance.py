@@ -87,7 +87,7 @@ def build_persisted_analysis_input(
         raise ValueError("no acknowledged worker observations exist for this target")
     records: list[WorkerObservationRecord] = []
     provenance_items = []
-    verified_batches: dict[str, tuple[str, str]] = {}
+    verified_batches: dict[str, tuple[str, str, object]] = {}
     for record, receipt, job, snapshot, authorization in rows:
         if (job.project_id != project_id or job.target_id != target_id
                 or snapshot.project_id != project_id or snapshot.target_id != target_id

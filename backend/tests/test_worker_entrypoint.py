@@ -1,3 +1,4 @@
+import io
 import json
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
@@ -22,12 +23,8 @@ def _envelope():
 
 
 def test_worker_entrypoint_only_acknowledges_validation(monkeypatch, capsys):
-    monkeypatch.setattr("sys.stdin", __import__("io").TextIOWrapper(
-        __import__("io").BytesIO(json.dumps(_envelope()).encode())
-    ))
-    # main reads stdin.buffer; replace stdin with a compatible byte stream.
-    import io
-    monkeypatch.setattr("sys.stdin", io.TextIOWrapper(io.BytesIO(json.dumps(_envelope()).encode())))
+    raw = json.dumps(_envelope()).encode()
+    monkeypatch.setattr("sys.stdin", io.TextIOWrapper(io.BytesIO(raw)))
     assert main() == 0
     result = json.loads(capsys.readouterr().out)
     assert result["accepted"] is True

@@ -16,7 +16,10 @@ def _age_points(observed_at: str, now: datetime) -> int:
         observed = datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
         if observed.tzinfo is None:
             return 0
-        age_days = max(0.0, (now - observed.astimezone(timezone.utc)).total_seconds() / 86400)
+        age_seconds = (now - observed.astimezone(timezone.utc)).total_seconds()
+        if age_seconds < 0:
+            return 0
+        age_days = age_seconds / 86400
     except (TypeError, ValueError):
         return 0
     if age_days <= 1:

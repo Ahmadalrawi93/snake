@@ -29,7 +29,7 @@ uvicorn app.main:app --reload
 ```
 API docs: http://127.0.0.1:8000/docs
 
-For local development the example JWT secret is intentionally marked as a placeholder. Never use it outside local development. Production mode refuses to start with the placeholder or a secret shorter than 32 characters.
+For local development the example JWT secret is intentionally marked as a placeholder. Never use it outside local development. Production mode refuses to start with the placeholder or a secret shorter than 32 characters. To run the optional validator profile, also set a separate random `SNAKE_WORKER_SIGNING_SECRET` (at least 32 characters); never reuse the JWT secret.
 
 ## Current boundary
 The worker container is a **validator only**. It reads one signed task message from stdin (maximum 64 KiB), verifies HMAC and expiry, returns a signed validation acknowledgement, and exits. It has no network, queue consumer, database receipt access, Docker socket, or scan adapter. A valid signature is not proof of authorization.

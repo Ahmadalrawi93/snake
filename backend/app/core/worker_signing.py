@@ -46,3 +46,50 @@ def verify_worker_task(signed: SignedWorkerTask, secret: str) -> bool:
         raise ValueError("worker signing secret must contain at least 32 characters")
     expected = sign_worker_task(signed.envelope, secret).signature
     return hmac.compare_digest(expected, signed.signature)
+
+
+class SignedWorkerValidationResult(BaseModel):
+    """Authenticated worker acknowledgement, not evidence of scan execution."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    result: "WorkerValidationResult"
+    signature: Annotated[str, Field(pattern=_SIGNATURE_RE)]
+
+
+def sign_worker_validation_result(result, secret: str) -> SignedWorkerValidationResult:
+    """Sign a validation acknowledgement with result-specific domain separation."""
+    if not isinstance(secret, str) or len(secret) < 32:
+        raise ValueError("worker signing secret must contain at least 32 characters")
+    payload = json.dumps(
+        result.model_dump(mode="json"),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    digest = hmac.new(
+        secret.encode("utf-8"),
+        b"SNAKE-WORKER-RESULT-v1\\x00" + payload,
+        hashlib.sha256,
+    ).hexdigest()
+    return SignedWorkerValidationResult(result=result, signature=f"v1={digest}")
+
+
+def verify_worker_validation_result(
+    signed: SignedWorkerValidationResult, secret: str
+) -> bool:
+    """Verify a worker acknowledgement; caller must still bind it to a consumed task."""
+    if not isinstance(secret, str) or len(secret) < 32:
+        raise ValueError("worker signing secret must contain at least 32 characters")
+    payload = json.dumps(
+        signed.result.model_dump(mode="json"),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    expected = "v1=" + hmac.new(
+        secret.encode("utf-8"),
+        b"SNAKE-WORKER-RESULT-v1\\x00" + payload,
+        hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(expected, signed.signature)

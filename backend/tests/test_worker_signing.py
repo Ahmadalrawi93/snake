@@ -3,8 +3,8 @@ from uuid import uuid4
 
 import pytest
 
-from app.core.worker_protocol import WorkerTaskEnvelope
-from app.core.worker_signing import sign_worker_task, verify_worker_task
+from app.core.worker_protocol import WorkerTaskEnvelope, WorkerValidationResult
+from app.core.worker_signing import (\n    sign_worker_task, verify_worker_task,\n    sign_worker_validation_result, verify_worker_validation_result,\n)
 
 
 SECRET = "test-worker-signing-secret-at-least-32-chars"
@@ -47,3 +47,39 @@ def test_signature_rejects_wrong_secret():
 def test_signing_rejects_weak_secret(secret):
     with pytest.raises(ValueError):
         sign_worker_task(_task(), secret)
+
+
+def _validation_result():
+    return WorkerValidationResult(
+        task_id=uuid4(),
+        envelope_sha256="d" * 64,
+        worker_id="validator-01",
+        outcome="accepted",
+        validated_at=datetime.now(timezone.utc),
+        execution_enabled=False,
+    )
+
+
+def test_worker_validation_result_signature_round_trip():
+    signed = sign_worker_validation_result(_validation_result(), SECRET)
+    assert verify_worker_validation_result(signed, SECRET)
+
+
+def test_worker_validation_result_signature_rejects_tampering():
+    signed = sign_worker_validation_result(_validation_result(), SECRET)
+    tampered = signed.model_copy(update={
+        "result": signed.result.model_copy(update={"worker_id": "forged-worker"})
+    })
+    assert not verify_worker_validation_result(tampered, SECRET)
+
+
+def test_worker_validation_result_cannot_claim_execution():
+    with pytest.raises(Exception):
+        WorkerValidationResult(
+            task_id=uuid4(),
+            envelope_sha256="d" * 64,
+            worker_id="validator-01",
+            outcome="accepted",
+            validated_at=datetime.now(timezone.utc),
+            execution_enabled=True,
+        )

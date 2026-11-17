@@ -51,6 +51,8 @@ class ScopePolicy:
             if not parsed.hostname:
                 return ScopeDecision(False, None, "missing_hostname")
             host = normalize_host(parsed.hostname)
+            # Accessing .port forces urllib to reject malformed or out-of-range ports.
+            _ = parsed.port
             # Reject credentials embedded in URLs; they are not needed for target identity.
             if parsed.username is not None or parsed.password is not None:
                 return ScopeDecision(False, host, "embedded_credentials_not_allowed")

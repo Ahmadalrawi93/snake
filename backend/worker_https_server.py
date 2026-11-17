@@ -27,6 +27,35 @@ TASK_PATH = "/internal/v1/tasks"
 MAX_BODY_BYTES = 64 * 1024
 
 
+def validate_http_task_headers(headers) -> tuple[int, int | None]:
+    """Validate framing headers before reading a task body.
+
+    Reject ambiguous framing instead of relying on email.message's combined
+    duplicate-header behavior. Expect/continue is unsupported deliberately.
+    """
+    for name in ("Content-Length", "Content-Type", "Host"):
+        values = headers.get_all(name, [])
+        if len(values) > 1:
+            return 400, None
+    if headers.get_all("Transfer-Encoding", []):
+        return 400, None
+    if headers.get_all("Expect", []):
+        return 417, None
+    content_types = headers.get_all("Content-Type", [])
+    if len(content_types) != 1 or content_types[0].strip().lower() != "application/json":
+        return 415, None
+    lengths = headers.get_all("Content-Length", [])
+    if not lengths:
+        return 411, None
+    raw_length = lengths[0].strip()
+    if not raw_length.isascii() or not raw_length.isdecimal():
+        return 400, None
+    length = int(raw_length)
+    if length < 1 or length > MAX_BODY_BYTES:
+        return 413, None
+    return 200, length
+
+
 def validate_task_request(raw: bytes, *, backend_public_key: str,
                           worker_private_key: str, worker_id: str,
                           key_id: str) -> bytes:
@@ -118,20 +147,18 @@ def build_handler(*, backend_public_key: str, worker_private_key: str,
             if self.path != TASK_PATH:
                 self._send(404, b'{"error":"not_found"}')
                 return
-            if self.headers.get("Transfer-Encoding") is not None:
-                self._send(400, b'{"error":"transfer_encoding_not_supported"}')
+            header_status, length = validate_http_task_headers(self.headers)
+            if header_status != 200:
+                errors = {
+                    400: b'{"error":"ambiguous_or_invalid_headers"}',
+                    411: b'{"error":"content_length_required"}',
+                    413: b'{"error":"request_too_large"}',
+                    415: b'{"error":"application_json_required"}',
+                    417: b'{"error":"expectation_not_supported"}',
+                }
+                self._send(header_status, errors[header_status])
                 return
-            if self.headers.get_content_type() != "application/json":
-                self._send(415, b'{"error":"application_json_required"}')
-                return
-            try:
-                length = int(self.headers.get("Content-Length", ""))
-            except ValueError:
-                self._send(411, b'{"error":"content_length_required"}')
-                return
-            if length < 1 or length > MAX_BODY_BYTES:
-                self._send(413, b'{"error":"request_too_large"}')
-                return
+            assert length is not None
             raw = self.rfile.read(length)
             if len(raw) != length:
                 self._send(400, b'{"error":"incomplete_request_body"}')

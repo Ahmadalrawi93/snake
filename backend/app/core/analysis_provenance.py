@@ -33,6 +33,18 @@ def _canonical_hash(value) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
+def _record_matches_batch(record: WorkerObservationRecord, batch) -> bool:
+    item = next((entry for entry in batch.observations if str(entry.observation_id) == record.observation_id), None)
+    return bool(
+        item is not None
+        and item.kind == record.kind
+        and item.value == record.value
+        and item.evidence == record.evidence
+        and item.source == record.source
+        and _utc(item.observed_at) == _utc(record.observed_at)
+    )
+
+
 def _verify_snapshot(snapshot: ScopeSnapshot) -> bool:
     try:
         data = json.loads(snapshot.snapshot_json)
@@ -119,10 +131,11 @@ def build_persisted_analysis_input(
                     or observation_batch_digest(batch) != record.batch_sha256
                     or not verify_worker_observation_batch(signed, key.public_key_b64)):
                 raise ValueError("stored worker observation signature or digest is invalid")
-            verified_batches[record.task_id] = (record.batch_sha256, record.batch_signature)
-        batch_digest, signature = verified_batches[record.task_id]
-        if record.batch_sha256 != batch_digest or record.batch_signature != signature:
-            raise ValueError("worker batch records are inconsistent")
+            verified_batches[record.task_id] = (record.batch_sha256, record.batch_signature, batch)
+        batch_digest, signature, verified_batch = verified_batches[record.task_id]
+        if (record.batch_sha256 != batch_digest or record.batch_signature != signature
+                or not _record_matches_batch(record, verified_batch)):
+            raise ValueError("worker observation row does not match its signed batch")
         provenance_items.append({
             "observation_id": record.observation_id, "record_id": record.id,
             "task_id": record.task_id, "worker_id": record.worker_id,
@@ -218,7 +231,9 @@ def load_verified_analysis_run_context(db: Session, *, run: AIAnalysisRun):
                     or signed.batch.worker_id != record.worker_id or signed.batch.key_id != record.key_id
                     or not verify_worker_observation_batch(signed, key.public_key_b64)):
                 raise ValueError("linked worker batch signature is invalid")
-            batch_checks[record.task_id] = record.batch_sha256
+            batch_checks[record.task_id] = signed.batch
+        if not _record_matches_batch(record, batch_checks[record.task_id]):
+            raise ValueError("linked observation row does not match its signed batch")
         records.append(record)
         provenance_items.append({
             "observation_id": record.observation_id, "record_id": record.id,

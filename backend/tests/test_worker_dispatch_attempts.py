@@ -39,7 +39,7 @@ def setup_task(db):
         target_url="https://example.org/", issued_at=now,
         expires_at=now + timedelta(minutes=2), execution_enabled=False,
     )
-    reserve_task_receipt(db, envelope, now=now)
+    reserve_task_receipt(db, envelope, worker_id="worker-a", key_id="key-a", now=now)
     return envelope, now
 
 
@@ -103,4 +103,14 @@ def test_attempt_rejects_wrong_digest(db):
         begin_dispatch_attempt(
             db, task_id=str(envelope.task_id), worker_id="worker-a",
             key_id="key-a", envelope_sha256="f" * 64, now=now,
+        )
+
+
+
+def test_attempt_cannot_be_routed_to_different_worker_identity(db):
+    envelope, now = setup_task(db)
+    with pytest.raises(ValueError, match="does not match"):
+        begin_dispatch_attempt(
+            db, task_id=str(envelope.task_id), worker_id="worker-b",
+            key_id="key-b", envelope_sha256=envelope_digest(envelope), now=now,
         )

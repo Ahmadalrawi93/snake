@@ -365,7 +365,7 @@ def test_admin_reconciles_late_signed_worker_ack_once():
     from app.core.worker_signing import sign_worker_validation_result
     from app.core.worker_protocol import WorkerValidationResult
     from app.db.models import (
-        AuditEvent, ScanJob, WorkerDispatchAttempt, WorkerKey, WorkerTaskReceipt,
+        AuditEvent, ScanJob, User, WorkerDispatchAttempt, WorkerKey, WorkerTaskReceipt,
     )
 
     admin_headers = register_and_auth("reconcile-admin@example.org")

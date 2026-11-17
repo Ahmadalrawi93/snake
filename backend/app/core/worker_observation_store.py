@@ -43,6 +43,8 @@ def store_worker_observation_batch(
         or receipt.worker_id != batch.worker_id
         or receipt.key_id != batch.key_id
         or receipt.consumed_at is None
+        or receipt.acknowledgement_outcome != "accepted"
+        or receipt.acknowledgement_worker_id != batch.worker_id
     ):
         raise ValueError("observation batch is not bound to a consumed task receipt")
 

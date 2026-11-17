@@ -3,8 +3,6 @@
 These functions are intentionally not exposed as HTTP routes and do not execute work.
 A successful receipt consume is an acknowledgement/replay barrier only.
 """
-import hashlib
-import json
 from datetime import datetime, timezone
 
 from sqlalchemy import update

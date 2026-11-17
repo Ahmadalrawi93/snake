@@ -81,3 +81,25 @@ def test_lock_rejects_second_process_and_symlink(tmp_path):
     link.symlink_to(target)
     with pytest.raises(OSError):
         _acquire_lock(str(link))
+
+
+def test_scheduler_records_asset_changes_after_successful_feed_publish(tmp_path):
+    scope = tmp_path / "scope.json"
+    scope.write_text(json.dumps({"approved_scope_rules": ["example.org"]}))
+    scope.chmod(0o600)
+    output = tmp_path / "feed.json"
+    history = tmp_path / "history.sqlite3"
+    record = {"hostname": "api.example.org", "kind": "hostname", "value": "api.example.org",
+              "source": "ct_sh_ct", "evidence": "certificate", "observed_at": "2026-11-17T00:00:00+00:00"}
+    run_cycle(str(scope), str(output), ["ct"], "ticket",
+              ct_collector=lambda _rules: [record], history_db=str(history))
+    assert history.exists()
+    run_cycle(str(scope), str(output), ["ct"], "ticket",
+              ct_collector=lambda _rules: [], history_db=str(history))
+    import sqlite3
+    connection = sqlite3.connect(history)
+    event_types = [row[0] for row in connection.execute(
+        "SELECT event_type FROM asset_change_events ORDER BY id"
+    )]
+    connection.close()
+    assert event_types == ["new", "missing"]

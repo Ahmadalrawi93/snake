@@ -98,3 +98,22 @@ def test_invalid_prior_fingerprint_rejected():
     strategy, bundle, assessment = fixtures()
     with pytest.raises(ValueError):
         qualify_finding_candidate(strategy, bundle, assessment, prior_candidate_fingerprints=["bad"])
+
+
+
+def test_detached_assessment_evidence_ids_are_rejected():
+    strategy, bundle, assessment = fixtures()
+    data = assessment.model_dump()
+    data["evidence_ids"] = [uuid4()]
+    detached = ValidationEvidenceAssessment.model_validate(data)
+    with pytest.raises(ValueError, match="evidence IDs"):
+        qualify_finding_candidate(strategy, bundle, detached)
+
+
+def test_forged_assessment_counts_are_rejected():
+    strategy, bundle, assessment = fixtures()
+    data = assessment.model_dump()
+    data["supporting_evidence_count"] += 1
+    detached = ValidationEvidenceAssessment.model_validate(data)
+    with pytest.raises(ValueError, match="supporting_evidence_count"):
+        qualify_finding_candidate(strategy, bundle, detached)

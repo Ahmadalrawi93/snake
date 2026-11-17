@@ -11,8 +11,9 @@ It is not a vulnerability-finding API and does not execute scans.
   worker ID, and key ID must all match.
 - Observation IDs are globally unique. Replays or collisions are rejected.
 - The batch digest is stored with every observation to preserve provenance.
-- Every row is hard-classified as `unconfirmed_observation`; the database
-  constraint prevents changing this table into a confirmed finding.
+- Every row is classified as `unconfirmed_observation`; a database constraint
+  rejects any insert/update that tries to use another classification. The current
+  service exposes inserts only; database-level append-only enforcement is still a hardening item.
 - The schema has no severity, exploitability, confirmation, command, script,
   or arbitrary fetch instruction fields.
 

@@ -56,6 +56,7 @@ def make_receipt(db):
     task_id = uuid4()
     receipt = WorkerTaskReceipt(
         task_id=str(task_id), job_id=100, envelope_sha256="a" * 64,
+        worker_id=WORKER_ID, key_id=KEY_ID,
         expires_at=now + timedelta(minutes=2), consumed_at=None,
         created_at=now - timedelta(seconds=1),
     )

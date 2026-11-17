@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class ContextObservation(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
-    observation_id: str = Field(min_length=36, max_length=36)
+    observation_ids: list[str] = Field(min_length=1, max_length=500)
     kind: Literal["hostname", "url", "ip", "technology", "http_header", "dns_record"]
     value: str = Field(min_length=1, max_length=2048)
     evidence: str = Field(max_length=8192)

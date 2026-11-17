@@ -80,7 +80,7 @@ def test_candidate_pipeline_requires_strategy_from_persisted_run(orchestration_d
     db.add(run)
     db.commit()
     digest = run.context_sha256
-    with pytest.raises(ValueError, match="no persisted validation strategy"):
+    with pytest.raises(ValueError, match="lacks verified worker observation provenance"):
         qualify_and_persist_candidate(
             db, analysis_run_id=run.id, strategy_id="auth_strategy",
             actor=user, context=context, bundle=_bundle(digest),

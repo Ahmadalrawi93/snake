@@ -174,3 +174,14 @@ def test_scope_snapshot_rejects_out_of_scope_target():
     denied = client.post(f"/api/v1/projects/{project['id']}/targets/{target['id']}/scope-snapshots",
         headers=headers)
     assert denied.status_code == 403
+
+def test_domain_target_rejects_path_suffix():
+    headers = register_and_auth("bad-domain-target@example.org")
+    project = client.post("/api/v1/projects", json={"name": "Bad Domain"}, headers=headers).json()
+    target = client.post(f"/api/v1/projects/{project['id']}/targets",
+        json={"value": "example.org/extra", "target_type": "domain"}, headers=headers).json()
+    response = client.post(
+        f"/api/v1/projects/{project['id']}/targets/{target['id']}/scope-snapshots",
+        headers=headers,
+    )
+    assert response.status_code == 422

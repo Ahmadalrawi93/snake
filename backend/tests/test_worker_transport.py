@@ -51,6 +51,7 @@ def test_issue_signed_task_revalidates_reserves_and_signs(monkeypatch):
 
 
 def test_invalid_signing_key_does_not_reserve_job(monkeypatch):
+    private, public = _keypair()
     now = datetime.now(timezone.utc)
     envelope = WorkerTaskEnvelope(
         task_id=uuid4(), job_id=23, scope_snapshot_id=34,

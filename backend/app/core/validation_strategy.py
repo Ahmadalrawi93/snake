@@ -152,7 +152,7 @@ def build_validation_strategy(
         items=items[:max_items],
         global_prerequisites=[
             "A current, approved authorization record and immutable scope snapshot must be verified by the backend before testing.",
-            "A human must review each proposed validation question and confirm it is permitted by the program.",
-            "Any active request, state change, or use of credentials requires a separate approved execution workflow; this plan does not authorize it.",
+            "A human must review each proposed validation question and confirm it is within the written authorization and permitted by the program.",
+            "Any active request, state change, or use of credentials requires a separate authorization-approved execution workflow; this plan does not authorize it.",
         ],
     )

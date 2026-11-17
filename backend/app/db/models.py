@@ -301,3 +301,26 @@ class HumanFindingDecision(Base):
     notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
     reviewer_attested: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class FindingCandidateRecord(Base):
+    """Immutable persisted candidate and exact evidence bundle."""
+    __tablename__ = "finding_candidate_records"
+    __table_args__ = (
+        UniqueConstraint("analysis_run_id", "candidate_fingerprint", name="uq_finding_candidate_run_fingerprint"),
+        CheckConstraint("qualification = 'human_review_candidate'", name="ck_finding_candidate_reviewable_only"),
+        CheckConstraint("finding_status = 'unconfirmed'", name="ck_finding_candidate_unconfirmed_only"),
+        CheckConstraint("execution_enabled = false", name="ck_finding_candidate_execution_disabled"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    analysis_run_id: Mapped[int] = mapped_column(ForeignKey("ai_analysis_runs.id"), nullable=False, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    candidate_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    qualification: Mapped[str] = mapped_column(String(40), nullable=False)
+    finding_status: Mapped[str] = mapped_column(String(20), nullable=False, default="unconfirmed")
+    evidence_bundle_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    evidence_bundle_json: Mapped[str] = mapped_column(Text, nullable=False)
+    qualification_json: Mapped[str] = mapped_column(Text, nullable=False)
+    execution_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

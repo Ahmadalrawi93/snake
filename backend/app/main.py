@@ -14,13 +14,8 @@ from app.api.finding_candidates import router as finding_candidates_router
 from app.api.finding_lifecycle import router as finding_lifecycle_router
 from app.api.intelligence_feedback import router as intelligence_feedback_router
 from app.core.config import get_settings
-from app.db.database import Base, engine
-from app.db import models  # noqa: F401
 
 settings = get_settings()
-# create_all supports a fresh local database; use Alembic to upgrade existing databases.
-Base.metadata.create_all(bind=engine)
-
 app = FastAPI(title=settings.app_name, version="0.3.0",
               description="SNAKE authenticated control plane. Scanning is not enabled.")
 

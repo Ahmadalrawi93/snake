@@ -19,9 +19,6 @@ def upgrade():
             sa.Column("envelope_sha256", sa.String(length=64), nullable=False),
             sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
             sa.Column("consumed_at", sa.DateTime(timezone=True), nullable=True),
-            sa.Column("acknowledgement_outcome", sa.String(length=20), nullable=True),
-            sa.Column("acknowledgement_worker_id", sa.String(length=128), nullable=True),
-            sa.Column("acknowledgement_validated_at", sa.DateTime(timezone=True), nullable=True),
             sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         )
         op.create_index("ix_worker_task_receipts_expires_at", "worker_task_receipts", ["expires_at"])

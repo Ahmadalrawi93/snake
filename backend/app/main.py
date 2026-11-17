@@ -6,6 +6,7 @@ from app.api.auth import router as auth_router
 from app.api.admin import router as admin_router
 from app.api.control_plane import router as control_plane_router
 from app.api.scope_snapshots import router as scope_snapshot_router
+from app.api.scan_jobs import router as scan_jobs_router
 from app.core.config import get_settings
 from app.db.database import Base, engine
 from app.db import models  # noqa: F401
@@ -29,6 +30,7 @@ app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(control_plane_router)
 app.include_router(scope_snapshot_router)
+app.include_router(scan_jobs_router)
 
 @app.get("/")
 def root():

@@ -373,3 +373,32 @@ def test_impact_api_rejects_more_than_100_claims_without_persisting(impact_conte
     finally:
         app.dependency_overrides.pop(get_current_user, None)
         app.dependency_overrides.pop(get_db, None)
+
+
+
+def test_impact_api_rejects_empty_claim_list_without_persisting(impact_context):
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.api.dependencies import get_current_user
+    from app.db.database import get_db
+
+    db, owner, _other, candidate, _foreign, _claim = impact_context
+
+    def override_db():
+        yield db
+
+    app.dependency_overrides[get_current_user] = lambda: owner
+    app.dependency_overrides[get_db] = override_db
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                f"/api/v1/finding-candidates/{candidate.id}/impact-assessments",
+                json={"claims": []},
+            )
+            assert response.status_code == 422
+            assert db.query(FindingImpactAssessmentRecord).filter_by(
+                candidate_id=candidate.id
+            ).count() == 0
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_db, None)

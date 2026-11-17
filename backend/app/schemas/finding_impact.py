@@ -2,7 +2,7 @@
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 ImpactDimension = Literal[
@@ -31,6 +31,20 @@ class FindingImpactClaim(BaseModel):
     data_sensitivity: DataSensitivity
     statement: str = Field(min_length=8, max_length=1200)
     human_attested: Literal[True]
+
+    @field_validator("evidence_id", mode="before")
+    @classmethod
+    def parse_evidence_uuid(cls, value):
+        if isinstance(value, str):
+            return UUID(value)
+        return value
+
+    @field_validator("observation_ids", mode="before")
+    @classmethod
+    def parse_observation_uuids(cls, value):
+        if isinstance(value, list):
+            return [UUID(item) if isinstance(item, str) else item for item in value]
+        return value
 
 
 class FindingImpactAssessment(BaseModel):

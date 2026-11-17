@@ -1,34 +1,53 @@
 # Worker runtime security boundary
 
-SNAKE does not yet have a scan worker or queue consumer. The opt-in worker-validator
-Compose service is an authenticated, deliberately non-executing protocol prototype.
+SNAKE now has two validation-only worker entrypoints:
 
-- Runs as UID/GID 10001 with dropped capabilities, no-new-privileges, read-only
-  root filesystem, bounded resources, and network_mode: none.
-- Accepts one signed JSON task on stdin (maximum 64 KiB), verifies the backend's
-  Ed25519 signature using a public key, validates worker/key binding and expiry,
-  then emits a signed validation-only acknowledgement.
-- The worker signs acknowledgements using its own Ed25519 private key. The backend
-  verifies with the corresponding public key from the worker-key registry.
-- It has no DB, network, queue consumer, scan adapter, Docker socket, or host mount.
+- `worker_entrypoint.py`: one-shot signed JSON validator over stdin/stdout.
+- `worker_https_server.py`: minimal HTTPS listener for the fixed
+  `POST /internal/v1/tasks` route, requiring a trusted client certificate.
 
-Provision a distinct keypair for every worker. Inject only the backend public key
-and that worker's private key into its runtime. Keep the backend private key in
-backend-only secret storage. An administrator registers each worker public key
-through the admin API. Revocation is supported and one-way; a replacement key
-requires a new key ID. The registry stores public keys only, never private keys.
+The HTTPS listener:
+- Requires TLS 1.2 or newer and mutual TLS. The worker presents its TLS
+  certificate; it trusts only client certificates chaining to the configured
+  backend-client CA.
+- Accepts only bounded JSON requests (64 KiB), rejects transfer encoding,
+  validates the exact signed task schema, backend Ed25519 signature, worker/key
+  binding, and expiry.
+- Returns a signed validation-only acknowledgement. It does not execute scans,
+  invoke a shell, connect to targets, access a database, or consume a queue.
+- Uses a fixed path and no caller-controlled destination or command fields.
 
-Environment variables are for development, not a production secret-management
-solution. KMS integration, automated provisioning, and automated key rotation
-are not implemented.
+Required HTTPS listener environment:
+- `SNAKE_WORKER_TLS_CERT_FILE`
+- `SNAKE_WORKER_TLS_KEY_FILE`
+- `SNAKE_BACKEND_CLIENT_CA_FILE`
+- `SNAKE_BACKEND_ED25519_PUBLIC_KEY_B64`
+- `SNAKE_WORKER_ED25519_PRIVATE_KEY_B64`
+- `SNAKE_WORKER_ID`
+- `SNAKE_WORKER_KEY_ID`
+- Optional bind host/port: `SNAKE_WORKER_BIND_HOST`, `SNAKE_WORKER_BIND_PORT`
 
-Example build:
+Run the HTTPS listener in the worker image by overriding its one-shot entrypoint:
 ```sh
-docker compose -f infrastructure/docker-compose.yml --profile worker build worker-validator
+docker run --rm --entrypoint python \
+  --read-only --user 10001:10001 --cap-drop ALL --security-opt no-new-privileges \
+  -p 8443:8443 \
+  --env-file worker-secrets.env \
+  -v ./worker-tls:/run/snake-tls:ro \
+  snake-worker-validator:latest /opt/snake/worker_https_server.py
 ```
 
-A valid acknowledgement proves only that the holder of the worker private key
-signed the validation metadata. It does not prove a scan ran or that a target
-was authorized. Replay protection remains backend receipt-based and is not
-end-to-end connected to this isolated process. Network transport and scan
-execution remain disabled.
+The command above is an example deployment shape, not a production-ready
+orchestrator. The TLS certificate/key and CA files must be provisioned securely.
+The worker's public Ed25519 key must be registered by an administrator; the
+backend private key must never be mounted into the worker.
+
+The existing Compose `worker-validator` remains isolated with
+`network_mode: none` and runs only the stdin/stdout validator. The HTTPS listener
+is not launched by Compose and is not automatically exposed. Do not attach it
+to a network until host firewalling, worker-only ingress, certificate lifecycle,
+and deployment-specific egress policy are configured.
+
+A valid signed acknowledgement proves only that the registered worker key holder
+signed validation metadata. It does not prove a scan ran or that a target was
+authorized. Scan execution remains disabled.

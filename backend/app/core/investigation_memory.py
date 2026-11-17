@@ -3,7 +3,7 @@ import hashlib
 import json
 import re
 from sqlalchemy.orm import Session
-from app.db.models import AIAnalysisRun, InvestigationMemoryRecord, Project, User
+from app.db.models import AIAnalysisRun, HumanFindingDecision, InvestigationMemoryRecord, Project, User
 from app.schemas.validation_strategy import ValidationStrategyItem
 from app.schemas.investigation_memory import InvestigationMemoryReport, PriorInvestigationMatch
 
@@ -15,7 +15,7 @@ def hypothesis_fingerprint(strategy: ValidationStrategyItem) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 def record_and_compare_investigation_memory(
-    db: Session, *, run: AIAnalysisRun, strategy: ValidationStrategyItem, actor: User,
+    db: Session, *, run: AIAnalysisRun, strategy: ValidationStrategyItem, actor: User, candidate_fingerprint: str | None = None,
 ) -> InvestigationMemoryReport:
     owned = db.query(AIAnalysisRun).join(Project, Project.id == AIAnalysisRun.project_id).filter(
         AIAnalysisRun.id == run.id, Project.owner_id == actor.id,
@@ -53,7 +53,7 @@ def record_and_compare_investigation_memory(
             execution_enabled=False,
         ))
         db.flush()
-    elif existing.hypothesis_fingerprint != fp or json.loads(existing.observation_ids_json) != current_obs:
+    elif existing.hypothesis_fingerprint != fp or json.loads(existing.observation_ids_json) != current_obs or (candidate_fingerprint is not None and existing.candidate_fingerprint not in {None, candidate_fingerprint}):
         raise ValueError("investigation memory entry already exists with different content")
     return InvestigationMemoryReport(
         current_strategy_id=strategy.strategy_id, hypothesis_fingerprint=fp,

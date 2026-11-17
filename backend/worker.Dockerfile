@@ -5,7 +5,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
 
 WORKDIR /opt/snake
-RUN pip install --no-cache-dir "pydantic>=2.8,<3.0" \
+RUN pip install --no-cache-dir "pydantic>=2.8,<3.0" "cryptography>=43.0,<47.0" \
     && groupadd --gid 10001 snake \
     && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin snake
 

@@ -84,3 +84,46 @@ def test_collector_caps_records():
         return [row("api.example.org", str(index)) for index in range(600)]
     records = collect_ct_feed(["*.example.org"], fetcher=fetcher)
     assert len(records) == 500
+
+from urllib.error import HTTPError
+
+from collect_passive_feed import NoRedirect, _provider_url, fetch_ct_rows
+
+
+def test_provider_url_is_fixed_https_crt_sh_origin():
+    from urllib.parse import urlsplit, parse_qs
+    parsed = urlsplit(_provider_url("%.example.org"))
+    assert parsed.scheme == "https"
+    assert parsed.hostname == "crt.sh"
+    assert parsed.path == "/"
+    assert parse_qs(parsed.query) == {"q": ["%.example.org"], "output": ["json"]}
+
+
+def test_redirect_handler_refuses_redirects():
+    handler = NoRedirect()
+    with pytest.raises(HTTPError):
+        handler.redirect_request(None, None, 302, "Found", {}, "https://attacker.invalid/")
+
+
+def test_ct_fetch_rejects_oversized_and_malformed_responses():
+    class Response:
+        status = 200
+        def __init__(self, payload):
+            self.payload = payload
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def read(self, size=-1):
+            return self.payload[:size]
+    class Opener:
+        def __init__(self, payload):
+            self.response = Response(payload)
+        def open(self, request, timeout):
+            assert timeout == 12
+            assert request.full_url.startswith("https://crt.sh/")
+            return self.response
+    with pytest.raises(ValueError, match="exceeds 2 MiB"):
+        fetch_ct_rows("example.org", opener=Opener(b" " * (2 * 1024 * 1024 + 1)))
+    with pytest.raises(ValueError, match="invalid JSON"):
+        fetch_ct_rows("example.org", opener=Opener(b"not-json"))

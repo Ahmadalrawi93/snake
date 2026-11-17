@@ -53,7 +53,7 @@ def validate_task_request(raw: bytes, *, backend_public_key: str,
     ).model_dump_json().encode("utf-8")
 
 
-class _ThreadingHTTPServer(ThreadingMixIn, ThreadingHTTPServer):
+class _ThreadingHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = False
     request_slots = BoundedSemaphore(16)

@@ -313,14 +313,15 @@ def test_worker_response_rejects_payload_over_transport_limit():
     # before it can be emitted over the fixed-size HTTPS response channel.
     from app.schemas.worker_results import WorkerObservation, WorkerObservationBatch, SignedWorkerObservationBatch
     from app.core.worker_observation_signing import sign_worker_observation_batch
+    observed_at = datetime.now(timezone.utc)
     batch = WorkerObservationBatch(
         task_id=uuid4(), envelope_sha256="b" * 64, worker_id="worker-1",
-        key_id="key-1", collected_at=datetime.now(timezone.utc),
+        key_id="key-1", collected_at=observed_at + timedelta(seconds=1),
         observations=[
             WorkerObservation(
                 observation_id=uuid4(), kind="technology", value=f"tech-{i}",
                 evidence="x" * 8192, source="passive_feed",
-                observed_at=datetime.now(timezone.utc),
+                observed_at=observed_at,
             ) for i in range(10)
         ],
         execution_enabled=False,

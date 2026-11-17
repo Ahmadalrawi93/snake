@@ -34,6 +34,7 @@ class Authorization(Base):
     expires_at: Mapped[str | None] = mapped_column(String(40), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
     notes: Mapped[str] = mapped_column(Text, default="")
+    scope_rules: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     project: Mapped["Project"] = relationship(back_populates="authorizations")
 

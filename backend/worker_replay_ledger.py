@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 from typing import Callable
 
@@ -15,7 +16,9 @@ class WorkerReplayLedger:
         self.database_path = str(database_path)
         if self.database_path != ":memory:":
             Path(self.database_path).parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as db:
+        with closing(self._connect()) as db:
+            if self.database_path != ":memory:":
+                db.execute("PRAGMA journal_mode = WAL")
             db.execute("""
                 CREATE TABLE IF NOT EXISTS worker_task_ledger (
                     task_id TEXT PRIMARY KEY,
@@ -32,8 +35,6 @@ class WorkerReplayLedger:
         db = sqlite3.connect(self.database_path, timeout=10.0, isolation_level=None)
         db.execute("PRAGMA busy_timeout = 10000")
         db.execute("PRAGMA synchronous = FULL")
-        if self.database_path != ":memory:":
-            db.execute("PRAGMA journal_mode = WAL")
         return db
 
     def get_or_create(
@@ -42,7 +43,7 @@ class WorkerReplayLedger:
         validate_first_acceptance: Callable[[], None],
     ) -> tuple[bytes, bool]:
         """Return (ack bytes, was_duplicate); serialize competing deliveries."""
-        with self._connect() as db:
+        with closing(self._connect()) as db:
             db.execute("BEGIN IMMEDIATE")
             row = db.execute(
                 "SELECT envelope_sha256, worker_id, key_id, acknowledgement "

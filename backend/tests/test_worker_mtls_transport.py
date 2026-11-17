@@ -28,7 +28,7 @@ def test_pinned_connection_keeps_dns_name_for_tls_identity():
 
 def test_mtls_context_requires_both_client_credentials():
     with pytest.raises(ValueError, match="mTLS client certificate"):
-        _build_mtls_context("", "")
+        _build_mtls_context("", "", "")
 
 
 def test_response_limit_is_bounded():

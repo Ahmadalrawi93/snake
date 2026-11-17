@@ -61,7 +61,7 @@ def apply_investigation_learning(report: HypothesisRankingReport, memory):
     """Apply only a bounded human-review priority hint; never remove a hypothesis."""
     adjusted = []
     for item in report.items:
-        if item.strategy_id == memory.current_strategy_id and memory.priority_adjustment:
+        if (item.strategy_id == memory.current_strategy_id or item.duplicate_of_strategy_id == memory.current_strategy_id) and memory.priority_adjustment:
             score = max(0, min(100, item.rank_score + memory.priority_adjustment))
             factors = list(item.ranking_factors)
             factors.append("human_review_history_priority_adjustment:" + str(memory.priority_adjustment))

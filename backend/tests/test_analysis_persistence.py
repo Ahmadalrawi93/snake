@@ -177,3 +177,38 @@ def test_analysis_persistence_binds_only_targets_in_same_project(db):
             db, project_id=project.id, actor=owner, context=context,
             correlations=correlations, triage=triage, model="model", target_id=foreign_target.id,
         )
+
+
+def test_validation_strategy_is_redacted_and_keeps_only_context_evidence(db):
+    user = User(email="strategy-redact@example.test", password_hash="hash")
+    db.add(user)
+    db.flush()
+    project = Project(owner_id=user.id, name="strategy-redact")
+    db.add(project)
+    db.flush()
+    context, correlations, triage = setup_context()
+    business = build_business_logic_profile(context)
+    strategy = build_validation_strategy(
+        context, triage, business, build_cross_surface_profile(context, business),
+    )
+    item = strategy.items[0].model_copy(update={
+        "manual_review_actions": ["Review with password=do-not-store-this-secret"],
+    })
+    strategy = strategy.model_copy(update={"items": [item]})
+    record = persist_analysis_run(
+        db, project_id=project.id, actor=user, context=context,
+        correlations=correlations, triage=triage, model="model",
+        validation_strategy=strategy,
+    )
+    stored = json.loads(record.result_json)["validation_strategy"]
+    assert "do-not-store-this-secret" not in record.result_json
+    assert "[REDACTED]" in stored["items"][0]["manual_review_actions"][0]
+
+    foreign = item.model_copy(update={"supporting_observation_ids": [str(uuid4())]})
+    invalid_strategy = strategy.model_copy(update={"items": [foreign]})
+    with pytest.raises(ValueError, match="outside analysis context"):
+        persist_analysis_run(
+            db, project_id=project.id, actor=user, context=context,
+            correlations=correlations, triage=triage, model="model",
+            validation_strategy=invalid_strategy,
+        )

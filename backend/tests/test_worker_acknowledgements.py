@@ -137,3 +137,10 @@ def test_ack_rejects_expired_receipt(db):
 
 def test_ack_rejects_unknown_task(db):
     assert not accept(db, make_ack(uuid4()))
+
+
+def test_ack_rejects_receipt_bound_to_different_worker_key(db):
+    receipt, task_id = make_receipt(db)
+    receipt.worker_id = "different-worker"
+    db.commit()
+    assert not accept(db, make_ack(task_id))

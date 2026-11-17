@@ -585,7 +585,7 @@ def test_analysis_evaluation_api_is_owner_scoped_and_human_only():
 
 
 def test_human_finding_decisions_are_owner_scoped_and_append_only():
-    from app.db.models import AIAnalysisRun, HumanFindingDecision, Project
+    from app.db.models import AIAnalysisRun, FindingCandidateRecord, HumanFindingDecision, Project
 
     owner_headers = register_and_auth("finding-decision-owner@example.org")
     other_headers = register_and_auth("finding-decision-other@example.org")
@@ -603,6 +603,13 @@ def test_human_finding_decisions_are_owner_scoped_and_append_only():
             execution_enabled=False,
         )
         db.add(run)
+        db.flush()
+        db.add(FindingCandidateRecord(
+            analysis_run_id=run.id, project_id=project.id, created_by=project.owner_id,
+            candidate_fingerprint="a" * 64, qualification="human_review_candidate",
+            finding_status="unconfirmed", evidence_bundle_sha256="c" * 64,
+            evidence_bundle_json="{}", qualification_json="{}", execution_enabled=False,
+        ))
         db.commit()
         run_id = run.id
     finally:

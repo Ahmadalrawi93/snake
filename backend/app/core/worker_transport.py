@@ -13,19 +13,20 @@ def issue_signed_worker_task(
     job_id: int,
     *,
     secret: str,
+    worker_id: str,
+    key_id: str,
     now: datetime | None = None,
     ttl_seconds: int = 120,
 ) -> SignedWorkerTask:
-    """Revalidate scope, sign the envelope, then reserve the queued job exactly once.
+    """Revalidate scope, sign for one worker, then reserve the queued job exactly once.
 
-    The returned object is a message for a future authenticated transport. This
-    function does not send it, start a process, or perform any network operation.
+    The caller must select secret/key_id from a trusted per-worker secret source.
+    This function does not send the message, start a process, or perform network I/O.
     """
-    envelope = prepare_dispatch_envelope(
-        db, job_id, now=now, ttl_seconds=ttl_seconds
+    envelope = prepare_dispatch_envelope(db, job_id, now=now, ttl_seconds=ttl_seconds)
+    # Sign before reservation: invalid configuration must not strand the queued job.
+    signed = sign_worker_task(
+        envelope, secret, worker_id=worker_id, key_id=key_id
     )
-    # Validate the secret and construct the signed message before committing the
-    # one-shot reservation, so a misconfigured secret cannot strand a queued job.
-    signed = sign_worker_task(envelope, secret)
     reserve_task_receipt(db, envelope, now=now)
     return signed

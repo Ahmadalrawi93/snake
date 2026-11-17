@@ -210,3 +210,28 @@ python passive_feed_scheduler.py \\
   --history-db /var/lib/snake/asset-history.sqlite3 \\
   --provider ct --provider dnsdb
 ```
+
+
+## Passive asset prioritization
+
+The scheduler now writes a separate ranked report (default
+`OUTPUT.priority.json`; override with `--priority-report`). The worker feed
+remains unchanged and does not receive prioritization metadata. Scores are
+deterministic triage hints based on observation freshness, distinct passive
+source count, record kind, and the current snapshot's change events. The report
+includes a factor breakdown and a coarse low/medium/high label.
+
+Freshness uses the observation timestamp, not the provider fetch timestamp.
+Future or malformed timestamps receive no freshness bonus. Multiple records
+from the same source do not increase source diversity. Scores do not establish
+exploitability, asset ownership, reachability, severity, or authorization.
+Missing events reduce priority but do not mean that an asset is offline; they
+may reflect provider coverage or retention changes. Human review remains
+required.
+
+Example output paths:
+```text
+passive-feed.json
+passive-feed.json.history.sqlite3
+passive-feed.json.priority.json
+```

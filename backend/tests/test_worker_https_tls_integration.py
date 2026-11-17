@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import ssl
 import threading
 from datetime import datetime, timedelta, timezone
@@ -134,6 +135,11 @@ def live_mtls_worker(tmp_path):
             key_id="tls-key",
         ),
     )
+    server.expected_client_certificate_sha256 = hashlib.sha256(
+        x509.load_pem_x509_certificate(client_cert.read_bytes()).public_bytes(
+            serialization.Encoding.DER
+        )
+    ).hexdigest()
     server.socket = server_context.wrap_socket(server.socket, server_side=True)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()

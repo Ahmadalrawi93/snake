@@ -15,6 +15,8 @@ import ssl
 
 from pydantic import ValidationError
 
+from worker_replay_ledger import WorkerReplayLedger
+
 from app.core.worker_protocol import WorkerValidationResult, ensure_not_expired
 from app.core.worker_signing import (
     SignedWorkerTask,
@@ -69,8 +71,8 @@ def validate_http_task_headers(headers) -> tuple[int, int | None]:
 
 def validate_task_request(raw: bytes, *, backend_public_key: str,
                           worker_private_key: str, worker_id: str,
-                          key_id: str) -> bytes:
-    """Return a signed validation-only acknowledgement for one authenticated task."""
+                          key_id: str, replay_ledger: WorkerReplayLedger | None = None) -> bytes:
+    """Return a durable, signed validation-only acknowledgement."""
     if not raw or len(raw) > MAX_BODY_BYTES:
         raise ValueError("invalid task body size")
     signed = SignedWorkerTask.model_validate_json(raw)
@@ -79,18 +81,34 @@ def validate_task_request(raw: bytes, *, backend_public_key: str,
         expected_worker_id=worker_id, expected_key_id=key_id,
     ):
         raise ValueError("task_signature_or_worker_binding_invalid")
-    ensure_not_expired(signed.envelope)
-    result = WorkerValidationResult(
-        task_id=signed.envelope.task_id,
-        envelope_sha256=worker_task_digest(signed.envelope),
+    digest = worker_task_digest(signed.envelope)
+
+    def create_acknowledgement() -> bytes:
+        result = WorkerValidationResult(
+            task_id=signed.envelope.task_id,
+            envelope_sha256=digest,
+            worker_id=worker_id,
+            outcome="accepted",
+            validated_at=datetime.now(timezone.utc),
+            execution_enabled=False,
+        )
+        return sign_worker_validation_result(
+            result, worker_private_key, key_id=key_id
+        ).model_dump_json().encode("utf-8")
+
+    if replay_ledger is None:
+        ensure_not_expired(signed.envelope)
+        return create_acknowledgement()
+
+    acknowledgement, _duplicate = replay_ledger.get_or_create(
+        task_id=str(signed.envelope.task_id),
+        envelope_sha256=digest,
         worker_id=worker_id,
-        outcome="accepted",
-        validated_at=datetime.now(timezone.utc),
-        execution_enabled=False,
+        key_id=key_id,
+        create_acknowledgement=create_acknowledgement,
+        validate_first_acceptance=lambda: ensure_not_expired(signed.envelope),
     )
-    return sign_worker_validation_result(
-        result, worker_private_key, key_id=key_id
-    ).model_dump_json().encode("utf-8")
+    return acknowledgement
 
 
 class _ThreadingHTTPServer(ThreadingHTTPServer):
@@ -132,7 +150,8 @@ class _ThreadingHTTPServer(ThreadingHTTPServer):
 
 
 def build_handler(*, backend_public_key: str, worker_private_key: str,
-                  worker_id: str, key_id: str):
+                  worker_id: str, key_id: str,
+                  replay_ledger: WorkerReplayLedger | None = None):
     class Handler(BaseHTTPRequestHandler):
         server_version = "SNAKE-Worker"
         sys_version = ""
@@ -186,6 +205,7 @@ def build_handler(*, backend_public_key: str, worker_private_key: str,
                     worker_private_key=worker_private_key,
                     worker_id=worker_id,
                     key_id=key_id,
+                    replay_ledger=replay_ledger,
                 )
             except (ValidationError, ValueError):
                 self._send(400, b'{"error":"task_rejected"}')
@@ -209,6 +229,8 @@ def serve() -> None:
     worker_private = os.environ["SNAKE_WORKER_ED25519_PRIVATE_KEY_B64"]
     worker_id = os.environ["SNAKE_WORKER_ID"]
     key_id = os.environ["SNAKE_WORKER_KEY_ID"]
+    ledger_path = os.environ["SNAKE_WORKER_REPLAY_DB_PATH"]
+    replay_ledger = WorkerReplayLedger(ledger_path)
     host = os.environ.get("SNAKE_WORKER_BIND_HOST", "0.0.0.0")
     port = int(os.environ.get("SNAKE_WORKER_BIND_PORT", "8443"))
     if not 1 <= port <= 65535:
@@ -219,6 +241,7 @@ def serve() -> None:
         worker_private_key=worker_private,
         worker_id=worker_id,
         key_id=key_id,
+        replay_ledger=replay_ledger,
     ))
     context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
     context.minimum_version = ssl.TLSVersion.TLSv1_2

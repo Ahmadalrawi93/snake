@@ -12,7 +12,8 @@ AI-assisted security assessment platform for **authorized** bug bounty work.
 - Strict worker task envelope with a fixed passive profile, expiry, and no arbitrary commands.
 - Validation-only Docker worker: non-root, read-only, resource-limited, and network-isolated.
 - Ed25519 asymmetric authentication: backend signs tasks; each worker signs acknowledgements with its own keypair.
-- Internal issuance revalidates scope and reserves jobs once; acknowledgement verification binds the worker key and durable receipt.
+- Admin-only worker public-key registry with duplicate-key protection, fingerprinting, audit events, and one-way revocation.
+- Internal issuance revalidates scope and reserves jobs once; acknowledgement verification resolves the active worker key from the registry and consumes the durable receipt once.
 - No worker transport, queue consumer, or scan execution.
 
 ## Local setup
@@ -29,9 +30,11 @@ uvicorn app.main:app --reload
 ## Security boundary
 
 The backend private signing key must never leave the backend. A worker receives
-only the backend public key and its own private key; the backend receives that
-worker's public key. Never reuse a worker keypair across workers. Key provisioning,
-revocation, and rotation are not automated yet.
+only the backend public key and its own private key. The backend stores the
+worker's public key in the database registry; private keys are never stored there.
+Administrators can register, list, and revoke worker public keys through the
+admin API. Replacing a key requires a new key ID and keypair. KMS-backed storage,
+automated provisioning, and automated rotation are not implemented.
 
 The validator reads one signed message from stdin and emits a signed validation
 acknowledgement. It has no network, database receipt access, queue consumer, or

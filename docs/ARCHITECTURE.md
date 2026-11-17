@@ -9,23 +9,24 @@
 - Isolated workers for scanner adapters; local Kali worker and optional cloud worker.
 - Model router selects providers by task, quality, latency, and budget.
 
-## Current Phase 2 implementation
-- FastAPI routes for project creation/listing.
-- Authorization evidence records with a `pending` state.
-- Target registration/listing; registration does not initiate network activity.
-- SQLite persistence for local development.
-- Audit events for project, authorization-record, and target creation.
-- Existing hostname allowlist check.
+## Current implementation
+- FastAPI project and target registry with SQLite persistence.
+- Argon2 password hashing and JWT bearer authentication.
+- Project ownership checked on project, authorization, and target operations.
+- User-scoped audit event listing.
+- Alembic migration for adding user and ownership data to existing local databases.
+- Hostname allowlist check; no active network scanner.
 
 ## Trust boundaries and limitations
-1. Authorization is an explicit record, never inferred by an LLM. Current records are pending and are not yet independently verified.
-2. Scope policy is deterministic. Current hostname allowlist is configuration-based and is not yet bound to a reviewed authorization record.
-3. Redirect destinations and resolved IPs must be checked before any future network access.
-4. Worker egress must be restricted; model-generated strings must never be executed as shell commands.
-5. Intrusive, destructive, or state-changing actions require human approval.
-6. Evidence and decisions must be audited with tamper-resistant retention.
-7. Secrets stay outside prompts and source control.
-8. The current API has no authentication or tenant isolation and must remain local/private.
+1. Authorization records are evidence placeholders and remain pending; they are not independent proof of permission.
+2. Each project belongs to one authenticated user. There is no team sharing or admin role workflow yet.
+3. Registration is public and currently lacks email verification and throttling.
+4. JWT access tokens expire; refresh and server-side revocation are not implemented.
+5. Scope policy is deterministic but is not yet bound to a reviewed authorization record.
+6. Redirect destinations and resolved IPs must be checked before any future network access.
+7. Worker egress must be restricted; model-generated strings must never be executed as shell commands.
+8. Intrusive, destructive, or state-changing actions require human approval.
+9. The API must remain private until rate limiting, operational monitoring, and additional hardening are complete.
 
 ## Not implemented
-Production authentication, role-based access, authorization approval workflow, database migrations, immutable scope snapshots, rate limiting, scanner, agents, queue, worker isolation, and production deployment.
+Multi-factor authentication, verified-email flow, password reset, role-based administration, refresh/revocation, PostgreSQL deployment, Redis queue, immutable scope snapshots, scanner, agents, worker isolation, and production deployment hardening.

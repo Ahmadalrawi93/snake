@@ -636,3 +636,10 @@ def test_human_finding_decisions_are_owner_scoped_and_append_only():
     assert len(listed.json()) == 1
     assert listed.json()[0]["outcome"] == "confirmed"
 
+    audit = client.get("/api/v1/audit", headers=owner_headers)
+    assert audit.status_code == 200
+    assert any(
+        item["action"] == "human_finding_decision.recorded"
+        for item in audit.json()
+    )
+

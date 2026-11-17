@@ -46,7 +46,7 @@ def make_task():
         task_id=uuid4(), job_id=10, scope_snapshot_id=20,
         scope_snapshot_sha256="a" * 64, profile="passive_recon",
         target_url="https://example.com/", issued_at=now,
-        expires_at=now + timedelta(minutes=2), execution_enabled=False,
+        expires_at=now + timedelta(minutes=2), approved_scope_rules=["example.com"], execution_enabled=False,
     )
 
 
@@ -329,3 +329,57 @@ def test_worker_response_rejects_payload_over_transport_limit():
     signed_batch = sign_worker_observation_batch(batch, private)
     with pytest.raises(ValueError, match="64 KiB"):
         WorkerTaskResponse(acknowledgement=ack, observation_batch=signed_batch)
+
+
+def test_worker_https_emits_signed_scope_filtered_passive_batch(tmp_path):
+    backend_private, backend_public = keypair()
+    worker_private, worker_public = keypair()
+    task = sign_worker_task(make_task(), backend_private, worker_id="worker-1", key_id="key-1")
+    observed_at = datetime.now(timezone.utc) - timedelta(seconds=2)
+    feed = tmp_path / "passive-feed.json"
+    feed.write_text(json.dumps([
+        {"hostname": "api.example.com", "kind": "hostname", "value": "api.example.com",
+         "evidence": "CT observation", "source": "ct_log", "observed_at": observed_at.isoformat()},
+        {"hostname": "outside.invalid", "kind": "hostname", "value": "outside.invalid",
+         "evidence": "out of scope", "source": "ct_log", "observed_at": observed_at.isoformat()},
+    ]))
+    feed.chmod(0o600)
+    raw = validate_task_request(
+        task.model_dump_json().encode(), backend_public_key=backend_public,
+        worker_private_key=worker_private, worker_id="worker-1", key_id="key-1",
+        passive_feed_path=str(feed),
+    )
+    response = WorkerTaskResponse.model_validate_json(raw)
+    assert response.acknowledgement.result.outcome == "accepted"
+    assert response.observation_batch is not None
+    assert len(response.observation_batch.batch.observations) == 1
+    assert response.observation_batch.batch.observations[0].value == "api.example.com"
+    from app.core.worker_observation_signing import verify_worker_observation_batch
+    assert verify_worker_observation_batch(response.observation_batch, worker_public)
+
+
+def test_worker_replay_ledger_replays_exact_passive_batch_response(tmp_path):
+    backend_private, backend_public = keypair()
+    worker_private, _ = keypair()
+    task = sign_worker_task(make_task(), backend_private, worker_id="worker-1", key_id="key-1")
+    observed_at = datetime.now(timezone.utc) - timedelta(seconds=2)
+    feed = tmp_path / "feed.json"
+    feed.write_text(json.dumps([{
+        "hostname": "api.example.com", "kind": "hostname", "value": "api.example.com",
+        "evidence": "CT", "source": "ct_log", "observed_at": observed_at.isoformat(),
+    }]))
+    feed.chmod(0o600)
+    ledger = WorkerReplayLedger(tmp_path / "replay.sqlite3")
+    first = validate_task_request(
+        task.model_dump_json().encode(), backend_public_key=backend_public,
+        worker_private_key=worker_private, worker_id="worker-1", key_id="key-1",
+        replay_ledger=ledger, passive_feed_path=str(feed),
+    )
+    feed.write_text("[]")
+    feed.chmod(0o600)
+    second = validate_task_request(
+        task.model_dump_json().encode(), backend_public_key=backend_public,
+        worker_private_key=worker_private, worker_id="worker-1", key_id="key-1",
+        replay_ledger=ledger, passive_feed_path=str(feed),
+    )
+    assert second == first

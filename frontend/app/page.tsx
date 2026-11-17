@@ -75,6 +75,8 @@ export default function Home() {
     setSelectedProjectId(projectId);
     setTargets([]);
     setAuthorizations([]);
+    setSnapshots([]);
+    setSnapshotValidity({});
     setError("");
     try {
       await loadProjectResources(projectId);
@@ -209,7 +211,7 @@ export default function Home() {
       setProjects(current => [created, ...current]);
       setProjectName(""); setProjectDescription("");
       setSelectedProjectId(created.id);
-      setTargets([]); setAuthorizations([]);
+      setTargets([]); setAuthorizations([]); setSnapshots([]); setSnapshotValidity({});
       setMessage("Project created.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create project");
@@ -284,7 +286,7 @@ export default function Home() {
 
             {selectedProjectId !== null && (
               <section className="project-detail">
-                <div className="section-heading"><div><p className="eyebrow">PROJECT #{selectedProjectId}</p><h2>Scope & authorization records</h2></div><button className="text-button" onClick={() => { setSelectedProjectId(null); setTargets([]); setAuthorizations([]); }}>CLOSE WORKSPACE</button></div>
+                <div className="section-heading"><div><p className="eyebrow">PROJECT #{selectedProjectId}</p><h2>Scope & authorization records</h2></div><button className="text-button" onClick={() => { setSelectedProjectId(null); setTargets([]); setAuthorizations([]); setSnapshots([]); setSnapshotValidity({}); }}>CLOSE WORKSPACE</button></div>
                 <div className="project-layout">
                   <form onSubmit={createAuthorization} className="project-form">
                     <h3>Record authorization reference</h3>

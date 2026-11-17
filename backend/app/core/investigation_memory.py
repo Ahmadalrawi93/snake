@@ -2,13 +2,15 @@
 import hashlib
 import json
 import re
+import unicodedata
 from sqlalchemy.orm import Session
 from app.db.models import AIAnalysisRun, HumanFindingDecision, InvestigationMemoryRecord, Project, User
 from app.schemas.validation_strategy import ValidationStrategyItem
 from app.schemas.investigation_memory import InvestigationMemoryReport, PriorInvestigationMatch
 
 def _normalize(value: str) -> str:
-    return " ".join(re.sub(r"[^a-z0-9]+", " ", value.casefold()).split())
+    normalized = unicodedata.normalize("NFKC", value).casefold()
+    return " ".join("".join(char if char.isalnum() else " " for char in normalized).split())
 
 def hypothesis_fingerprint(strategy: ValidationStrategyItem) -> str:
     raw = strategy.category + "\0" + _normalize(strategy.hypothesis)

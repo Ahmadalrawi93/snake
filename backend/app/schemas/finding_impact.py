@@ -38,6 +38,7 @@ class FindingImpactAssessment(BaseModel):
 
     assessment_status: Literal[
         "no_structured_impact_claims",
+        "no_impact_demonstrated",
         "potential_impact_only",
         "documented_not_independently_verified",
         "insufficient_or_conflicting_evidence",

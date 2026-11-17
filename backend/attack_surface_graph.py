@@ -5,6 +5,8 @@ import hashlib
 from typing import Any
 from urllib.parse import urlsplit
 
+from app.core.scope_policy import host_matches, normalize_host
+
 MAX_RECORDS = 500
 MAX_NODES = 1500
 MAX_EDGES = 3000
@@ -12,21 +14,19 @@ API_PREFIXES = {"api", "graphql", "v1", "v2", "v3", "rest", "swagger", "openapi"
 
 
 def _id(kind: str, value: str) -> str:
-    digest = hashlib.sha256((kind + "\\0" + value).encode("utf-8")).hexdigest()[:24]
-    return f"{kind}:{digest}"
-
-
-def _scope_for(host: str, rules: list[str]) -> str | None:
+    digest = hashlib.sha256((kind + "\\0" + value).endef _scope_for(host: str, rules: list[str]) -> str | None:
+    """Use the same exact/wildcard semantics as the authorization scope policy."""
     matches = []
     for rule in rules:
         if not isinstance(rule, str):
             continue
-        wildcard = rule.startswith("*.")
-        base = rule[2:] if wildcard else rule
-        if host == base and not wildcard:
-            matches.append(rule)
-        elif host.endswith("." + base):
-            matches.append(rule)
+        try:
+            if host_matches(host, rule):
+                matches.append(rule)
+        except ValueError:
+            continue
+    return min(matches, key=len) if matches else None
+end(rule)
     return min(matches, key=len) if matches else None
 
 
@@ -72,11 +72,15 @@ def build_attack_surface_graph(
             continue
         if len(host) > 253 or len(value) > 4096 or len(source) > 100:
             continue
-        scope = _scope_for(host.lower().rstrip("."), scope_rules)
+        try:
+            canonical_host = normalize_host(host)
+        except ValueError:
+            continue
+        scope = _scope_for(canonical_host, scope_rules)
         if scope is None:
             continue
         evidence = {"source": source, "observed_at": observed}
-        host_id = add_node("hostname", host.lower().rstrip("."))
+        host_id = add_node("hostname", canonical_host)
         scope_id = add_node("scope_rule", scope)
         add_edge(host_id, scope_id, "matches_approved_scope_rule", evidence)
 

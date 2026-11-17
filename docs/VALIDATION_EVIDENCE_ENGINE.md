@@ -130,3 +130,8 @@ The workflow reasoning engine groups already-verified, in-scope URL observations
 ## Authorization Boundary Reasoning
 
 The authorization-boundary engine groups passive URL observations by host and recognized resource, then identifies coexisting privileged, ordinary, object-reference, and role/permission route surfaces. It emits manual review questions about server-side authentication, role enforcement, tenant isolation, object ownership, self-escalation, and alternate API versions. These are route-derived review leads only: path names do not establish effective roles, authentication requirements, object ownership, or missing access controls. Every report remains unconfirmed and execution-disabled, and links to original observation IDs.
+
+
+## Multi-Tenant Isolation Reasoning
+
+The tenant-isolation engine groups passive route observations by host and resource, then highlights coexistence of explicit tenant paths (for example organization, workspace, or tenant routes) with unscoped resource paths, multiple tenant-context markers, and tenant-scoped object references. It produces manual review questions covering session-derived tenant identity, cross-tenant object access, tenant filters across query surfaces, nested references, caches, storage, webhooks, and asynchronous jobs. This is not proof of a tenant boundary or a vulnerability: passive paths cannot establish authenticated identity, data ownership, or server-side enforcement. Reports remain unconfirmed and execution-disabled.

@@ -152,6 +152,7 @@ def test_duplicate_persisted_observation_id_rejects_second_batch(db):
     )
     first = sign_worker_observation_batch(make_batch(observations=[observation]), PRIVATE)
     assert store_worker_observation_batch(db, first, now=NOW) == 1
+    db.commit()  # Persist the first batch before testing a conflicting transaction.
     second_observation = observation.model_copy(update={"value": "two.example.test"})
     second = sign_worker_observation_batch(make_batch(observations=[second_observation]), PRIVATE)
     with pytest.raises(ValueError, match="duplicate"):

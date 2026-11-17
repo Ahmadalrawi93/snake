@@ -16,9 +16,12 @@ from typing import Callable
 from sqlalchemy.orm import Session
 
 from app.core.network_policy import Resolver
+from app.core.worker_acknowledgements import accept_worker_acknowledgement
 from app.core.worker_dispatch_attempts import begin_dispatch_attempt, finish_dispatch_attempt
 from app.core.worker_endpoint_resolution import resolve_registered_worker_endpoint
-from app.core.worker_signing import SignedWorkerTask, worker_task_digest
+from app.core.worker_signing import (
+    SignedWorkerTask, SignedWorkerValidationResult, worker_task_digest,
+)
 from app.db.models import WorkerEndpoint, WorkerKey, WorkerTaskReceipt
 
 
@@ -61,9 +64,12 @@ class _PinnedHTTPSConnection(http.client.HTTPSConnection):
             raise
 
 
-def _build_mtls_context(client_certificate_path: str, client_private_key_path: str) -> ssl.SSLContext:
-    if not client_certificate_path or not client_private_key_path:
-        raise ValueError("mTLS client certificate and private key paths are required")
+def _build_mtls_context(
+    client_certificate_path: str, client_private_key_path: str,
+    ca_certificate_path: str,
+) -> ssl.SSLContext:
+    if not client_certificate_path or not client_private_key_path or not ca_certificate_path:
+        raise ValueError("mTLS client certificate, private key, and CA certificate paths are required")
     context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.check_hostname = True
@@ -72,6 +78,7 @@ def _build_mtls_context(client_certificate_path: str, client_private_key_path: s
         certfile=client_certificate_path,
         keyfile=client_private_key_path,
     )
+    context.load_verify_locations(cafile=ca_certificate_path)
     return context
 
 
@@ -82,6 +89,7 @@ def deliver_signed_worker_task(
     resolver: Resolver,
     client_certificate_path: str,
     client_private_key_path: str,
+    ca_certificate_path: str,
     now: datetime | None = None,
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
     max_response_bytes: int = MAX_RESPONSE_BYTES,
@@ -122,7 +130,7 @@ def deliver_signed_worker_task(
     # Validate local mTLS material and construct the connection object before
     # reserving an attempt. The constructor performs no network I/O.
     context = _build_mtls_context(
-        client_certificate_path, client_private_key_path
+        client_certificate_path, client_private_key_path, ca_certificate_path
     )
     address = destination.addresses[0]
     connection = connection_factory(
@@ -191,20 +199,30 @@ def deliver_signed_worker_task(
             )
             raise WorkerTransportError(f"worker_http_status_{response.status}")
         try:
-            response_json = json.loads(payload or b"{}")
-        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            signed_ack = SignedWorkerValidationResult.model_validate_json(payload)
+        except Exception as exc:
             finish_dispatch_attempt(
-                db, attempt.id, "unknown", error_code="invalid_response_json", now=now
+                db, attempt.id, "unknown", error_code="invalid_signed_acknowledgement", now=now
             )
-            raise WorkerTransportError("worker_response_is_not_valid_json") from exc
+            raise WorkerTransportError("worker_response_is_not_a_valid_signed_acknowledgement") from exc
+        accepted = accept_worker_acknowledgement(
+            db, signed_ack,
+            expected_worker_id=worker_id,
+            expected_key_id=key_id,
+            now=now,
+        )
+        if not accepted:
+            finish_dispatch_attempt(
+                db, attempt.id, "unknown", error_code="acknowledgement_rejected", now=now
+            )
+            raise WorkerTransportError("worker_acknowledgement_verification_failed")
         finish_dispatch_attempt(db, attempt.id, "delivered", now=now)
         return {
-            "task_id": signed_task.envelope.task_id,
+            "task_id": str(signed_task.envelope.task_id),
             "worker_id": worker_id,
             "attempt_id": attempt.id,
             "http_status": response.status,
-            "response": response_json,
-            "note": "Delivery acknowledged by HTTP status only; signed worker result validation is a separate step.",
+            "acknowledgement": signed_ack.model_dump(mode="json"),
         }
     except Exception as exc:
         # A failure before a request is attempted is definite; after transmission

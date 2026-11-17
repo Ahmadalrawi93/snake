@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass
 from sqlalchemy.orm import Session
 from app.core.deepseek_analysis import AnalysisExecutionResult, analyze_observations_with_metadata
-from app.core.analysis_provenance import build_persisted_analysis_input, bind_analysis_run_provenance
+from app.core.analysis_provenance import (build_persisted_analysis_input, bind_analysis_run_provenance, load_verified_analysis_run_context)
 from app.core.analysis_persistence import persist_analysis_execution
 from app.core.validation_evidence import assess_validation_evidence
 from app.core.finding_qualification import qualify_finding_candidate
@@ -74,6 +74,10 @@ def qualify_and_persist_candidate(
         raise LookupError("analysis run not found")
     if _digest(context.model_dump(mode="json")) != run.context_sha256:
         raise ValueError("supplied analysis context does not match persisted run digest")
+    if run.provenance_sha256 is None or run.source_observation_count < 1 or run.target_id is None:
+        raise ValueError("analysis run lacks verified worker observation provenance")
+    verified_context, _verified_correlations = load_verified_analysis_run_context(db, run=run)
+    context = verified_context
     result = json.loads(run.result_json)
     raw_plan = result.get("validation_strategy")
     if not isinstance(raw_plan, dict):

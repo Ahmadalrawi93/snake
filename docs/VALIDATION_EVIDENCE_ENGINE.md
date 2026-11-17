@@ -33,5 +33,7 @@ severity. Contradictory evidence is counted and remains a blocker in the
 existing qualification workflow.
 
 The candidate orchestration result now includes this coverage assessment
-alongside the existing validation evidence assessment and qualification. No
-automated testing or finding confirmation is triggered.
+alongside the existing validation evidence assessment and qualification. The
+coverage function cross-checks evidence IDs, observation IDs, and relationship
+counts against the exact bundle rather than trusting detached assessment
+summaries. No automated testing or finding confirmation is triggered.

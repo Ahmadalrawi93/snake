@@ -45,7 +45,7 @@ def make_envelope(job_id=41):
 def test_reservation_is_atomic_and_durable(db):
     job = make_job(db)
     envelope = make_envelope()
-    receipt = reserve_task_receipt(db, envelope)
+    receipt = reserve_task_receipt(db, envelope, worker_id="worker-test", key_id="key-test")
     db.refresh(job)
     assert job.status == "dispatch_reserved"
     assert receipt.task_id == str(envelope.task_id)
@@ -54,7 +54,7 @@ def test_reservation_is_atomic_and_durable(db):
 
 def test_job_cannot_be_reserved_twice_even_with_new_task_id(db):
     make_job(db)
-    reserve_task_receipt(db, make_envelope())
+    reserve_task_receipt(db, make_envelope(), worker_id="worker-test", key_id="key-test")
     with pytest.raises(ValueError, match="no longer eligible"):
         reserve_task_receipt(db, make_envelope())
 
@@ -62,7 +62,7 @@ def test_job_cannot_be_reserved_twice_even_with_new_task_id(db):
 def test_task_receipt_can_be_consumed_only_once(db):
     make_job(db)
     envelope = make_envelope()
-    reserve_task_receipt(db, envelope)
+    reserve_task_receipt(db, envelope, worker_id="worker-test", key_id="key-test")
     digest = envelope_digest(envelope)
     assert consume_task_receipt(db, str(envelope.task_id), digest)
     assert not consume_task_receipt(db, str(envelope.task_id), digest)
@@ -71,7 +71,7 @@ def test_task_receipt_can_be_consumed_only_once(db):
 def test_receipt_rejects_wrong_digest_and_expired_task(db):
     make_job(db)
     envelope = make_envelope()
-    reserve_task_receipt(db, envelope)
+    reserve_task_receipt(db, envelope, worker_id="worker-test", key_id="key-test")
     assert not consume_task_receipt(db, str(envelope.task_id), "0" * 64)
     future = datetime.now(timezone.utc) + timedelta(minutes=5)
     assert not consume_task_receipt(db, str(envelope.task_id), envelope_digest(envelope), now=future)
@@ -81,4 +81,4 @@ def test_reservation_rejects_expired_envelope(db):
     make_job(db)
     envelope = make_envelope()
     with pytest.raises(ValueError, match="expired"):
-        reserve_task_receipt(db, envelope, now=envelope.expires_at + timedelta(seconds=1))
+        reserve_task_receipt(db, envelope, worker_id="worker-test", key_id="key-test", now=envelope.expires_at + timedelta(seconds=1))

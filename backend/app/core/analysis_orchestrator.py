@@ -102,11 +102,12 @@ def qualify_and_persist_candidate(
             FindingCandidateRecord.analysis_run_id != run.id,
         ).all()
     ]
-    qualification = qualify_finding_candidate(
-        strategy, bundle, assessment, prior_candidate_fingerprints=prior,
-    )
     evidence_coverage = assess_evidence_coverage(bundle, assessment)
     evidence_gaps = build_evidence_gap_report(strategy, bundle, assessment)
+    qualification = qualify_finding_candidate(
+        strategy, bundle, assessment, prior_candidate_fingerprints=prior,
+        evidence_gaps=evidence_gaps,
+    )
     candidate = None
     if qualification.qualification == "human_review_candidate":
         candidate = persist_finding_candidate(

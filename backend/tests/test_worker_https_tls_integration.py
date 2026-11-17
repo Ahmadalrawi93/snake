@@ -40,6 +40,20 @@ def _issue_cert(*, subject_name, issuer_name, issuer_key, public_key,
         .not_valid_after(now + timedelta(days=2))
         .add_extension(x509.BasicConstraints(ca=is_ca, path_length=1 if is_ca else None), critical=True)
         .add_extension(
+            x509.KeyUsage(
+                digital_signature=not is_ca,
+                content_commitment=False,
+                key_encipherment=not is_ca,
+                data_encipherment=False,
+                key_agreement=False,
+                key_cert_sign=is_ca,
+                crl_sign=is_ca,
+                encipher_only=False,
+                decipher_only=False,
+            ),
+            critical=True,
+        )
+        .add_extension(
             x509.SubjectKeyIdentifier.from_public_key(public_key), critical=False
         )
         .add_extension(

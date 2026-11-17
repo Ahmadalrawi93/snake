@@ -53,7 +53,9 @@ def assess_finding_impact(
     if qualification.finding_status != "unconfirmed" or qualification.execution_enabled:
         raise ValueError("candidate must remain unconfirmed and non-executable")
     if bundle.strategy_id != assessment.strategy_id:
-        raise ValueError("qualification, bundle, and assessment do not match")
+        raise ValueError("evidence bundle and assessment strategy do not match")
+    if qualification.impact_quality != assessment.impact_status:
+        raise ValueError("qualification impact status does not match evidence assessment")
     if bundle.analysis_context_sha256 == "" or assessment.evidence_status not in {"consistent", "mixed", "insufficient"}:
         raise ValueError("invalid evidence assessment")
     evidence_ids = {str(item.evidence_id) for item in bundle.items}
@@ -130,8 +132,15 @@ def assess_finding_impact(
         status = "potential_impact_only"
         severity = "not_assessed"
         rationale.append("Potential impact is not treated as demonstrated impact.")
+    elif not accepted:
+        status = "no_structured_impact_claims"
+        severity = "not_assessed"
+    elif all(claim.level == "none" for claim in accepted):
+        status = "no_impact_demonstrated"
+        severity = "not_assessed"
+        rationale.append("The structured claims explicitly record no security impact.")
     else:
-        status = "no_structured_impact_claims" if not accepted else "potential_impact_only"
+        status = "potential_impact_only"
         severity = "not_assessed"
 
     if severity != "not_assessed":

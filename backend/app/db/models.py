@@ -148,3 +148,23 @@ class WorkerDispatchAttempt(Base):
     error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+
+class WorkerEndpoint(Base):
+    """Admin-provisioned HTTPS endpoint pinned to a worker TLS certificate."""
+    __tablename__ = "worker_endpoints"
+    __table_args__ = (
+        UniqueConstraint("worker_id", name="uq_worker_endpoint_worker"),
+        CheckConstraint("status IN ('active', 'revoked')", name="ck_worker_endpoint_status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    worker_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    base_url: Mapped[str] = mapped_column(String(512), nullable=False)
+    tls_server_name: Mapped[str] = mapped_column(String(253), nullable=False)
+    certificate_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active", index=True)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

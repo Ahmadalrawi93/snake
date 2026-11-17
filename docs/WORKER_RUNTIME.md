@@ -9,16 +9,18 @@ Compose service is an authenticated, deliberately non-executing protocol prototy
   Ed25519 signature using a public key, validates worker/key binding and expiry,
   then emits a signed validation-only acknowledgement.
 - The worker signs acknowledgements using its own Ed25519 private key. The backend
-  verifies with the corresponding public key. The worker never receives the
-  backend private key.
+  verifies with the corresponding public key from the worker-key registry.
 - It has no DB, network, queue consumer, scan adapter, Docker socket, or host mount.
 
 Provision a distinct keypair for every worker. Inject only the backend public key
 and that worker's private key into its runtime. Keep the backend private key in
-backend-only secret storage; configure the worker public key on the backend.
+backend-only secret storage. An administrator registers each worker public key
+through the admin API. Revocation is supported and one-way; a replacement key
+requires a new key ID. The registry stores public keys only, never private keys.
+
 Environment variables are for development, not a production secret-management
-solution. No key registry, KMS integration, automated provisioning, revocation,
-or rotation workflow exists yet.
+solution. KMS integration, automated provisioning, and automated key rotation
+are not implemented.
 
 Example build:
 ```sh

@@ -13,6 +13,21 @@ signature and worker/key binding, checks expiry, and emits a signed validation-o
 acknowledgement on stdout. The backend verifies acknowledgements against the active
 registered public key and consumes the durable receipt once.
 
+## Durable dispatch attempt ledger
+
+The backend now has an internal attempt state machine backed by
+`worker_dispatch_attempts`. An attempt is committed as `started` before any
+future network I/O. It can close as `delivered`, `failed`, or `unknown`.
+Only a definite `failed` outcome permits another attempt, and that retry reuses
+the same signed task ID and envelope. A timeout/ambiguous result becomes
+`unknown` and blocks automatic retry until reconciled. Worker key status,
+receipt digest, receipt expiry, and one-time consumption are checked before
+starting an attempt.
+
+This ledger is implemented as internal primitives only; no HTTP or socket
+transport calls them yet. Database concurrency behavior still requires testing
+on the intended production PostgreSQL deployment.
+
 ## Deliberately not connected yet
 
 There is currently **no network transport** between the API and a worker:

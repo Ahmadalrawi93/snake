@@ -71,3 +71,27 @@ The current endpoint is an administrator-submitted evidence path, not an
 automated worker-to-backend reconciliation channel. Production deployment still
 requires operator identity controls, rate limiting, alerting, tested PostgreSQL
 transaction behavior, and a secure way to retrieve acknowledgements from workers.
+
+
+## Exporting the original acknowledgement on the worker host
+
+The worker host can export the exact acknowledgement bytes already persisted in
+its local replay ledger. From the backend directory (or the equivalent deployed
+worker application path), run:
+
+```bash
+python export_worker_ack.py --task-id <task-uuid> > acknowledgement.json
+```
+
+The database path defaults to `SNAKE_WORKER_REPLAY_DB_PATH`; alternatively pass
+`--database /secure/path/worker-ledger.sqlite3`. The utility opens SQLite in
+read-only mode, requires a regular non-symlink database file with no group/other
+permissions, and writes the original acknowledgement bytes to stdout. It does
+not contact the backend, modify the ledger, or re-sign the result.
+
+Transfer `acknowledgement.json` to the backend administrator through an
+independently authenticated, access-controlled channel. Do not paste private
+keys, expose the SQLite file, or place the exported acknowledgement in public
+logs or tickets. Submit its JSON as the `acknowledgement` property in the
+administrator reconciliation request. The backend still performs all signature,
+key, receipt, timing, and unknown-attempt checks.

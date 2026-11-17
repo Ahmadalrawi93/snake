@@ -2,7 +2,7 @@ import base64
 import hashlib
 import json
 from datetime import datetime, timedelta, timezone
-from uuid import uuid4
+from uuid import uuid4, UUID
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -190,3 +190,62 @@ def test_revoked_worker_key_cannot_source_a_new_analysis(provenance_db):
     db.commit()
     with pytest.raises(ValueError, match="revoked for new analysis"):
         build_persisted_analysis_input(db, project_id=project.id, target_id=target.id, actor=user, now=now)
+
+
+def test_rejects_signed_observation_outside_approved_scope(provenance_db):
+    db, user, project, target, private, now = provenance_db
+    row = db.query(WorkerObservationRecord).one()
+    batch = WorkerObservationBatch(
+        task_id=UUID(row.task_id), envelope_sha256=row.envelope_sha256,
+        worker_id=row.worker_id, key_id=row.key_id,
+        collected_at=now - timedelta(seconds=5),
+        observations=[WorkerObservation(
+            observation_id=UUID(row.observation_id), kind="hostname",
+            value="outside.invalid", evidence="signed but outside scope",
+            source="passive_dns", observed_at=now - timedelta(seconds=8),
+        )],
+        execution_enabled=False,
+    )
+    signed = sign_worker_observation_batch(batch, private)
+    row.value = "outside.invalid"
+    row.evidence = "signed but outside scope"
+    row.batch_sha256 = observation_batch_digest(batch)
+    row.batch_signature = signed.signature
+    row.batch_payload_json = json.dumps(
+        batch.model_dump(mode="json"), sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
+    db.commit()
+    with pytest.raises(ValueError, match="outside approved target scope"):
+        build_persisted_analysis_input(
+            db, project_id=project.id, target_id=target.id, actor=user, now=now
+        )
+
+
+def test_rejects_ip_only_observation_without_hostname_scope_binding(provenance_db):
+    db, user, project, target, private, now = provenance_db
+    row = db.query(WorkerObservationRecord).one()
+    batch = WorkerObservationBatch(
+        task_id=UUID(row.task_id), envelope_sha256=row.envelope_sha256,
+        worker_id=row.worker_id, key_id=row.key_id,
+        collected_at=now - timedelta(seconds=5),
+        observations=[WorkerObservation(
+            observation_id=UUID(row.observation_id), kind="ip",
+            value="203.0.113.7", evidence="unbound IP",
+            source="passive_dns", observed_at=now - timedelta(seconds=8),
+        )],
+        execution_enabled=False,
+    )
+    signed = sign_worker_observation_batch(batch, private)
+    row.kind = "ip"
+    row.value = "203.0.113.7"
+    row.evidence = "unbound IP"
+    row.batch_sha256 = observation_batch_digest(batch)
+    row.batch_signature = signed.signature
+    row.batch_payload_json = json.dumps(
+        batch.model_dump(mode="json"), sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
+    db.commit()
+    with pytest.raises(ValueError, match="outside approved target scope"):
+        build_persisted_analysis_input(
+            db, project_id=project.id, target_id=target.id, actor=user, now=now
+        )

@@ -52,7 +52,7 @@ def assess_finding_impact(
         raise ValueError("impact assessment requires a human-review candidate")
     if qualification.finding_status != "unconfirmed" or qualification.execution_enabled:
         raise ValueError("candidate must remain unconfirmed and non-executable")
-    if bundle.strategy_id != assessment.strategy_id or bundle.strategy_id != qualification.category and False:
+    if bundle.strategy_id != assessment.strategy_id:
         raise ValueError("qualification, bundle, and assessment do not match")
     if bundle.analysis_context_sha256 == "" or assessment.evidence_status not in {"consistent", "mixed", "insufficient"}:
         raise ValueError("invalid evidence assessment")

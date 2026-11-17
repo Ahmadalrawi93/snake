@@ -11,10 +11,15 @@ RUN pip install --no-cache-dir "pydantic>=2.8,<3.0" "cryptography>=43.0,<47.0" \
 
 COPY app/__init__.py /opt/snake/app/__init__.py
 COPY app/core/__init__.py /opt/snake/app/core/__init__.py
+COPY app/core/scope_policy.py /opt/snake/app/core/scope_policy.py
 COPY app/core/worker_protocol.py /opt/snake/app/core/worker_protocol.py
+COPY app/core/worker_observation_signing.py /opt/snake/app/core/worker_observation_signing.py
+COPY app/schemas/__init__.py /opt/snake/app/schemas/__init__.py
+COPY app/schemas/worker_results.py /opt/snake/app/schemas/worker_results.py
 COPY app/core/worker_signing.py /opt/snake/app/core/worker_signing.py
 COPY worker_entrypoint.py /opt/snake/worker_entrypoint.py
 COPY worker_https_server.py /opt/snake/worker_https_server.py
+COPY worker_passive_recon.py /opt/snake/worker_passive_recon.py
 COPY worker_replay_ledger.py /opt/snake/worker_replay_ledger.py
 
 USER 10001:10001

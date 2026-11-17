@@ -69,7 +69,7 @@ class CandidatePipelineResult:
     authorization_test_cases: AuthorizationTestCaseReport
     qualification: FindingQualification
     report_draft: FindingReportDraft | None
-    impact_assessment: FindingImpactAssessment
+    impact_assessment: FindingImpactAssessment | None
     candidate: FindingCandidateRecord | None
 
 

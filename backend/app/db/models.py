@@ -94,6 +94,8 @@ class WorkerTaskReceipt(Base):
     task_id: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
     job_id: Mapped[int] = mapped_column(ForeignKey("scan_jobs.id"), unique=True, nullable=False)
     envelope_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    worker_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    key_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     acknowledgement_outcome: Mapped[str | None] = mapped_column(String(20), nullable=True)

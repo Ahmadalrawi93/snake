@@ -1,8 +1,8 @@
 # Worker runtime security boundary
 
 SNAKE does **not** have a scan worker or queue consumer yet. The opt-in
-`worker-validator` Compose service is a deliberately non-executing runtime
-prototype:
+`worker-validator` Compose service is an authenticated, deliberately
+non-executing protocol prototype:
 
 - It is disabled unless Compose is invoked with `--profile worker`.
 - It runs as UID/GID 10001, drops all Linux capabilities, enables
@@ -10,23 +10,30 @@ prototype:
   memory, CPU, PID count, and temporary storage.
 - `network_mode: none` disables container networking entirely. It has no
   published ports, Docker socket, host mounts, or application data volume.
-- It accepts a single JSON envelope on stdin (maximum 64 KiB), validates the
-  strict `WorkerTaskEnvelope`, checks expiry, emits a validation-only result,
-  and exits. It has no shell command field and performs no scan or network I/O.
+- It accepts one signed JSON task message on stdin (maximum 64 KiB), verifies
+  the HMAC using the dedicated `SNAKE_WORKER_SIGNING_SECRET`, checks expiry,
+  and emits a signed validation-only acknowledgement on stdout.
+- The acknowledgement binds the task ID and canonical envelope digest, identifies
+  the validator, and fixes `execution_enabled=false`. It cannot claim scan completion.
 
-Example build (no task execution):
+For local testing, set a dedicated random `SNAKE_WORKER_SIGNING_SECRET` of at
+least 32 characters and optionally `SNAKE_WORKER_ID`. Never reuse the JWT
+secret. The Compose variable is optional at configuration time, but the validator
+refuses to run without a valid secret. Environment variables are a development
+convenience, not a production secrets-management design.
+
+Example build:
 ```sh
 docker compose -f infrastructure/docker-compose.yml --profile worker build worker-validator
 ```
 
-To run the validator, pipe a JSON envelope to `docker compose ... run --rm -T
-worker-validator`. The envelope must be created by a trusted test harness.
-A successful response means only that the metadata parsed and was not expired;
-it is **not** proof of authorization and does not claim or execute a scan job.
+The validator is not connected to the backend database receipt ledger. It cannot
+consume a task receipt or independently prevent replay across invocations. It has
+no queue consumer, scan adapters, DNS resolution, or network I/O. A successful
+acknowledgement proves only that the signed metadata was valid and unexpired; it
+does not prove target authorization and does not execute a scan.
 
-Before introducing a real worker, SNAKE still needs authenticated internal
-transport, atomic job claiming, replay protection, independent scope and
-authorization revalidation at dispatch and immediately before each request,
-DNS/IP pinning, redirect-hop validation, and a default-deny egress firewall.
-The validator's `network_mode: none` is intentionally stricter than a future
-network-enabled scanner worker and must not be mistaken for that future design.
+Before introducing a real network-enabled worker, SNAKE still needs authenticated
+backend-to-worker transport, atomic receipt consumption integrated with dispatch,
+authorization/scope revalidation immediately before each request, socket-level
+DNS/IP pinning, redirect-hop enforcement, and a default-deny egress firewall.

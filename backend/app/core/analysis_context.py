@@ -4,7 +4,6 @@ No network access, URL fetching, model calls, or vulnerability confirmation occu
 """
 from collections import defaultdict
 from urllib.parse import urlsplit
-from uuid import UUID
 
 from app.schemas.analysis_context import (
     AnalysisContext, ContextObservation, ObservationGroup,
@@ -37,7 +36,7 @@ def build_analysis_context(
     if not 1 <= max_evidence_chars <= 8192:
         raise ValueError("invalid evidence character limit")
 
-    seen: set[tuple[str, str, str, str]] = set()
+    seen: dict[tuple[str, str, str, str], ContextObservation] = {}
     grouped: dict[str, list[ContextObservation]] = defaultdict(list)
     ungrouped: list[ContextObservation] = []
     unique: list[ContextObservation] = []
@@ -46,11 +45,11 @@ def build_analysis_context(
         evidence = item.evidence[:max_evidence_chars]
         key = (item.kind, item.value, evidence, item.source)
         if key in seen:
+            seen[key].observation_ids.append(str(item.observation_id))
             continue
-        seen.add(key)
         host_key = _host_key(item)
         record = ContextObservation(
-            observation_id=str(item.observation_id),
+            observation_ids=[str(item.observation_id)],
             kind=item.kind,
             value=item.value,
             evidence=evidence,
@@ -58,6 +57,7 @@ def build_analysis_context(
             host_key=host_key,
         )
         unique.append(record)
+        seen[key] = record
         if host_key:
             grouped[host_key].append(record)
         else:

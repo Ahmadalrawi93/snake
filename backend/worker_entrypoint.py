@@ -1,14 +1,13 @@
 """Authenticated stdin/stdout worker validator; it never executes scan tasks."""
-import json
 import os
 import sys
 from datetime import datetime, timezone
 
 from pydantic import ValidationError
 
-from app.core.worker_signing import worker_task_digest
 from app.core.worker_protocol import WorkerValidationResult, ensure_not_expired
 from app.core.worker_signing import (
+    worker_task_digest,
     SignedWorkerTask,
     sign_worker_validation_result,
     verify_worker_task,

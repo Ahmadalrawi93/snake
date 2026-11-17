@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.db.database import Base
-from app.db.models import AIAnalysisEvaluation, AIAnalysisRun, Project, User
+from app.db.models import AIAnalysisEvaluation, AIAnalysisRun, Project, Target, User
 from app.core.intelligence_feedback import build_intelligence_feedback_profile, _hypothesis_fingerprint
 
 
@@ -153,3 +153,50 @@ def test_multiple_reviewers_of_one_run_count_as_one_pattern_sample(db):
     assert profile.patterns[0].reviewed == 1
     assert profile.patterns[0].false_positive == 1
     assert profile.patterns[0].recommendation == "insufficient_evidence"
+
+
+
+def test_feedback_isolated_by_target_within_same_project(db):
+    owner = User(email="profile-target@example.test", password_hash="hash")
+    db.add(owner)
+    db.flush()
+    project = Project(owner_id=owner.id, name="multi-target")
+    db.add(project)
+    db.flush()
+    target_a = Target(project_id=project.id, value="https://a.example.test")
+    target_b = Target(project_id=project.id, value="https://b.example.test")
+    db.add_all([target_a, target_b])
+    db.flush()
+
+    for _ in range(3):
+        _add_run(db, project, owner, "false_positive", "Potential IDOR on /api/users/123")
+    target_run = AIAnalysisRun(
+        project_id=project.id, target_id=target_a.id, created_by=owner.id,
+        context_sha256="f"*64, correlations_sha256="e"*64,
+        provider="deepseek", model="test-model", status="completed",
+        disposition="requires_independent_validation",
+        result_json=json.dumps({"category": "authorization", "hypothesis": "Potential IDOR on /api/users/456"}),
+        execution_enabled=False,
+    )
+    db.add(target_run)
+    db.flush()
+    db.add(AIAnalysisEvaluation(
+        analysis_run_id=target_run.id, project_id=project.id, evaluator_id=owner.id,
+        outcome="confirmed", evidence_sha256="d"*64,
+        validation_method="manual_review", notes="",
+    ))
+    db.commit()
+
+    project_profile = build_intelligence_feedback_profile(db, project_id=project.id, actor=owner)
+    target_profile = build_intelligence_feedback_profile(
+        db, project_id=project.id, target_id=target_a.id, actor=owner
+    )
+    assert project_profile.target_id is None
+    assert project_profile.evaluated_runs == 3
+    assert target_profile.target_id == target_a.id
+    assert target_profile.evaluated_runs == 1
+    assert target_profile.patterns[0].confirmed == 1
+    assert target_profile.patterns[0].recommendation == "insufficient_evidence"
+
+    with pytest.raises(LookupError):
+        build_intelligence_feedback_profile(db, project_id=project.id, target_id=99999, actor=owner)

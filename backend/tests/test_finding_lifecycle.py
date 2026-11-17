@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from app.db.database import Base
-from app.db.models import User, Project, AIAnalysisRun, FindingCandidateRecord
+from app.db.models import User, Project, AIAnalysisRun, FindingCandidateRecord, HumanFindingDecision
 from app.core.finding_lifecycle import (
     append_lifecycle_event, current_finding_status, store_evidence_artifact, read_evidence_artifact,
 )
@@ -61,6 +61,13 @@ def test_terminal_status_cannot_be_reopened(vault_context):
     db, user, candidate = vault_context
     append_lifecycle_event(db, candidate_id=candidate.id, actor=user,
         payload=FindingLifecycleCreate(expected_status="new", new_status="under_review", rationale="Review started"))
+    db.add(HumanFindingDecision(
+        analysis_run_id=candidate.analysis_run_id, project_id=candidate.project_id,
+        evaluator_id=user.id, candidate_fingerprint=candidate.candidate_fingerprint,
+        outcome="false_positive", evidence_sha256="e" * 64,
+        validation_method="manual_reproduction", notes="", reviewer_attested=True,
+    ))
+    db.flush()
     append_lifecycle_event(db, candidate_id=candidate.id, actor=user,
         payload=FindingLifecycleCreate(expected_status="under_review", new_status="rejected", rationale="Evidence disproved"))
     db.commit()

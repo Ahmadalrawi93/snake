@@ -165,6 +165,107 @@ def collect_ct_feed(scope_rules: list[str], *, fetcher=fetch_ct_rows) -> list[di
     return records
 
 
+
+def _dnsdb_url(query: str) -> str:
+    encoded = urllib.parse.quote(query, safe="*.-")
+    return f"https://{DNSDB_HOST}{DNSDB_PATH}{encoded}?limit={DNSDB_QUERY_LIMIT}"
+
+
+def fetch_dnsdb_rows(query: str, api_key: str, *, opener=None) -> tuple[list[dict[str, Any]], str]:
+    """Fetch one DNSDB v2 SAF/NDJSON response from the fixed provider."""
+    if not isinstance(api_key, str) or not api_key or len(api_key) > 4096:
+        raise ValueError("DNSDB API key is missing or invalid")
+    url = _dnsdb_url(query)
+    parsed = urllib.parse.urlsplit(url)
+    expected_path = DNSDB_PATH + urllib.parse.quote(query, safe="*.-")
+    if parsed.scheme != "https" or parsed.hostname != DNSDB_HOST or parsed.path != expected_path or parsed.port is not None:
+        raise ValueError("DNSDB provider URL failed fixed-origin validation")
+    client = opener or urllib.request.build_opener(NoRedirect())
+    request = urllib.request.Request(url, headers={
+        "Accept": "application/x-ndjson", "X-API-Key": api_key,
+        "User-Agent": "SNAKE-passive-collector/1.0",
+    }, method="GET")
+    with client.open(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+        if response.status != 200:
+            raise ValueError("DNSDB provider returned a non-200 response")
+        raw = response.read(DNSDB_MAX_RESPONSE_BYTES + 1)
+    if len(raw) > DNSDB_MAX_RESPONSE_BYTES:
+        raise ValueError("DNSDB provider response exceeds 1 MiB")
+    try:
+        messages = [json.loads(line) for line in raw.decode("utf-8").splitlines() if line.strip()]
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("DNSDB provider returned invalid JSONL") from exc
+    if not messages or messages[0] != {"cond": "begin"}:
+        raise ValueError("DNSDB response is missing SAF begin frame")
+    terminal = messages[-1]
+    if not isinstance(terminal, dict) or terminal.get("cond") not in {"succeeded", "limited"}:
+        raise ValueError("DNSDB response is incomplete or unsuccessful")
+    rows: list[dict[str, Any]] = []
+    for message in messages[1:-1]:
+        if not isinstance(message, dict) or set(message) != {"obj"} or not isinstance(message["obj"], dict):
+            raise ValueError("DNSDB response contains an invalid SAF object frame")
+        rows.append(message["obj"])
+        if len(rows) > DNSDB_MAX_ROWS:
+            raise ValueError("DNSDB response exceeds 2000 records")
+    return rows, str(terminal["cond"])
+
+
+def collect_dnsdb_feed(
+    scope_rules: list[str], api_key: str, *, fetcher=fetch_dnsdb_rows
+) -> list[dict[str, str]]:
+    """Collect passive DNS RRsets; never resolve discovered names."""
+    policy = ScopePolicy(scope_rules)
+    queries = list(dict.fromkeys(
+        ("*." + rule[2:]) if rule.startswith("*.") else rule for rule in scope_rules
+    ))
+    records: list[dict[str, str]] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    fetched_at = datetime.now(timezone.utc).isoformat()
+    for query in queries:
+        rows, completion = fetcher(query, api_key)
+        for row in rows:
+            rrname, rrtype, rdata = row.get("rrname"), row.get("rrtype"), row.get("rdata")
+            timestamp = row.get("time_last") or row.get("time_first")
+            if not isinstance(rrname, str) or not isinstance(rrtype, str):
+                continue
+            if not re.fullmatch(r"[A-Z0-9-]{1,16}", rrtype.upper()):
+                continue
+            # Zone-file imports are not passive DNS replication observations.
+            if not isinstance(timestamp, (int, float)) or isinstance(timestamp, bool):
+                continue
+            if not isinstance(rdata, list) or not rdata or len(rdata) > 32:
+                continue
+            try:
+                host = normalize_host(rrname.rstrip("."))
+                observed_at = datetime.fromtimestamp(timestamp, timezone.utc).isoformat()
+            except (ValueError, OverflowError, OSError):
+                continue
+            if not policy.check_url("https://" + host).allowed:
+                continue
+            for datum in rdata:
+                if not isinstance(datum, str) or not datum or len(datum) > 2048:
+                    continue
+                if any(ord(ch) < 32 or ord(ch) == 127 for ch in datum):
+                    continue
+                key = (host, rrtype.upper(), datum, observed_at)
+                if key in seen:
+                    continue
+                seen.add(key)
+                evidence = (
+                    f"hostname={host}; provider=dnsdb; rrtype={rrtype.upper()}; "
+                    f"rdata={datum}; fetched_at={fetched_at}; completion={completion}"
+                )
+                records.append({
+                    "hostname": host, "kind": "dns_record",
+                    "value": f"{rrtype.upper()} {datum}",
+                    "evidence": evidence[:8000], "source": "dnsdb_passive_dns",
+                    "observed_at": observed_at,
+                })
+                if len(records) >= MAX_FEED_RECORDS:
+                    return records
+    return records
+
+
 def write_feed(path: str | os.PathLike[str], records: list[dict[str, str]]) -> None:
     """Atomically create/replace a private feed without following a destination symlink."""
     destination = Path(path)
@@ -196,16 +297,25 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Collect passive CT names for an operator-reviewed scope")
     parser.add_argument("--scope-file", required=True, help="JSON file containing approved_scope_rules")
     parser.add_argument("--output", required=True, help="private JSON feed output path")
-    parser.add_argument("--authorization-reference", required=True,
+    parser.add_argument("--provider", action="append", choices=["ct", "dnsdb"],\n                        help="passive source to query; repeat to combine providers (default: ct)")\n    parser.add_argument("--authorization-reference", required=True,
                         help="operator's audit reference; this is not independently verified")
     args = parser.parse_args()
     if not args.authorization_reference.strip() or len(args.authorization_reference) > 200:
         parser.error("authorization reference must be 1-200 characters")
     rules = load_scope(args.scope_file)
-    records = collect_ct_feed(rules)
+    providers = list(dict.fromkeys(args.provider or ["ct"]))
+    records: list[dict[str, str]] = []
+    if "ct" in providers:
+        records.extend(collect_ct_feed(rules))
+    if "dnsdb" in providers:
+        api_key = os.environ.get("DNSDB_API_KEY", "")
+        if not api_key:
+            parser.error("DNSDB_API_KEY environment variable is required for --provider dnsdb")
+        records.extend(collect_dnsdb_feed(rules, api_key))
+    records = records[:MAX_FEED_RECORDS]
     write_feed(args.output, records)
     print(json.dumps({
-        "provider": PROVIDER_HOST, "records": len(records),
+        "providers": providers, "records": len(records),
         "scope_rules": len(rules), "authorization_reference": args.authorization_reference,
         "feed": str(args.output), "execution_enabled": False,
     }))

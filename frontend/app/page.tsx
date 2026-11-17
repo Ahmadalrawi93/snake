@@ -6,7 +6,8 @@ type User = { id: number; email: string; role: string };
 type Project = { id: number; name: string; description: string; created_at: string };
 type Target = { id: number; value: string; target_type: string; status: string };
 type Authorization = { id: number; reference: string; starts_at: string | null; expires_at: string | null; status: string; notes: string };
-type ScopeSnapshot = { id: number; target_id: number; authorization_id: number; sha256: string; status: string; created_at: string; expires_at: string | null; snapshot: { target?: string; hostname?: string; execution_enabled?: boolean } };\ntype PendingAuthorization = { id: number; project_id: number; reference: string; starts_at: string | null; expires_at: string | null; notes: string; created_at: string };
+type ScopeSnapshot = { id: number; target_id: number; authorization_id: number; sha256: string; status: string; created_at: string; expires_at: string | null; snapshot: { target?: string; hostname?: string; execution_enabled?: boolean } };
+type PendingAuthorization = { id: number; project_id: number; reference: string; starts_at: string | null; expires_at: string | null; notes: string; created_at: string };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
@@ -18,7 +19,10 @@ export default function Home() {
   const [targets, setTargets] = useState<Target[]>([]);
   const [authorizations, setAuthorizations] = useState<Authorization[]>([]);
   const [snapshots, setSnapshots] = useState<ScopeSnapshot[]>([]);
-  const [snapshotValidity, setSnapshotValidity] = useState<Record<number, string>>({});\n  const [pendingAuthorizations, setPendingAuthorizations] = useState<PendingAuthorization[]>([]);\n  const [reviewNotes, setReviewNotes] = useState<Record<number, string>>({});\n  const [reviewScopes, setReviewScopes] = useState<Record<number, string>>({});
+  const [snapshotValidity, setSnapshotValidity] = useState<Record<number, string>>({});
+  const [pendingAuthorizations, setPendingAuthorizations] = useState<PendingAuthorization[]>([]);
+  const [reviewNotes, setReviewNotes] = useState<Record<number, string>>({});
+  const [reviewScopes, setReviewScopes] = useState<Record<number, string>>({});
   const [targetValue, setTargetValue] = useState("");
   const [targetType, setTargetType] = useState("domain");
   const [authReference, setAuthReference] = useState("");

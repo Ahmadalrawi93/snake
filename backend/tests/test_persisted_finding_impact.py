@@ -273,3 +273,32 @@ def test_impact_api_rejects_foreign_owner(impact_context):
         app.dependency_overrides.pop(get_current_user, None)
         app.dependency_overrides.pop(get_db, None)
 
+def test_persisted_assessment_rejects_direct_update_and_delete(impact_context):
+    from sqlalchemy import text
+    from sqlalchemy.exc import IntegrityError
+
+    db, owner, _other, candidate, _foreign, claim = impact_context
+    record = service.create_persisted_finding_impact(
+        db, candidate_id=candidate.id, actor=owner, claims=[claim],
+    )
+    db.commit()
+    record_id = record["id"]
+
+    with pytest.raises(IntegrityError):
+        db.execute(
+            text("UPDATE finding_impact_assessments SET assessment_json = '{}' WHERE id = :id"),
+            {"id": record_id},
+        )
+        db.commit()
+    db.rollback()
+
+    with pytest.raises(IntegrityError):
+        db.execute(
+            text("DELETE FROM finding_impact_assessments WHERE id = :id"),
+            {"id": record_id},
+        )
+        db.commit()
+    db.rollback()
+
+    assert db.query(FindingImpactAssessmentRecord).filter_by(id=record_id).count() == 1
+

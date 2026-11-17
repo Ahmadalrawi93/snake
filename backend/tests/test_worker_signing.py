@@ -1,7 +1,10 @@
+import base64
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from app.core.worker_protocol import WorkerTaskEnvelope, WorkerValidationResult
 from app.core.worker_signing import (
@@ -9,7 +12,21 @@ from app.core.worker_signing import (
     sign_worker_validation_result, verify_worker_validation_result,
 )
 
-SECRET = "test-worker-signing-secret-at-least-32-chars"
+
+def keypair():
+    key = Ed25519PrivateKey.generate()
+    private = base64.b64encode(key.private_bytes(
+        serialization.Encoding.DER, serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    )).decode()
+    public = base64.b64encode(key.public_key().public_bytes(
+        serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo,
+    )).decode()
+    return private, public
+
+
+BACKEND_PRIVATE, BACKEND_PUBLIC = keypair()
+WORKER_PRIVATE, WORKER_PUBLIC = keypair()
 WORKER_ID = "validator-01"
 KEY_ID = "validator-01-v1"
 
@@ -24,43 +41,37 @@ def _task():
     )
 
 
-def _verify(signed, secret=SECRET, worker=WORKER_ID, key=KEY_ID):
-    return verify_worker_task(
-        signed, secret, expected_worker_id=worker, expected_key_id=key
+def test_backend_signs_task_worker_verifies_with_public_key():
+    signed = sign_worker_task(_task(), BACKEND_PRIVATE, worker_id=WORKER_ID, key_id=KEY_ID)
+    assert verify_worker_task(
+        signed, BACKEND_PUBLIC, expected_worker_id=WORKER_ID, expected_key_id=KEY_ID
     )
 
 
-def test_signed_task_round_trip():
-    signed = sign_worker_task(_task(), SECRET, worker_id=WORKER_ID, key_id=KEY_ID)
-    assert _verify(signed)
+def test_worker_cannot_sign_backend_task_with_its_private_key():
+    signed = sign_worker_task(_task(), BACKEND_PRIVATE, worker_id=WORKER_ID, key_id=KEY_ID)
+    assert not verify_worker_task(
+        signed, WORKER_PUBLIC, expected_worker_id=WORKER_ID, expected_key_id=KEY_ID
+    )
 
 
-def test_signature_rejects_tampered_envelope():
-    signed = sign_worker_task(_task(), SECRET, worker_id=WORKER_ID, key_id=KEY_ID)
+def test_task_signature_rejects_tampering_and_wrong_binding():
+    signed = sign_worker_task(_task(), BACKEND_PRIVATE, worker_id=WORKER_ID, key_id=KEY_ID)
     tampered = signed.model_copy(update={
         "envelope": signed.envelope.model_copy(update={"job_id": 99})
     })
-    assert not _verify(tampered)
+    assert not verify_worker_task(
+        tampered, BACKEND_PUBLIC, expected_worker_id=WORKER_ID, expected_key_id=KEY_ID
+    )
+    assert not verify_worker_task(
+        signed, BACKEND_PUBLIC, expected_worker_id="other-worker", expected_key_id=KEY_ID
+    )
+    assert not verify_worker_task(
+        signed, BACKEND_PUBLIC, expected_worker_id=WORKER_ID, expected_key_id="retired-v0"
+    )
 
 
-def test_signature_rejects_wrong_secret():
-    signed = sign_worker_task(_task(), SECRET, worker_id=WORKER_ID, key_id=KEY_ID)
-    assert not _verify(signed, "another-worker-secret-at-least-32-chars")
-
-
-def test_task_is_bound_to_worker_and_key_id():
-    signed = sign_worker_task(_task(), SECRET, worker_id=WORKER_ID, key_id=KEY_ID)
-    assert not _verify(signed, worker="different-worker")
-    assert not _verify(signed, key="retired-key")
-
-
-@pytest.mark.parametrize("secret", ["", "short"])
-def test_signing_rejects_weak_secret(secret):
-    with pytest.raises(ValueError):
-        sign_worker_task(_task(), secret, worker_id=WORKER_ID, key_id=KEY_ID)
-
-
-def _validation_result():
+def _result():
     return WorkerValidationResult(
         task_id=uuid4(), envelope_sha256="d" * 64, worker_id=WORKER_ID,
         outcome="accepted", validated_at=datetime.now(timezone.utc),
@@ -68,25 +79,42 @@ def _validation_result():
     )
 
 
-def test_worker_validation_result_signature_round_trip():
-    signed = sign_worker_validation_result(_validation_result(), SECRET, key_id=KEY_ID)
-    assert verify_worker_validation_result(signed, SECRET, expected_key_id=KEY_ID)
+def test_worker_signs_ack_backend_verifies_public_key():
+    signed = sign_worker_validation_result(_result(), WORKER_PRIVATE, key_id=KEY_ID)
+    assert verify_worker_validation_result(
+        signed, WORKER_PUBLIC, expected_worker_id=WORKER_ID, expected_key_id=KEY_ID
+    )
 
 
-def test_worker_validation_result_signature_rejects_tampering():
-    signed = sign_worker_validation_result(_validation_result(), SECRET, key_id=KEY_ID)
+def test_backend_cannot_forge_worker_ack():
+    signed = sign_worker_validation_result(_result(), BACKEND_PRIVATE, key_id=KEY_ID)
+    assert not verify_worker_validation_result(
+        signed, WORKER_PUBLIC, expected_worker_id=WORKER_ID, expected_key_id=KEY_ID
+    )
+
+
+def test_ack_rejects_tampering_wrong_worker_and_unknown_key():
+    signed = sign_worker_validation_result(_result(), WORKER_PRIVATE, key_id=KEY_ID)
     tampered = signed.model_copy(update={
-        "result": signed.result.model_copy(update={"worker_id": "forged-worker"})
+        "result": signed.result.model_copy(update={"outcome": "rejected"})
     })
-    assert not verify_worker_validation_result(tampered, SECRET, expected_key_id=KEY_ID)
+    assert not verify_worker_validation_result(
+        tampered, WORKER_PUBLIC, expected_worker_id=WORKER_ID, expected_key_id=KEY_ID
+    )
+    assert not verify_worker_validation_result(
+        signed, WORKER_PUBLIC, expected_worker_id="other-worker", expected_key_id=KEY_ID
+    )
+    assert not verify_worker_validation_result(
+        signed, WORKER_PUBLIC, expected_worker_id=WORKER_ID, expected_key_id="unknown-v2"
+    )
 
 
-def test_result_rejects_unknown_key_id():
-    signed = sign_worker_validation_result(_validation_result(), SECRET, key_id=KEY_ID)
-    assert not verify_worker_validation_result(signed, SECRET, expected_key_id="unknown-v9")
+def test_non_ed25519_key_is_rejected():
+    with pytest.raises(ValueError):
+        sign_worker_task(_task(), "not-base64", worker_id=WORKER_ID, key_id=KEY_ID)
 
 
-def test_worker_validation_result_cannot_claim_execution():
+def test_validation_result_cannot_claim_execution():
     with pytest.raises(Exception):
         WorkerValidationResult(
             task_id=uuid4(), envelope_sha256="d" * 64, worker_id=WORKER_ID,

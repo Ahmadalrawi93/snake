@@ -140,3 +140,44 @@ def list_scope_snapshots(
         raise HTTPException(status_code=404, detail="Project not found")
     rows = db.query(ScopeSnapshot).filter_by(project_id=project_id).order_by(ScopeSnapshot.id.desc()).all()
     return [serialize_snapshot(row) for row in rows]
+
+@router.get("/scope-snapshots/{snapshot_id}/validate")
+def validate_scope_snapshot(
+    snapshot_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+):
+    import hashlib
+    from datetime import datetime, timezone
+    row = db.get(ScopeSnapshot, snapshot_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Scope snapshot not found")
+    project = db.query(Project).filter_by(id=row.project_id, owner_id=actor.id).first()
+    if project is None:
+        raise HTTPException(status_code=404, detail="Scope snapshot not found")
+    reasons = []
+    canonical = json.dumps(json.loads(row.snapshot_json), sort_keys=True,
+                           separators=(",", ":"), ensure_ascii=False)
+    if hashlib.sha256(canonical.encode("utf-8")).hexdigest() != row.sha256:
+        reasons.append("snapshot_integrity_mismatch")
+    if row.status != "active":
+        reasons.append("snapshot_not_active")
+    if row.expires_at:
+        expiry = parse_time(row.expires_at)
+        if expiry and datetime.now(timezone.utc) >= expiry:
+            reasons.append("authorization_expired")
+    authorization = db.get(Authorization, row.authorization_id)
+    if authorization is None or authorization.status != "approved":
+        reasons.append("authorization_not_approved")
+    target = db.get(Target, row.target_id)
+    if target is None or target.project_id != row.project_id:
+        reasons.append("target_missing_or_moved")
+    else:
+        original_target = json.loads(row.snapshot_json).get("target")
+        current_target = target.value if target.target_type == "url" else (
+            "https://" + target.value if target.target_type == "domain" else None
+        )
+        if current_target != original_target:
+            reasons.append("target_changed")
+    return {"snapshot_id": row.id, "valid": not reasons, "reasons": reasons,
+            "sha256": row.sha256, "execution_enabled": False}

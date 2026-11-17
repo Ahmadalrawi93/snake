@@ -2,6 +2,8 @@
 from alembic import op
 import sqlalchemy as sa
 
+from app.core.finding_impact_guards import install_sqlite_finding_impact_guards
+
 revision = "0022_finding_impact_assessments"
 down_revision = "0021_investigation_memory_candidate_link"
 branch_labels = None
@@ -36,8 +38,7 @@ def upgrade():
 
     bind = op.get_bind()
     if bind.dialect.name == "sqlite":
-        op.execute("CREATE TRIGGER finding_impact_assessments_no_update BEFORE UPDATE ON finding_impact_assessments BEGIN SELECT RAISE(ABORT, 'finding impact assessments are immutable'); END")
-        op.execute("CREATE TRIGGER finding_impact_assessments_no_delete BEFORE DELETE ON finding_impact_assessments BEGIN SELECT RAISE(ABORT, 'finding impact assessments are immutable'); END")
+        install_sqlite_finding_impact_guards(bind)
     elif bind.dialect.name == "postgresql":
         op.execute("""CREATE FUNCTION reject_finding_impact_assessment_mutation() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'finding impact assessments are immutable'; END; $$ LANGUAGE plpgsql""")
         op.execute("CREATE TRIGGER finding_impact_assessments_no_mutation BEFORE UPDATE OR DELETE ON finding_impact_assessments FOR EACH ROW EXECUTE FUNCTION reject_finding_impact_assessment_mutation()")

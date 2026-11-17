@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.db.database import Base
-from app.db.models import AIAnalysisRun, Project, User
+from app.db.models import AIAnalysisRun, Project, Target, User
 from app.core.analysis_persistence import persist_analysis_run, persist_analysis_execution
 from app.core.deepseek_analysis import AnalysisExecutionResult
 from app.core.analysis_context import build_analysis_context
@@ -139,3 +139,31 @@ def test_execution_metadata_flows_into_immutable_persistence(db):
     assert record.total_tokens == 50
     assert record.provider_request_id == "req_example"
     assert record.model == "deepseek-test"
+
+
+
+def test_analysis_persistence_binds_only_targets_in_same_project(db):
+    owner = User(email="target-owner@example.test", password_hash="hash")
+    other_owner = User(email="target-other@example.test", password_hash="hash")
+    db.add_all([owner, other_owner])
+    db.flush()
+    project = Project(owner_id=owner.id, name="target-bound")
+    other_project = Project(owner_id=other_owner.id, name="other-target")
+    db.add_all([project, other_project])
+    db.flush()
+    target = Target(project_id=project.id, value="https://target.example.test")
+    foreign_target = Target(project_id=other_project.id, value="https://foreign.example.test")
+    db.add_all([target, foreign_target])
+    db.flush()
+    context, correlations, triage = setup_context()
+
+    record = persist_analysis_run(
+        db, project_id=project.id, actor=owner, context=context,
+        correlations=correlations, triage=triage, model="model", target_id=target.id,
+    )
+    assert record.target_id == target.id
+    with pytest.raises(ValueError, match="target does not belong to project"):
+        persist_analysis_run(
+            db, project_id=project.id, actor=owner, context=context,
+            correlations=correlations, triage=triage, model="model", target_id=foreign_target.id,
+        )

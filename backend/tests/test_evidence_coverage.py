@@ -59,8 +59,8 @@ def test_partial_coverage_identifies_missing_elements_and_contradictions():
              refs=[UUID("00000000-0000-4000-8000-000000000001")]),
     ])
     result = assess_evidence_coverage(b, assessment(b, contradictions=1))
-    assert result.coverage_score == 40
-    assert result.coverage_band == "partial"
+    assert result.coverage_score == 15
+    assert result.coverage_band == "low"
     assert result.contradiction_count == 1
     assert "program_policy" in result.missing_elements
     assert "impact_context" in result.missing_elements

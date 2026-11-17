@@ -5,7 +5,8 @@ import json
 from dataclasses import dataclass
 from uuid import UUID
 from datetime import datetime, timezone
-from app.core.scope_policy import ScopePolicy
+from urllib.parse import urlsplit
+from app.core.scope_policy import ScopePolicy, normalize_host
 from sqlalchemy.orm import Session
 from app.core.analysis_context import build_analysis_context
 from app.core.evidence_correlation import correlate_analysis_context
@@ -46,6 +47,38 @@ def _record_matches_batch(record: WorkerObservationRecord, batch) -> bool:
         and item.source == record.source
         and _utc(item.observed_at) == _utc(record.observed_at)
     )
+
+
+
+
+def _record_is_within_snapshot_scope(record: WorkerObservationRecord, snapshot: ScopeSnapshot) -> bool:
+    """Independently enforce signed observation host scope before AI analysis."""
+    try:
+        snapshot_data = json.loads(snapshot.snapshot_json)
+        rules = snapshot_data.get("approved_scope_rules")
+        if not isinstance(rules, list) or not rules:
+            return False
+        if record.kind == "hostname":
+            host = normalize_host(record.value)
+        elif record.kind == "url":
+            parsed = urlsplit(record.value)
+            if (parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname
+                    or parsed.username is not None or parsed.password is not None):
+                return False
+            _ = parsed.port
+            host = normalize_host(parsed.hostname)
+        elif record.kind in {"technology", "dns_record", "http_header"}:
+            prefix = "hostname="
+            if not record.evidence.startswith(prefix) or "; " not in record.evidence:
+                return False
+            host = normalize_host(record.evidence[len(prefix):].split("; ", 1)[0])
+        else:
+            # IP-only evidence has no hostname binding in this schema and is
+            # therefore not eligible for scope-bound AI analysis.
+            return False
+        return ScopePolicy(rules).check_url("https://" + host).allowed
+    except (TypeError, ValueError):
+        return False
 
 
 def _verify_snapshot(snapshot: ScopeSnapshot, authorization: Authorization, *, require_current_rules: bool = True) -> bool:
@@ -118,6 +151,8 @@ def build_persisted_analysis_input(
             raise ValueError("scope snapshot or authorization is no longer active")
         if not _verify_snapshot(snapshot, authorization):
             raise ValueError("scope snapshot integrity check failed")
+        if not _record_is_within_snapshot_scope(record, snapshot):
+            raise ValueError("worker observation is outside approved target scope")
         if snapshot.expires_at:
             expiry = datetime.fromisoformat(snapshot.expires_at.replace("Z", "+00:00"))
             if _utc(expiry) <= current:

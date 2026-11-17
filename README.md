@@ -9,7 +9,10 @@ AI-assisted security assessment platform for **authorized** bug bounty work.
 - Password hashing with Argon2 and short-lived JWT access tokens.
 - Registration, login, and current-user endpoints.
 - User-owned projects; project, authorization, and target routes require authentication.
-- Admin-only authorization review queue; records can be approved or rejected with an audit event.
+- Admin-only authorization review queue; approvals require explicit exact or wildcard hostname rules.
+- Immutable scope snapshots bind a target to a reviewed authorization and store a SHA-256 integrity digest.
+- Pre-dispatch validation checks snapshot integrity, target consistency, authorization status, expiry, and revocation.
+- Admins can revoke active scope snapshots; snapshot creation never triggers network activity.
 - Explicit CLI script to provision/promote an administrator (no public admin registration).
 - Audit events scoped to the acting user.
 - SQLite local persistence and Alembic migration for legacy databases.
@@ -53,10 +56,14 @@ The script creates or promotes that account to `admin` and resets its password. 
 - `GET /api/v1/projects/{id}/targets`
 - `GET /api/v1/audit`
 - `POST /api/v1/scopes/check`
+- `POST /api/v1/projects/{id}/targets/{target_id}/scope-snapshots`
+- `GET /api/v1/projects/{id}/scope-snapshots`
+- `GET /api/v1/scope-snapshots/{id}/validate`
+- Admin: `POST /api/v1/admin/scope-snapshots/{id}/revoke`
 
 Authorization records remain `pending`. Registering a target does not perform network activity or authorize a scan.
 
 ## Known limitations
-This is not production-ready. Registration is open and has no email verification or rate limiting. JWT revocation/refresh, team roles, strict tenant-level audit retention, immutable scope snapshots, IP/redirect re-validation, worker isolation, and active scanning are not implemented. Authorization approval is a manual record review only; it does not yet activate or authorize a scan. Keep the API private until these controls are completed.
+This is not production-ready. Registration is open and has no email verification or rate limiting. JWT revocation/refresh, team roles, strict tenant-level audit retention, immutable scope snapshots, IP/redirect re-validation, worker isolation, and active scanning are not implemented. Authorization approval is a manual record review only. A scope snapshot is a deterministic permission boundary record, not a scan authorization token for an execution engine; no worker or scanner is enabled. The current hostname-only policy does not yet resolve and pin DNS/IPs or validate redirects. Keep the API private until these controls are completed.
 
 See [architecture](docs/ARCHITECTURE.md) and [roadmap](docs/ROADMAP.md).

@@ -69,6 +69,8 @@ def make_receipt(db):
 
 
 def make_ack(task_id, *, digest="a" * 64, worker_id=WORKER_ID, key_id=KEY_ID, private=WORKER_PRIVATE, validated_at=None):
+    if validated_at is not None and validated_at.tzinfo is None:
+        validated_at = validated_at.replace(tzinfo=timezone.utc)
     result = WorkerValidationResult(
         task_id=task_id, envelope_sha256=digest, worker_id=worker_id,
         outcome="accepted", validated_at=validated_at or datetime.now(timezone.utc),

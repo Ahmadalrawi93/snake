@@ -11,7 +11,10 @@ Repository structure, FastAPI service, hostname allowlist primitive, dashboard s
 - Alembic migration for ownership columns on existing databases.
 - Admin-only pending authorization queue and approve/reject review endpoint with audit events.
 - Explicit CLI admin bootstrap; public registration cannot assign admin role.
-- Remaining: email verification, registration throttling, refresh/revocation, team roles, immutable scope snapshots, and stronger audit integrity.
+- Explicit reviewed hostname rules are required for approval.
+- Immutable SHA-256 scope snapshots bind targets to approved authorizations.
+- Pre-dispatch validation checks hash, target drift, authorization state, expiry, and revocation; admins can revoke snapshots.
+- Remaining: email verification, registration throttling, refresh/revocation, team roles, DNS/IP and redirect validation, immutable audit retention, and formal execution authorization.
 
 ## Phase 3 — Scanner Engine
 Isolated worker protocol and narrowly scoped passive discovery adapters. Re-check scope at dispatch and execution; enforce egress and resource ceilings. No arbitrary shell execution.

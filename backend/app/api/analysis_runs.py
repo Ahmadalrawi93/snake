@@ -18,6 +18,8 @@ def _serialize(record: AIAnalysisRun) -> dict:
         "target_id": record.target_id,
         "created_by": record.created_by,
         "context_sha256": record.context_sha256,
+        "provenance_sha256": record.provenance_sha256,
+        "source_observation_count": record.source_observation_count,
         "correlations_sha256": record.correlations_sha256,
         "provider": record.provider,
         "model": record.model,

@@ -1,15 +1,15 @@
 # SNAKE Roadmap
 
-## Phase 1 — Foundation (implemented scaffold)
-Repository layout, FastAPI API, hostname allowlist primitive, dashboard shell, architecture docs, and CI workflow.
+## Phase 1 — Foundation
+Repository structure, FastAPI service, hostname allowlist primitive, dashboard shell, architecture docs, and CI workflow.
 
-## Phase 2 — Control Plane (initial slice implemented)
-- SQLite persistence models for projects, authorization records, targets, and audit events.
-- Project creation/listing.
-- Authorization evidence records default to `pending`; recording is not approval.
-- Target registration/listing without network activity.
-- Audit event listing.
-- Remaining: authentication and roles, authorization review workflow, migrations, immutable scope snapshots, stronger audit integrity, and API-level tenant isolation.
+## Phase 2 — Control Plane (initial implementation)
+- SQLite models for users, projects, authorization records, targets, and audit events.
+- Argon2 password hashing, JWT login, and current-user endpoint.
+- User ownership enforced across project, target, and authorization APIs.
+- Audit listing scoped to the authenticated actor.
+- Alembic migration for ownership columns on existing databases.
+- Remaining: email verification, registration throttling, refresh/revocation, admin-managed roles, formal authorization review, immutable scope snapshots, and stronger audit integrity.
 
 ## Phase 3 — Scanner Engine
 Isolated worker protocol and narrowly scoped passive discovery adapters. Re-check scope at dispatch and execution; enforce egress and resource ceilings. No arbitrary shell execution.

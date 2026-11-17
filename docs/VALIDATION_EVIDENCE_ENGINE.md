@@ -125,3 +125,8 @@ The persistent investigation-memory report aggregates only reviewer-attested dec
 ## Passive Business Workflow Reasoning
 
 The workflow reasoning engine groups already-verified, in-scope URL observations by canonical host and recognized business resource, then identifies multiple observed action-shaped routes. It emits possible transition pairs as manual review leads only. Pair order is explicitly unknown: route names and passive discovery do not establish actual workflow order, HTTP methods, state preconditions, roles, ownership, or authorization. Evidence is linked to original observation IDs. The report is integrated into candidate pipeline output, does not generate requests or payloads, and never confirms a vulnerability.
+
+
+## Authorization Boundary Reasoning
+
+The authorization-boundary engine groups passive URL observations by host and recognized resource, then identifies coexisting privileged, ordinary, object-reference, and role/permission route surfaces. It emits manual review questions about server-side authentication, role enforcement, tenant isolation, object ownership, self-escalation, and alternate API versions. These are route-derived review leads only: path names do not establish effective roles, authentication requirements, object ownership, or missing access controls. Every report remains unconfirmed and execution-disabled, and links to original observation IDs.

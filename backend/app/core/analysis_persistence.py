@@ -4,6 +4,7 @@ import json
 from sqlalchemy.orm import Session
 
 from app.db.models import AIAnalysisRun, Project, User
+from app.core.analysis_redaction import redact_text
 from app.schemas.analysis_context import AnalysisContext
 from app.schemas.evidence_correlation import CorrelationReport
 from app.schemas.observation_triage import ObservationTriage
@@ -46,6 +47,9 @@ def persist_analysis_run(
     context_data = context.model_dump(mode="json")
     correlations_data = correlations.model_dump(mode="json")
     result_data = triage.model_dump(mode="json")
+    result_data["hypothesis"] = redact_text(result_data["hypothesis"])
+    result_data["missing_evidence"] = [redact_text(value) for value in result_data["missing_evidence"]]
+    result_data["validation_questions"] = [redact_text(value) for value in result_data["validation_questions"]]
     record = AIAnalysisRun(
         project_id=project.id,
         created_by=actor.id,

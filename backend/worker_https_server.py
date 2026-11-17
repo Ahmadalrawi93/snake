@@ -5,6 +5,7 @@ shell interface, database, queue, or target-network access.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -56,6 +57,22 @@ class _ThreadingHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = False
     request_slots = BoundedSemaphore(16)
+    expected_client_certificate_sha256: str | None = None
+
+    def get_request(self):
+        request, client_address = super().get_request()
+        try:
+            request.settimeout(5.0)
+            request.do_handshake()
+            peer_certificate = request.getpeercert(binary_form=True)
+            expected = self.expected_client_certificate_sha256
+            actual = hashlib.sha256(peer_certificate).hexdigest() if peer_certificate else ""
+            if not expected or actual != expected:
+                raise ssl.SSLError("backend_client_certificate_pin_mismatch")
+            return request, client_address
+        except Exception:
+            request.close()
+            raise
 
     def process_request(self, request, client_address):
         if not self.request_slots.acquire(blocking=False):
@@ -142,6 +159,9 @@ def serve() -> None:
     cert = os.environ["SNAKE_WORKER_TLS_CERT_FILE"]
     key = os.environ["SNAKE_WORKER_TLS_KEY_FILE"]
     client_ca = os.environ["SNAKE_BACKEND_CLIENT_CA_FILE"]
+    client_fingerprint = os.environ["SNAKE_BACKEND_CLIENT_CERT_SHA256"].lower()
+    if len(client_fingerprint) != 64 or any(c not in "0123456789abcdef" for c in client_fingerprint):
+        raise ValueError("invalid backend client certificate SHA-256 fingerprint")
     backend_public = os.environ["SNAKE_BACKEND_ED25519_PUBLIC_KEY_B64"]
     worker_private = os.environ["SNAKE_WORKER_ED25519_PRIVATE_KEY_B64"]
     worker_id = os.environ["SNAKE_WORKER_ID"]
@@ -162,6 +182,7 @@ def serve() -> None:
     context.verify_mode = ssl.CERT_REQUIRED
     context.load_cert_chain(certfile=cert, keyfile=key)
     context.load_verify_locations(cafile=client_ca)
+    server.expected_client_certificate_sha256 = client_fingerprint
     server.socket = context.wrap_socket(server.socket, server_side=True)
     try:
         server.serve_forever()

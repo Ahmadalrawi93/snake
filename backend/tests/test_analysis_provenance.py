@@ -328,9 +328,9 @@ def test_investigation_memory_fingerprint_preserves_non_ascii_hypotheses():
     from app.schemas.validation_strategy import ValidationStrategyItem
     def make(hypothesis):
         return ValidationStrategyItem(
-            strategy_id="arabic_review", category="business_logic", priority="medium",
+            strategy_id="arabic_review", category="general_review", priority="medium",
             priority_basis="Manual review", hypothesis=hypothesis,
-            supporting_observation_ids=[], missing_evidence=[],
+            supporting_observation_ids=["observation-ar"], missing_evidence=[],
             validation_questions=["Review"], manual_review_actions=["Review"], prerequisites=[],
         )
     assert hypothesis_fingerprint(make("تجاوز صلاحيات الفواتير")) != hypothesis_fingerprint(make("تجاوز صلاحيات الحسابات"))

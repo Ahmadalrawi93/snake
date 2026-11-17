@@ -38,6 +38,8 @@ docker run --rm --entrypoint python \
   -p 8443:8443 \
   --env-file worker-secrets.env \
   -v ./worker-tls:/run/snake-tls:ro \
+  -v ./worker-state:/var/lib/snake-worker \
+  -e SNAKE_WORKER_REPLAY_DB_PATH=/var/lib/snake-worker/replay.sqlite3 \
   snake-worker-validator:latest /opt/snake/worker_https_server.py
 ```
 

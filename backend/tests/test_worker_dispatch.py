@@ -26,7 +26,7 @@ def make_state():
     )
     snapshot = SimpleNamespace(
         id=4, project_id=2, target_id=3, authorization_id=6,
-        snapshot_json='{"target":"https://example.org"}',
+        snapshot_json='{"target":"https://example.org","approved_scope_rules":["example.org"]}',
         sha256="b" * 64, status="active",
         expires_at=(now + timedelta(hours=1)).isoformat(),
     )
@@ -90,3 +90,19 @@ def test_dispatch_gate_caps_ttl_and_respects_authorization_expiry(monkeypatch):
     authorization.expires_at = (now + timedelta(seconds=10)).isoformat()
     envelope = worker_dispatch.prepare_dispatch_envelope(db, job.id, now=now, ttl_seconds=120)
     assert envelope.expires_at <= now + timedelta(seconds=10)
+
+
+def test_dispatch_envelope_carries_signed_scope_manifest(monkeypatch):
+    db, job, snapshot, now = make_state()
+    monkeypatch.setattr(worker_dispatch, "validate_snapshot_for_queue", lambda *args: [])
+    envelope = worker_dispatch.prepare_dispatch_envelope(db, job.id, now=now)
+    assert envelope.approved_scope_rules == ["example.org"]
+
+
+def test_dispatch_rejects_snapshot_without_scope_manifest(monkeypatch):
+    db, job, snapshot, now = make_state()
+    snapshot.snapshot_json = '{"target":"https://example.org"}'
+    monkeypatch.setattr(worker_dispatch, "validate_snapshot_for_queue", lambda *args: [])
+    with pytest.raises(HTTPException) as error:
+        worker_dispatch.prepare_dispatch_envelope(db, job.id, now=now)
+    assert error.value.status_code == 409

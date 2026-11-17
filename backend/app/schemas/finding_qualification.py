@@ -13,7 +13,7 @@ class FindingQualification(BaseModel):
     evidence_quality: Literal["insufficient", "mixed", "documented_consistent"]
     impact_quality: Literal["not_documented", "documented_not_independently_verified"]
     duplicate_of_fingerprint: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
-    blockers: list[str] = Field(max_length=12)
+    blockers: list[str] = Field(max_length=24)
     evidence_ids: list[str] = Field(max_length=100)
     observation_ids: list[str] = Field(max_length=500)
     disposition: Literal["unconfirmed_candidate_requires_human_decision"] = "unconfirmed_candidate_requires_human_decision"

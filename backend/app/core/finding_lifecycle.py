@@ -101,7 +101,7 @@ def store_evidence_artifact(
     if not raw or len(raw) > 1024 * 1024:
         raise ValueError("evidence must be between 1 byte and 1 MiB")
     # Strip path components; only a display filename is retained.
-    filename = re.split(r"[/\\\\]", payload.filename)[-1].strip()
+    filename = re.split(r"[/\\\\]", payload.filename)[-1].strip().replace(chr(34), "_")
     if not filename or filename in {".", ".."}:
         raise ValueError("invalid evidence filename")
     encrypted = _fernet().encrypt(raw)

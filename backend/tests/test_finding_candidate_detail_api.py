@@ -148,3 +148,28 @@ def test_candidate_detail_detects_tampered_evidence(candidate_detail_context):
     with TestClient(app) as client:
         response = client.get(f"/api/v1/finding-candidates/{candidate.id}")
     assert response.status_code == 409
+
+
+def test_candidate_detail_rejects_context_mismatch(candidate_detail_context):
+    db, _owner, _other, candidate = candidate_detail_context
+    bundle = json.loads(candidate.evidence_bundle_json)
+    bundle["analysis_context_sha256"] = "d" * 64
+    candidate.evidence_bundle_json = canonical(bundle)
+    candidate.evidence_bundle_sha256 = hashlib.sha256(
+        candidate.evidence_bundle_json.encode()
+    ).hexdigest()
+    db.commit()
+    with TestClient(app) as client:
+        response = client.get(f"/api/v1/finding-candidates/{candidate.id}")
+    assert response.status_code == 409
+
+
+def test_candidate_detail_rejects_qualification_evidence_mismatch(candidate_detail_context):
+    db, _owner, _other, candidate = candidate_detail_context
+    qualification = json.loads(candidate.qualification_json)
+    qualification["evidence_ids"] = []
+    candidate.qualification_json = canonical(qualification)
+    db.commit()
+    with TestClient(app) as client:
+        response = client.get(f"/api/v1/finding-candidates/{candidate.id}")
+    assert response.status_code == 409

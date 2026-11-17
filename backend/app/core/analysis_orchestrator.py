@@ -14,6 +14,7 @@ from app.db.models import AIAnalysisRun, FindingCandidateRecord, Project, User
 from app.schemas.analysis_context import AnalysisContext
 from app.schemas.evidence_correlation import CorrelationReport
 from app.schemas.validation_evidence import ValidationEvidenceAssessment, ValidationEvidenceBundle
+from app.schemas.evidence_coverage import EvidenceCoverageAssessment
 from app.schemas.validation_strategy import ValidationStrategyPlan
 from app.schemas.finding_candidates import FindingCandidateCreate
 from app.schemas.finding_qualification import FindingQualification
@@ -28,7 +29,7 @@ class AnalysisPipelineResult:
 @dataclass(frozen=True)
 class CandidatePipelineResult:
     assessment: ValidationEvidenceAssessment
-    evidence_coverage: object
+    evidence_coverage: EvidenceCoverageAssessment
     qualification: FindingQualification
     candidate: FindingCandidateRecord | None
 

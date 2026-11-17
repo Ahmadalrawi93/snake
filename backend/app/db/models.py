@@ -195,6 +195,7 @@ class WorkerObservationRecord(Base):
     envelope_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     batch_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     batch_signature: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    batch_payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     kind: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     value: Mapped[str] = mapped_column(String(2048), nullable=False)
     evidence: Mapped[str] = mapped_column(Text, nullable=False, default="")

@@ -168,7 +168,7 @@ def test_dnsdb_fetch_parses_saf_ndjson_and_sends_api_key():
         def open(self, request, timeout):
             assert timeout == 12
             assert request.full_url.startswith(f"https://{DNSDB_HOST}/")
-            assert request.get_header("X-Api-Key") == "secret-test-key"
+            assert request.get_header("X-api-key") == "secret-test-key"
             assert request.get_header("Accept") == "application/x-ndjson"
             return Response()
     rows, completion = fetch_dnsdb_rows("*.example.org", "secret-test-key", opener=Opener())

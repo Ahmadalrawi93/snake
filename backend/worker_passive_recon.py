@@ -6,6 +6,7 @@ hostname is covered by the task's signed scope manifest.
 """
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import os
@@ -74,6 +75,8 @@ def read_passive_feed(path: str | os.PathLike[str]) -> list[PassiveFeedRecord]:
     try:
         descriptor = os.open(feed_path, flags)
     except OSError as exc:
+        if exc.errno == errno.ELOOP:
+            raise ValueError("passive feed must be a regular non-symlink file") from exc
         raise ValueError("passive feed cannot be opened safely") from exc
     try:
         metadata = os.fstat(descriptor)

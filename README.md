@@ -93,3 +93,8 @@ Finding Intelligence compares persisted candidates using category families, norm
 ## Finding lifecycle and evidence vault
 
 Persisted finding candidates now have an append-only human lifecycle and an encrypted evidence vault. Lifecycle state is derived from immutable transition events; evidence bytes are Fernet-encrypted before database storage and verified by SHA-256 on retrieval. Configure `SNAKE_EVIDENCE_VAULT_FERNET_KEY` through deployment secret management before enabling evidence uploads. Missing keys fail closed. See [Finding Lifecycle & Evidence Vault](docs/FINDING_LIFECYCLE_EVIDENCE_VAULT.md).
+
+
+## Explicit analysis orchestration
+
+The synchronous service in `backend/app/core/analysis_orchestrator.py` connects DeepSeek analysis, persisted manual-only validation strategy, server-recomputed evidence assessment, candidate qualification, and immutable candidate persistence. It is an explicit service call only; no route, queue, worker, or scanner invokes it automatically. See [Analysis Orchestrator](docs/ANALYSIS_ORCHESTRATOR.md) for trust boundaries and limitations.

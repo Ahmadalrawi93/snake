@@ -1,14 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import router
+from app.api.routes import router as scope_router
+from app.api.control_plane import router as control_plane_router
 from app.core.config import get_settings
+from app.db.database import Base, engine
 
 settings = get_settings()
+Base.metadata.create_all(bind=engine)
+
 app = FastAPI(
     title=settings.app_name,
-    version="0.1.0",
-    description="SNAKE foundation API. No active scanning endpoints are exposed.",
+    version="0.2.0",
+    description="SNAKE control-plane foundation. No active scanning endpoints are exposed.",
 )
 
 app.add_middleware(
@@ -19,12 +23,13 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization"],
 )
 
-app.include_router(router)
+app.include_router(scope_router)
+app.include_router(control_plane_router)
 
 
 @app.get("/")
 def root():
-    return {"name": "SNAKE", "version": "0.1.0", "status": "foundation"}
+    return {"name": "SNAKE", "version": "0.2.0", "status": "control-plane-foundation"}
 
 
 @app.get("/health")

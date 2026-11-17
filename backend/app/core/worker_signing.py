@@ -50,6 +50,16 @@ def _decode_key(value: str) -> bytes:
         raise ValueError("Ed25519 key must be base64-encoded DER") from exc
 
 
+def ed25519_public_key_fingerprint(value: str) -> str:
+    """Validate an Ed25519 public key and return its canonical DER SHA-256 fingerprint."""
+    public_key = _public_key(value)
+    canonical_der = public_key.public_bytes(
+        serialization.Encoding.DER,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    return hashlib.sha256(canonical_der).hexdigest()
+
+
 def _private_key(value: str) -> Ed25519PrivateKey:
     try:
         key = serialization.load_der_private_key(_decode_key(value), password=None)

@@ -30,13 +30,10 @@ def accept_worker_acknowledgement(
     *,
     secret: str,
     expected_worker_id: str,
+    expected_key_id: str,
     now: datetime | None = None,
 ) -> bool:
-    """Authenticate, bind, and consume a validation acknowledgement exactly once.
-
-    A valid HMAC alone is insufficient: task ID, envelope digest, worker identity,
-    issue/expiry window, and the durable unconsumed receipt must all match.
-    """
+    """Authenticate, bind, and consume a validation acknowledgement exactly once."""
     current = _as_utc(now or datetime.now(timezone.utc))
     result: WorkerValidationResult = signed.result
 
@@ -45,7 +42,9 @@ def accept_worker_acknowledgement(
     if result.execution_enabled is not False:
         return False
     try:
-        if not verify_worker_validation_result(signed, secret):
+        if not verify_worker_validation_result(
+            signed, secret, expected_key_id=expected_key_id
+        ):
             return False
     except ValueError:
         return False
@@ -55,9 +54,7 @@ def accept_worker_acknowledgement(
         .filter(WorkerTaskReceipt.task_id == str(result.task_id))
         .first()
     )
-    if receipt is None:
-        return False
-    if receipt.envelope_sha256 != result.envelope_sha256:
+    if receipt is None or receipt.envelope_sha256 != result.envelope_sha256:
         return False
 
     validated_at = _as_utc(result.validated_at)
@@ -71,10 +68,7 @@ def accept_worker_acknowledgement(
         return False
 
     return consume_task_receipt(
-        db,
-        str(result.task_id),
-        result.envelope_sha256,
-        now=current,
+        db, str(result.task_id), result.envelope_sha256, now=current,
         acknowledgement_outcome=result.outcome,
         acknowledgement_worker_id=result.worker_id,
         acknowledgement_validated_at=validated_at,

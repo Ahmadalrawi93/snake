@@ -10,7 +10,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.worker_protocol import WorkerTaskEnvelope
+from app.core.worker_protocol import WorkerTaskEnvelope, WorkerValidationResult
 
 
 _SIGNATURE_RE = r"^v1=[a-f0-9]{64}$"
@@ -53,7 +53,7 @@ class SignedWorkerValidationResult(BaseModel):
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    result: "WorkerValidationResult"
+    result: WorkerValidationResult
     signature: Annotated[str, Field(pattern=_SIGNATURE_RE)]
 
 

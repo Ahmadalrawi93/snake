@@ -9,7 +9,9 @@ Repository structure, FastAPI service, hostname allowlist primitive, dashboard s
 - User ownership enforced across project, target, and authorization APIs.
 - Audit listing scoped to the authenticated actor.
 - Alembic migration for ownership columns on existing databases.
-- Remaining: email verification, registration throttling, refresh/revocation, admin-managed roles, formal authorization review, immutable scope snapshots, and stronger audit integrity.
+- Admin-only pending authorization queue and approve/reject review endpoint with audit events.
+- Explicit CLI admin bootstrap; public registration cannot assign admin role.
+- Remaining: email verification, registration throttling, refresh/revocation, team roles, immutable scope snapshots, and stronger audit integrity.
 
 ## Phase 3 — Scanner Engine
 Isolated worker protocol and narrowly scoped passive discovery adapters. Re-check scope at dispatch and execution; enforce egress and resource ceilings. No arbitrary shell execution.

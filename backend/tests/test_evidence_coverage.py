@@ -71,3 +71,13 @@ def test_rejects_mismatched_strategy_assessment():
     wrong = assessment(b).model_copy(update={"strategy_id": "other_strategy"})
     with pytest.raises(ValueError, match="strategy IDs"):
         assess_evidence_coverage(b, wrong)
+
+
+def test_rejects_forged_assessment_counts_or_references():
+    b = bundle([
+        item("observed_behavior", "supports",
+             refs=[UUID("00000000-0000-4000-8000-000000000001")]),
+    ])
+    forged = assessment(b).model_copy(update={"supporting_evidence_count": 99})
+    with pytest.raises(ValueError, match="supporting_evidence_count"):
+        assess_evidence_coverage(b, forged)

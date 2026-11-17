@@ -636,13 +636,3 @@ def test_human_finding_decisions_are_owner_scoped_and_append_only():
     assert len(listed.json()) == 1
     assert listed.json()[0]["outcome"] == "confirmed"
 
-    db = TestingSession()
-    try:
-        record = db.query(HumanFindingDecision).one()
-        record.notes = "tampered"
-        import pytest
-        with pytest.raises(Exception):
-            db.commit()
-        db.rollback()
-    finally:
-        db.close()

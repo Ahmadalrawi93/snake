@@ -427,6 +427,7 @@ class InvestigationMemoryRecord(Base):
     hypothesis_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     category: Mapped[str] = mapped_column(String(50), nullable=False)
     hypothesis_text: Mapped[str] = mapped_column(String(1000), nullable=False)
+    candidate_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     observation_ids_json: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     execution_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

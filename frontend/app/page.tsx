@@ -5,7 +5,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 type User = { id: number; email: string; role: string };
 type Project = { id: number; name: string; description: string; created_at: string };
 type Target = { id: number; value: string; target_type: string; status: string };
-type Authorization = { id: number; reference: string; starts_at: string | null; expires_at: string | null; status: string; notes: string };
+type Authorization = { id: number; reference: string; starts_at: string | null; expires_at: string | null; status: string; notes: string };\ntype ScopeSnapshot = { id: number; target_id: number; authorization_id: number; sha256: string; status: string; created_at: string; expires_at: string | null; snapshot: { target?: string; hostname?: string; execution_enabled?: boolean } };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
@@ -15,7 +15,7 @@ export default function Home() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [targets, setTargets] = useState<Target[]>([]);
-  const [authorizations, setAuthorizations] = useState<Authorization[]>([]);
+  const [authorizations, setAuthorizations] = useState<Authorization[]>([]);\n  const [snapshots, setSnapshots] = useState<ScopeSnapshot[]>([]);\n  const [snapshotValidity, setSnapshotValidity] = useState<Record<number, string>>({});
   const [targetValue, setTargetValue] = useState("");
   const [targetType, setTargetType] = useState("domain");
   const [authReference, setAuthReference] = useState("");
@@ -58,12 +58,12 @@ export default function Home() {
   }, [api]);
 
   const loadProjectResources = useCallback(async (projectId: number) => {
-    const [targetList, authorizationList] = await Promise.all([
+    const [targetList, authorizationList, snapshotList] = await Promise.all([
       api(`/api/v1/projects/${projectId}/targets`),
-      api(`/api/v1/projects/${projectId}/authorizations`)
+      api(`/api/v1/projects/${projectId}/authorizations`),\n      api(`/api/v1/projects/${projectId}/scope-snapshots`)
     ]);
     setTargets(targetList);
-    setAuthorizations(authorizationList);
+    setAuthorizations(authorizationList);\n    setSnapshots(snapshotList);
   }, [api]);
 
   async function selectProject(projectId: number) {
@@ -75,6 +75,37 @@ export default function Home() {
       await loadProjectResources(projectId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load project records");
+    }
+  }
+
+  async function createScopeSnapshot(targetId: number) {
+    if (!selectedProjectId) return;
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const created = await api(`/api/v1/projects/${selectedProjectId}/targets/${targetId}/scope-snapshots`, {
+        method: "POST"
+      });
+      setSnapshots(current => [created, ...current]);
+      setMessage(`Scope snapshot #${created.id} created. Execution remains disabled.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Scope snapshot could not be created");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function validateScopeSnapshot(snapshotId: number) {
+    setBusy(true); setError("");
+    try {
+      const result = await api(`/api/v1/scope-snapshots/${snapshotId}/validate`);
+      setSnapshotValidity(current => ({
+        ...current,
+        [snapshotId]: result.valid ? "VALID" : `INVALID: ${result.reasons.join(", ")}`
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Snapshot validation failed");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -184,7 +215,7 @@ export default function Home() {
 
   function signOut() {
     window.localStorage.removeItem("snake_access_token");
-    setToken(""); setUser(null); setProjects([]); setSelectedProjectId(null); setTargets([]); setAuthorizations([]); setMessage(""); setError("");
+    setToken(""); setUser(null); setProjects([]); setSelectedProjectId(null); setTargets([]); setAuthorizations([]); setSnapshots([]); setSnapshotValidity({}); setMessage(""); setError("");
   }
 
   return (
@@ -268,8 +299,11 @@ export default function Home() {
                   </form>
                 </div>
                 <div className="records-grid">
-                  <div className="record-panel"><h3>Registered targets <span>{targets.length}</span></h3>{targets.length === 0 ? <p className="muted">No targets registered.</p> : targets.map(target => <div className="record-row" key={target.id}><div><b>{target.value}</b><small>{target.target_type.toUpperCase()} · {target.status.toUpperCase()}</small></div><time>#{target.id}</time></div>)}</div>
+                  <div className="record-panel"><h3>Registered targets <span>{targets.length}</span></h3>{targets.length === 0 ? <p className="muted">No targets registered.</p> : targets.map(target => <div className="record-row" key={target.id}><div><b>{target.value}</b><small>{target.target_type.toUpperCase()} · {target.status.toUpperCase()}</small><button className="text-button" disabled={busy} onClick={() => createScopeSnapshot(target.id)}>CREATE SCOPE SNAPSHOT</button></div><time>#{target.id}</time></div>)}</div>
                   <div className="record-panel"><h3>Authorization references <span>{authorizations.length}</span></h3>{authorizations.length === 0 ? <p className="muted">No authorization records.</p> : authorizations.map(record => <div className="record-row" key={record.id}><div><b>{record.reference}</b><small>{record.status.toUpperCase()} · {record.starts_at || "Start unspecified"} → {record.expires_at || "Expiry unspecified"}</small>{record.notes && <p>{record.notes}</p>}</div><time>#{record.id}</time></div>)}</div>
+                </div>
+                <div className="records-grid">
+                  <div className="record-panel snapshot-panel"><h3>Immutable scope snapshots <span>{snapshots.length}</span></h3>{snapshots.length === 0 ? <p className="muted">No scope snapshots. A currently valid, approved authorization must cover a target.</p> : snapshots.map(snapshot => <div className="record-row" key={snapshot.id}><div><b>Snapshot #{snapshot.id} · {snapshot.snapshot.hostname || "Target scope"}</b><small>{snapshot.status.toUpperCase()} · SHA-256 {snapshot.sha256.slice(0, 16)}… · EXECUTION DISABLED</small>{snapshotValidity[snapshot.id] && <small>{snapshotValidity[snapshot.id]}</small>}<button className="text-button" disabled={busy} onClick={() => validateScopeSnapshot(snapshot.id)}>VALIDATE SNAPSHOT</button></div><time>TARGET #{snapshot.target_id}</time></div>)}</div>
                 </div>
               </section>
             )}

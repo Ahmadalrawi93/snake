@@ -13,7 +13,8 @@ type FindingCandidate = { id: number; analysis_run_id: number; candidate_fingerp
 type CandidateDetail = { id: number; analysis_run_id: number; project_id: number; candidate_fingerprint: string; qualification: { title: string; category: string; qualification: string; evidence_quality: string; impact_quality: string; blockers: string[] }; evidence_bundle: { strategy_id: string; reviewer_note: string; items: { evidence_id: string; evidence_type: string; relationship: string; statement: string; source_label: string; observation_ids: string[]; recorded_at: string }[] }; evidence_bundle_sha256: string; finding_status: string; execution_enabled: boolean; created_at: string };
 type LifecycleEvent = { id: number; from_status: string; to_status: string; rationale: string; created_at: string };
 type EvidenceArtifact = { id: number; filename: string; media_type: string; content_sha256: string; size_bytes: number; description: string; created_at: string };
-type HumanDecision = { id: number; candidate_fingerprint: string; outcome: string; evidence_sha256: string | null; validation_method: string; notes: string; created_at: string };\ntype ImpactAssessmentRecord = { id: number; assessment_sha256: string; final_severity: "not_assessed"; cvss_vector: null; execution_enabled: false; assessment: { assessment_status: string; severity_suggestion: string; blockers: string[]; rationale: string[] }; created_at: string };
+type HumanDecision = { id: number; candidate_fingerprint: string; outcome: string; evidence_sha256: string | null; validation_method: string; notes: string; created_at: string };
+type ImpactAssessmentRecord = { id: number; assessment_sha256: string; final_severity: "not_assessed"; cvss_vector: null; execution_enabled: false; assessment: { assessment_status: string; severity_suggestion: string; blockers: string[]; rationale: string[] }; created_at: string };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
@@ -32,7 +33,13 @@ export default function Home() {
   const [selectedCandidate, setSelectedCandidate] = useState<CandidateDetail | null>(null);
   const [lifecycleEvents, setLifecycleEvents] = useState<LifecycleEvent[]>([]);
   const [evidenceArtifacts, setEvidenceArtifacts] = useState<EvidenceArtifact[]>([]);
-  const [humanDecisions, setHumanDecisions] = useState<HumanDecision[]>([]);\n  const [impactAssessments, setImpactAssessments] = useState<ImpactAssessmentRecord[]>([]);\n  const [decisionEvidenceSha, setDecisionEvidenceSha] = useState("");\n  const [impactEvidenceId, setImpactEvidenceId] = useState("");\n  const [impactDimension, setImpactDimension] = useState("confidentiality");\n  const [impactLevel, setImpactLevel] = useState("moderate");\n  const [impactStatement, setImpactStatement] = useState("");
+  const [humanDecisions, setHumanDecisions] = useState<HumanDecision[]>([]);
+  const [impactAssessments, setImpactAssessments] = useState<ImpactAssessmentRecord[]>([]);
+  const [decisionEvidenceSha, setDecisionEvidenceSha] = useState("");
+  const [impactEvidenceId, setImpactEvidenceId] = useState("");
+  const [impactDimension, setImpactDimension] = useState("confidentiality");
+  const [impactLevel, setImpactLevel] = useState("moderate");
+  const [impactStatement, setImpactStatement] = useState("");
   const [decisionOutcome, setDecisionOutcome] = useState("inconclusive");
   const [decisionMethod, setDecisionMethod] = useState("manual_reproduction");
   const [decisionNotes, setDecisionNotes] = useState("");
@@ -136,7 +143,8 @@ export default function Home() {
       const detail = await api(`/api/v1/finding-candidates/${candidateId}`);
       const [lifecycle, artifacts, impacts] = await Promise.all([
         api(`/api/v1/finding-candidates/${candidateId}/lifecycle`),
-        api(`/api/v1/finding-candidates/${candidateId}/evidence`),\n        api(`/api/v1/finding-candidates/${candidateId}/impact-assessments`)
+        api(`/api/v1/finding-candidates/${candidateId}/evidence`),
+        api(`/api/v1/finding-candidates/${candidateId}/impact-assessments`)
       ]);
       const decisions = await api(`/api/v1/analysis-runs/${detail.analysis_run_id}/finding-decisions?candidate_fingerprint=${detail.candidate_fingerprint}`);
       setSelectedCandidate(detail);
@@ -202,7 +210,10 @@ export default function Home() {
         notes: decisionNotes,
         reviewer_attested: true
       };
-      if (evidenceRequired) {\n        if (!decisionEvidenceSha || !evidenceArtifacts.some(item => item.content_sha256 === decisionEvidenceSha)) throw new Error("Select an evidence artifact from the encrypted vault.");\n        payload.evidence_sha256 = decisionEvidenceSha;\n      }
+      if (evidenceRequired) {
+        if (!decisionEvidenceSha || !evidenceArtifacts.some(item => item.content_sha256 === decisionEvidenceSha)) throw new Error("Select an evidence artifact from the encrypted vault.");
+        payload.evidence_sha256 = decisionEvidenceSha;
+      }
       await api(`/api/v1/analysis-runs/${selectedCandidate.analysis_run_id}/finding-decisions`, {
         method: "POST", body: JSON.stringify(payload)
       });
@@ -608,7 +619,9 @@ export default function Home() {
                       <h3>Append-only lifecycle</h3>
                       <div className="review-actions">
                         {(!lifecycleEvents.length || lifecycleEvents[lifecycleEvents.length - 1].to_status === "new") && <button className="primary-button" disabled={busy} onClick={() => transitionCandidate("under_review", "Human review started.")}>START REVIEW</button>}
-                        {lifecycleEvents.length > 0 && lifecycleEvents[lifecycleEvents.length - 1].to_status === "under_review" && <button className="primary-button" disabled={busy} onClick={() => transitionCandidate("needs_more_evidence", "Additional evidence is required.")}>REQUEST MORE EVIDENCE</button>}\n                        {lifecycleEvents.length > 0 && lifecycleEvents[lifecycleEvents.length - 1].to_status === "under_review" && humanDecisions.some(item => item.outcome === "confirmed" && item.evidence_sha256 && evidenceArtifacts.some(artifact => artifact.content_sha256 === item.evidence_sha256)) && <button className="primary-button" disabled={busy} onClick={() => transitionCandidate("confirmed", "Human reviewer confirmed the candidate with encrypted evidence.")}>CONFIRM FINDING</button>}\n                        {lifecycleEvents.length > 0 && lifecycleEvents[lifecycleEvents.length - 1].to_status === "under_review" && humanDecisions.some(item => item.outcome === "false_positive") && <button className="danger-button" disabled={busy} onClick={() => transitionCandidate("rejected", "Human reviewer rejected the candidate as a false positive.")}>REJECT AS FALSE POSITIVE</button>}
+                        {lifecycleEvents.length > 0 && lifecycleEvents[lifecycleEvents.length - 1].to_status === "under_review" && <button className="primary-button" disabled={busy} onClick={() => transitionCandidate("needs_more_evidence", "Additional evidence is required.")}>REQUEST MORE EVIDENCE</button>}
+                        {lifecycleEvents.length > 0 && lifecycleEvents[lifecycleEvents.length - 1].to_status === "under_review" && humanDecisions.some(item => item.outcome === "confirmed" && item.evidence_sha256 && evidenceArtifacts.some(artifact => artifact.content_sha256 === item.evidence_sha256)) && <button className="primary-button" disabled={busy} onClick={() => transitionCandidate("confirmed", "Human reviewer confirmed the candidate with encrypted evidence.")}>CONFIRM FINDING</button>}
+                        {lifecycleEvents.length > 0 && lifecycleEvents[lifecycleEvents.length - 1].to_status === "under_review" && humanDecisions.some(item => item.outcome === "false_positive") && <button className="danger-button" disabled={busy} onClick={() => transitionCandidate("rejected", "Human reviewer rejected the candidate as a false positive.")}>REJECT AS FALSE POSITIVE</button>}
                         {lifecycleEvents.length > 0 && lifecycleEvents[lifecycleEvents.length - 1].to_status === "needs_more_evidence" && <button className="primary-button" disabled={busy} onClick={() => transitionCandidate("under_review", "Additional evidence review resumed.")}>RESUME REVIEW</button>}
                       </div>
                       {lifecycleEvents.map(item => <div className="record-row" key={item.id}><div><b>{item.from_status.toUpperCase()} → {item.to_status.toUpperCase()}</b><p>{item.rationale}</p></div><time>{new Date(item.created_at).toLocaleString()}</time></div>)}

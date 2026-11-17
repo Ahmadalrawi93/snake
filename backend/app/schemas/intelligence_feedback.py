@@ -20,6 +20,7 @@ class IntelligenceFeedbackProfile(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     profile_version: Literal["1"] = "1"
     project_id: int
+    target_id: int | None = None
     evaluated_runs: int = Field(ge=0)
     patterns: list[FeedbackPattern] = Field(max_length=2000)
     notice: Literal[

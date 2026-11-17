@@ -145,6 +145,23 @@ def test_scope_snapshot_requires_approved_matching_authorization():
     assert validation.status_code == 200
     assert validation.json()["valid"] is True
     assert validation.json()["execution_enabled"] is False
+
+    # A later change to the authorization allowlist invalidates the old snapshot.
+    db = TestingSession()
+    try:
+        from app.db.models import Authorization
+        authorization_row = db.query(Authorization).filter_by(id=auth["id"]).one()
+        authorization_row.scope_rules = '["different.example.org"]'
+        db.commit()
+    finally:
+        db.close()
+    changed_rules = client.get(
+        f"/api/v1/scope-snapshots/{snapshot['id']}/validate", headers=headers
+    )
+    assert changed_rules.status_code == 200
+    assert changed_rules.json()["valid"] is False
+    assert "authorization_scope_rules_changed" in changed_rules.json()["reasons"]
+
     revoked = client.post(f"/api/v1/admin/scope-snapshots/{snapshot['id']}/revoke",
         headers=admin_headers)
     assert revoked.status_code == 200

@@ -20,6 +20,7 @@ def upgrade():
         sa.Column("validation_method", sa.String(80), nullable=False),
         sa.Column("notes", sa.Text(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.UniqueConstraint("analysis_run_id", "evaluator_id", name="uq_ai_analysis_evaluation_actor_run"),
         sa.CheckConstraint(
             "outcome IN ('confirmed', 'false_positive', 'inconclusive', 'duplicate')",
             name="ck_ai_analysis_evaluation_outcome",

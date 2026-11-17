@@ -19,6 +19,22 @@ def assess_evidence_coverage(
     """Score presence of documented evidence elements, not truth or severity."""
     if bundle.strategy_id != assessment.strategy_id:
         raise ValueError("bundle and assessment strategy IDs must match")
+    expected_evidence_ids = {item.evidence_id for item in bundle.items}
+    expected_observation_ids = {
+        observation_id for item in bundle.items for observation_id in item.observation_ids
+    }
+    expected_counts = {
+        "supporting_evidence_count": sum(item.relationship == "supports" for item in bundle.items),
+        "contradicting_evidence_count": sum(item.relationship == "contradicts" for item in bundle.items),
+        "context_evidence_count": sum(item.relationship == "context_only" for item in bundle.items),
+    }
+    if set(assessment.evidence_ids) != expected_evidence_ids:
+        raise ValueError("assessment evidence IDs do not match evidence bundle")
+    if set(assessment.observation_ids) != expected_observation_ids:
+        raise ValueError("assessment observation IDs do not match evidence bundle")
+    for field, expected in expected_counts.items():
+        if getattr(assessment, field) != expected:
+            raise ValueError(f"assessment {field} does not match evidence bundle")
     types = {item.evidence_type for item in bundle.items}
     present = set()
     if "program_policy" in types:
@@ -45,7 +61,7 @@ def assess_evidence_coverage(
         coverage_band=band,
         documented_elements=sorted(present),
         missing_elements=missing,
-        contradiction_count=assessment.contradicting_evidence_count,
+        contradiction_count=expected_counts["contradicting_evidence_count"],
         evidence_item_count=len(bundle.items),
         distinct_source_labels=len({item.source_label.casefold() for item in bundle.items}),
         impact_documented="impact_context" in present,

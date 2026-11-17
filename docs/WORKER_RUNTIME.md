@@ -10,9 +10,11 @@ The HTTPS listener:
 - Requires TLS 1.2 or newer and mutual TLS. The worker presents its TLS
   certificate; it trusts only client certificates chaining to the configured
   backend-client CA.
-- Accepts only bounded JSON requests (64 KiB), rejects transfer encoding,
-  validates the exact signed task schema, backend Ed25519 signature, worker/key
-  binding, and expiry.
+- Accepts only bounded JSON requests (64 KiB), rejects ambiguous HTTP framing,
+  validates the exact signed task schema, backend Ed25519 signature, and worker/key
+  binding. A durable SQLite ledger stores each accepted task ID, digest, identity,
+  and exact signed acknowledgement; identical retries return the stored bytes,
+  while changed-content task-ID reuse is rejected. Expiry is checked on first acceptance.
 - Returns a signed validation-only acknowledgement. It does not execute scans,
   invoke a shell, connect to targets, access a database, or consume a queue.
 - Uses a fixed path and no caller-controlled destination or command fields.
@@ -26,6 +28,7 @@ Required HTTPS listener environment:
 - `SNAKE_WORKER_ED25519_PRIVATE_KEY_B64`
 - `SNAKE_WORKER_ID`
 - `SNAKE_WORKER_KEY_ID`
+- `SNAKE_WORKER_REPLAY_DB_PATH` (required durable SQLite ledger path)
 - Optional bind host/port: `SNAKE_WORKER_BIND_HOST`, `SNAKE_WORKER_BIND_PORT`
 
 Run the HTTPS listener in the worker image by overriding its one-shot entrypoint:
@@ -39,7 +42,11 @@ docker run --rm --entrypoint python \
 ```
 
 The command above is an example deployment shape, not a production-ready
-orchestrator. The TLS certificate/key and CA files must be provisioned securely.
+orchestrator. Pre-create `./worker-state` and grant it to UID/GID 10001 before
+launching; otherwise the non-root listener cannot write its replay ledger. Keep
+that volume persistent across container replacement, protect it from other
+containers/users, and include it in backup/retention planning. The TLS
+certificate/key and CA files must be provisioned securely.
 The worker's public Ed25519 key must be registered by an administrator; the
 backend private key must never be mounted into the worker.
 

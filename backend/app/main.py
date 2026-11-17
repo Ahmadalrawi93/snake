@@ -11,6 +11,7 @@ from app.api.analysis_runs import router as analysis_runs_router
 from app.api.analysis_evaluations import router as analysis_evaluations_router
 from app.api.finding_decisions import router as finding_decisions_router
 from app.api.finding_candidates import router as finding_candidates_router
+from app.api.finding_lifecycle import router as finding_lifecycle_router
 from app.api.intelligence_feedback import router as intelligence_feedback_router
 from app.core.config import get_settings
 from app.db.database import Base, engine
@@ -40,6 +41,7 @@ app.include_router(analysis_runs_router)
 app.include_router(analysis_evaluations_router)
 app.include_router(finding_decisions_router)
 app.include_router(finding_candidates_router)
+app.include_router(finding_lifecycle_router)
 app.include_router(intelligence_feedback_router)
 
 @app.get("/")

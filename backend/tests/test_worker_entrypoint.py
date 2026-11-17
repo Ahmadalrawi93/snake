@@ -69,3 +69,21 @@ def test_worker_rejects_command_fields(monkeypatch, capsys):
     payload["command"] = "id"
     assert _run(monkeypatch, json.dumps(payload)) == 2
     assert "signature" in capsys.readouterr().err.lower()
+
+
+def test_worker_rejects_expired_signed_task(monkeypatch, capsys):
+    from datetime import timedelta
+
+    monkeypatch.setenv("SNAKE_WORKER_SIGNING_SECRET", SECRET)
+    task = _task().model_copy(update={
+        "issued_at": datetime.now(timezone.utc) - timedelta(minutes=5),
+        "expires_at": datetime.now(timezone.utc) - timedelta(minutes=1),
+    })
+    signed_task = sign_worker_task(task, SECRET)
+    assert _run(monkeypatch, signed_task.model_dump_json()) == 2
+    assert "expired" in capsys.readouterr().err
+
+
+def test_worker_rejects_oversized_input(monkeypatch, capsys):
+    assert _run(monkeypatch, "x" * (64 * 1024 + 1)) == 2
+    assert "64 KiB" in capsys.readouterr().err

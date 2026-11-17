@@ -2,8 +2,8 @@
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0014_human_finding_decisions"
-down_revision = "0013_ai_analysis_evaluations"
+revision = "0015_human_finding_decisions"
+down_revision = "0014_analysis_run_targets"
 branch_labels = None
 depends_on = None
 

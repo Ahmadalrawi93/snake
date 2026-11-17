@@ -3,6 +3,7 @@ import hashlib
 import http.client
 import ssl
 import threading
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -134,15 +135,24 @@ def integrated_transport(tmp_path):
     server_context.load_cert_chain(server_cert, server_key)
     server_context.load_verify_locations(cafile=ca)
 
-    server = _ThreadingHTTPServer(
-        ("127.0.0.1", 0),
-        build_handler(
-            backend_public_key=backend_public,
-            worker_private_key=worker_private,
-            worker_id="worker-e2e",
-            key_id="worker-key-1",
-        ),
+    base_handler = build_handler(
+        backend_public_key=backend_public,
+        worker_private_key=worker_private,
+        worker_id="worker-e2e",
+        key_id="worker-key-1",
     )
+
+    class DelayedResponseHandler(base_handler):
+        def _send(self, status, body):
+            if status == 200:
+                self.server.task_accepted.set()
+                if self.server.delay_success_response:
+                    time.sleep(0.7)
+            super()._send(status, body)
+
+    server = _ThreadingHTTPServer(("127.0.0.1", 0), DelayedResponseHandler)
+    server.task_accepted = threading.Event()
+    server.delay_success_response = False
     server.expected_client_certificate_sha256 = client_pin
     server.socket = server_context.wrap_socket(server.socket, server_side=True)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -218,6 +228,7 @@ def integrated_transport(tmp_path):
                     task_id=str(envelope.task_id)
                 ).one(),
                 "db": db,
+                "server": server,
             }
     finally:
         server.shutdown()
@@ -273,3 +284,25 @@ def test_full_dispatch_does_not_enable_scan_execution(integrated_transport):
     ).one()
     assert result["acknowledgement"]["result"]["execution_enabled"] is False
     assert attempt.status == "delivered"
+
+
+
+def test_real_worker_accepts_task_but_delayed_ack_leaves_backend_unknown(integrated_transport):
+    state = integrated_transport
+    state["server"].delay_success_response = True
+
+    with pytest.raises((TimeoutError, OSError, __import__("socket").timeout)):
+        state["dispatch"](timeout_seconds=0.2)
+
+    # The worker completed task validation and prepared the success response,
+    # but the response was deliberately delayed beyond the backend timeout.
+    assert state["server"].task_accepted.wait(timeout=1.0)
+    attempt = state["db"].query(WorkerDispatchAttempt).filter_by(
+        task_id=str(state["envelope"].task_id)
+    ).one()
+    assert attempt.status == "unknown"
+    assert attempt.error_code == "transport_exception"
+
+    # No retry is permitted because the worker may already have accepted it.
+    with pytest.raises(ValueError, match="previous attempt is not confirmed failed"):
+        state["dispatch"](timeout_seconds=0.2)

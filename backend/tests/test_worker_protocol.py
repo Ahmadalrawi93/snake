@@ -58,3 +58,26 @@ def test_expired_worker_task_is_rejected():
     future = task.expires_at + timedelta(seconds=1)
     with pytest.raises(ValueError, match="expired"):
         ensure_not_expired(task, now=future)
+
+
+def test_worker_task_rejects_issue_time_too_far_in_future():
+    payload = valid_payload()
+    payload["issued_at"] = datetime.now(timezone.utc) + timedelta(minutes=1)
+    task = WorkerTaskEnvelope.model_validate(payload)
+    with pytest.raises(ValueError, match="issue time is in the future"):
+        ensure_not_expired(task, now=datetime.now(timezone.utc))
+
+
+def test_worker_task_rejects_lifetime_over_five_minutes():
+    payload = valid_payload()
+    payload["expires_at"] = payload["issued_at"] + timedelta(seconds=301)
+    task = WorkerTaskEnvelope.model_validate(payload)
+    with pytest.raises(ValueError, match="lifetime exceeds 300 seconds"):
+        ensure_not_expired(task, now=payload["issued_at"])
+
+
+def test_worker_task_accepts_lifetime_at_five_minute_boundary():
+    payload = valid_payload()
+    payload["expires_at"] = payload["issued_at"] + timedelta(seconds=300)
+    task = WorkerTaskEnvelope.model_validate(payload)
+    ensure_not_expired(task, now=payload["issued_at"])

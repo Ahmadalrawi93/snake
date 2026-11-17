@@ -36,4 +36,4 @@ The worker container is a **validator only**. It reads one JSON envelope from st
 
 HMAC signing protects message integrity/authenticity only. Durable receipt primitives now prevent duplicate reservation and repeated receipt consumption at the database layer, but are not connected to authenticated transport or a worker. Socket-level IP pinning, per-request scope checks, and real scanning remain unimplemented. Keep the API private; this is not production-ready.
 
-See [architecture](docs/ARCHITECTURE.md), [roadmap](docs/ROADMAP.md), [worker runtime](docs/WORKER_RUNTIME.md), and [task authentication](docs/WORKER_TASK_AUTHENTICATION.md), and [replay protection](docs/WORKER_REPLAY_PROTECTION.md).
+See [architecture](docs/ARCHITECTURE.md), [roadmap](docs/ROADMAP.md), [worker runtime](docs/WORKER_RUNTIME.md), [task authentication](docs/WORKER_TASK_AUTHENTICATION.md), and [replay protection](docs/WORKER_REPLAY_PROTECTION.md).

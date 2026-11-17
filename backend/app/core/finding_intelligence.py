@@ -88,6 +88,8 @@ def compare_candidates(
             rationale.append("high_title_token_similarity")
         if evidence_similarity >= 0.72:
             rationale.append("high_evidence_token_similarity")
+        elif evidence_similarity >= 0.55:
+            rationale.append("meaningful_evidence_token_overlap")
         if shared:
             rationale.append("shared_source_observations")
         if shared_routes:

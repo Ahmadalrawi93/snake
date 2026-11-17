@@ -168,7 +168,7 @@ def test_dnsdb_fetch_parses_saf_ndjson_and_sends_api_key():
         def open(self, request, timeout):
             assert timeout == 12
             assert request.full_url.startswith(f"https://{DNSDB_HOST}/")
-            assert request.get_header("X-api-key") == "secret-test-key"
+            assert request.get_header("X-Api-Key") == "secret-test-key"
             assert request.get_header("Accept") == "application/x-ndjson"
             return Response()
     rows, completion = fetch_dnsdb_rows("*.example.org", "secret-test-key", opener=Opener())
@@ -240,5 +240,17 @@ def test_dnsdb_collector_rejects_invalid_rrdata_and_dates():
     records = collect_dnsdb_feed(["*.example.org"], "key", fetcher=lambda q, k: (
         [dns_row("api.example.org.", rdata=["valid", "bad\\nvalue"]),
          dns_row("badtime.example.org.", timestamp=10**30)], "succeeded"
+    ))
+    assert len(records) == 1
+
+
+def test_dnsdb_query_builder_rejects_path_injection():
+    with pytest.raises(ValueError):
+        _dnsdb_url("example.org/../../attacker.invalid")
+
+
+def test_dnsdb_collector_skips_non_object_provider_rows():
+    records = collect_dnsdb_feed(["*.example.org"], "key", fetcher=lambda q, k: (
+        [None, dns_row()], "succeeded"
     ))
     assert len(records) == 1

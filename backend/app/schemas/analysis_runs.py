@@ -8,6 +8,7 @@ class AnalysisRunRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     project_id: int
+    target_id: int | None = None
     created_by: int
     context_sha256: str
     correlations_sha256: str

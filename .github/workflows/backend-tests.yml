@@ -27,5 +27,7 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r requirements.txt
       - run: PYTHONPATH=. pytest -q
+      - name: Verify database migrations
+        run: alembic upgrade head
       - name: Build validation-only worker image
         run: docker build -f worker.Dockerfile -t snake-worker-validator:test .

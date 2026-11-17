@@ -23,7 +23,7 @@ def make_context():
         source="passive",
         observed_at=datetime.now(timezone.utc),
     )
-    context = build_analysis_context([item])
+    collection = WorkerObservation(\n        observation_id=uuid4(), kind="url",\n        value="https://example.test/api/users", evidence="observed collection route",\n        source="passive", observed_at=datetime.now(timezone.utc),\n    )\n    context = build_analysis_context([collection, item])
     correlations = correlate_analysis_context(context)
     return context, correlations, observation_id
 

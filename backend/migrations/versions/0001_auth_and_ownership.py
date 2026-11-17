@@ -35,10 +35,18 @@ def upgrade():
             batch.create_foreign_key("fk_audit_actor_user_id_users", "users", ["actor_user_id"], ["id"])
 
 def downgrade():
-    with op.batch_alter_table("audit_events") as batch:
-        batch.drop_constraint("fk_audit_actor_user_id_users", type_="foreignkey")
-        batch.drop_column("actor_user_id")
-    with op.batch_alter_table("projects") as batch:
-        batch.drop_constraint("fk_projects_owner_id_users", type_="foreignkey")
-        batch.drop_column("owner_id")
-    op.drop_table("users")
+    bind = op.get_bind()
+    audit_fks = {fk.get("name") for fk in inspect(bind).get_foreign_keys("audit_events")}
+    if "actor_user_id" in {c["name"] for c in inspect(bind).get_columns("audit_events")}:
+        with op.batch_alter_table("audit_events") as batch:
+            if "fk_audit_actor_user_id_users" in audit_fks:
+                batch.drop_constraint("fk_audit_actor_user_id_users", type_="foreignkey")
+            batch.drop_column("actor_user_id")
+    project_fks = {fk.get("name") for fk in inspect(bind).get_foreign_keys("projects")}
+    if "owner_id" in {c["name"] for c in inspect(bind).get_columns("projects")}:
+        with op.batch_alter_table("projects") as batch:
+            if "fk_projects_owner_id_users" in project_fks:
+                batch.drop_constraint("fk_projects_owner_id_users", type_="foreignkey")
+            batch.drop_column("owner_id")
+    if "users" in inspect(bind).get_table_names():
+        op.drop_table("users")

@@ -246,6 +246,8 @@ def test_backend_to_worker_full_mtls_dispatch_and_ack(integrated_transport):
     assert result["http_status"] == 200
     assert result["acknowledgement"]["result"]["outcome"] == "accepted"
     assert result["acknowledgement"]["result"]["execution_enabled"] is False
+    assert result["observation_count"] == 0
+    assert result["observation_batch_received"] is False
     assert state["receipt"].consumed_at is not None
     assert attempt.status == "delivered"
 
@@ -283,6 +285,7 @@ def test_full_dispatch_does_not_enable_scan_execution(integrated_transport):
         task_id=str(state["envelope"].task_id)
     ).one()
     assert result["acknowledgement"]["result"]["execution_enabled"] is False
+    assert result["observation_count"] == 0
     assert attempt.status == "delivered"
 
 

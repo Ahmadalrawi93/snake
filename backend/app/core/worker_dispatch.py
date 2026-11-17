@@ -85,6 +85,12 @@ def prepare_dispatch_envelope(
     if expires_at <= current.astimezone(timezone.utc):
         raise HTTPException(status_code=409, detail="Authorization expires before task can be issued")
 
+    approved_scope_rules = snapshot_data.get("approved_scope_rules")
+    if (not isinstance(approved_scope_rules, list) or not approved_scope_rules
+            or len(approved_scope_rules) > 100
+            or any(not isinstance(rule, str) for rule in approved_scope_rules)):
+        raise HTTPException(status_code=409, detail="Approved scope manifest is missing or invalid")
+
     envelope = WorkerTaskEnvelope(
         task_id=uuid4(),
         job_id=job.id,
@@ -92,6 +98,7 @@ def prepare_dispatch_envelope(
         scope_snapshot_sha256=snapshot.sha256,
         profile="passive_recon",
         target_url=snapshot_data["target"],
+        approved_scope_rules=approved_scope_rules,
         issued_at=current.astimezone(timezone.utc),
         expires_at=expires_at,
         execution_enabled=False,

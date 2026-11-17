@@ -12,7 +12,7 @@ from sqlalchemy.pool import StaticPool
 from app.db.database import Base
 from app.db.models import (
     User, Project, Target, Authorization, ScopeSnapshot, ScanJob,
-    WorkerTaskReceipt, WorkerKey, WorkerObservationRecord, AIAnalysisRun, Project, Target,
+    WorkerTaskReceipt, WorkerKey, WorkerObservationRecord, AIAnalysisRun,
 )
 from app.core.worker_signing import ed25519_public_key_fingerprint
 from app.core.worker_observation_signing import sign_worker_observation_batch, observation_batch_digest

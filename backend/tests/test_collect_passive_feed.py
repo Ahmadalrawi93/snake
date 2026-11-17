@@ -257,4 +257,4 @@ def test_dnsdb_collector_skips_non_object_provider_rows():
 
 def test_dnsdb_fetch_rejects_control_characters_in_api_key():
     with pytest.raises(ValueError, match="API key"):
-        fetch_dnsdb_rows("example.org", "key\\nInjected: yes")
+        fetch_dnsdb_rows("example.org", "key" + chr(10) + "Injected: yes")

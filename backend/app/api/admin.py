@@ -1,7 +1,7 @@
 import re
 from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 from app.api.dependencies import require_admin
 from app.db.database import get_db
@@ -95,6 +95,7 @@ def revoke_scope_snapshot(
 
 
 class WorkerPublicKeyCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     key_id: str = Field(min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9._-]+$")
     public_key_b64: str = Field(min_length=20, max_length=2048)
 

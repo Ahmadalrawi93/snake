@@ -70,6 +70,7 @@ def store_worker_observation_batch(
             key_id=batch.key_id,
             envelope_sha256=batch.envelope_sha256,
             batch_sha256=digest,
+            batch_signature=signed.signature,
             kind=item.kind,
             value=item.value,
             evidence=item.evidence,

@@ -265,3 +265,38 @@ class AIAnalysisEvaluation(Base):
     validation_method: Mapped[str] = mapped_column(String(80), nullable=False)
     notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+
+class HumanFindingDecision(Base):
+    """Append-only human decision for a specific candidate fingerprint."""
+    __tablename__ = "human_finding_decisions"
+    __table_args__ = (
+        UniqueConstraint(
+            "analysis_run_id", "candidate_fingerprint", "evaluator_id",
+            name="uq_human_finding_decision_reviewer_candidate",
+        ),
+        CheckConstraint(
+            "outcome IN ('confirmed', 'false_positive', 'inconclusive', 'duplicate')",
+            name="ck_human_finding_decision_outcome",
+        ),
+        CheckConstraint(
+            "(outcome IN ('confirmed', 'false_positive') AND evidence_sha256 IS NOT NULL) OR "
+            "(outcome IN ('inconclusive', 'duplicate'))",
+            name="ck_human_finding_decision_evidence",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    analysis_run_id: Mapped[int] = mapped_column(
+        ForeignKey("ai_analysis_runs.id"), nullable=False, index=True
+    )
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    evaluator_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    candidate_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    outcome: Mapped[str] = mapped_column(String(24), nullable=False)
+    evidence_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    validation_method: Mapped[str] = mapped_column(String(80), nullable=False)
+    notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    reviewer_attested: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

@@ -36,7 +36,10 @@ def begin_dispatch_attempt(
         raise ValueError("task receipt or digest not found")
     if receipt.consumed_at is not None:
         raise ValueError("task receipt already consumed")
-    if receipt.expires_at <= current:
+    receipt_expiry = receipt.expires_at
+    if receipt_expiry.tzinfo is None:
+        receipt_expiry = receipt_expiry.replace(tzinfo=timezone.utc)
+    if receipt_expiry <= current.astimezone(timezone.utc):
         raise ValueError("task receipt expired")
     key = db.query(WorkerKey).filter_by(
         worker_id=worker_id, key_id=key_id, status="active"

@@ -55,9 +55,9 @@ def test_rejects_empty_validation_questions():
 
 def test_rejects_control_characters_in_hypothesis():
     with pytest.raises(ValidationError):
-        make_triage(hypothesis="safe\\nforged")
+        make_triage(hypothesis="safe" + chr(10) + "forged")
 
 
 def test_rejects_control_characters_in_validation_questions():
     with pytest.raises(ValidationError):
-        make_triage(validation_questions=["question\\nforged"])
+        make_triage(validation_questions=["question" + chr(10) + "forged"])

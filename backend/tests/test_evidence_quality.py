@@ -33,7 +33,7 @@ def test_multiple_labels_are_not_claimed_as_verified_independence():
     assert result.source_independence_verified is False
 
 def test_repeated_records_and_shared_observations_are_flagged():
-    b=make_bundle([make_item(1,"reviewer"),make_item(2,"reviewer")])
+    b=make_bundle([make_item(1,"reviewer", statement="Same captured authorized observation record"),make_item(2,"reviewer", statement="Same captured authorized observation record")])
     result=assess_evidence_quality(b,assess(b))
     assert result.repeated_evidence_groups == 1
     assert result.observation_overlap_groups == 1

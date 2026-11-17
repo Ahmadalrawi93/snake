@@ -17,7 +17,7 @@ class ObservationTriage(BaseModel):
         "authentication", "authorization", "information_exposure",
         "injection", "security_misconfiguration", "business_logic", "other"
     ]
-    hypothesis: str = Field(min_length=1, max_length=2000, pattern=_TEXT)
+    hypothesis: str = Field(min_length=1, max_length=2000)
     supporting_observation_ids: list[UUID] = Field(min_length=1, max_length=30)
     missing_evidence: list[str] = Field(default_factory=list, max_length=20)
     validation_questions: list[str] = Field(min_length=1, max_length=15)

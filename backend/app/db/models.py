@@ -241,6 +241,7 @@ class AIAnalysisEvaluation(Base):
     """Human-only feedback on an AI hypothesis; append-only and separate from triage."""
     __tablename__ = "ai_analysis_evaluations"
     __table_args__ = (
+        UniqueConstraint("analysis_run_id", "evaluator_id", name="uq_ai_analysis_evaluation_actor_run"),
         CheckConstraint(
             "outcome IN ('confirmed', 'false_positive', 'inconclusive', 'duplicate')",
             name="ck_ai_analysis_evaluation_outcome",

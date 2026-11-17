@@ -116,7 +116,7 @@ def assess_finding_impact(
 
     eligible = [
         _severity_for_claim(claim) for claim in accepted
-        if assessment.evidence_status == "consistent"
+        if assessment.evidence_status == "consistent" and not blockers
     ]
     eligible = [value for value in eligible if value is not None]
     order = {"low": 1, "medium": 2, "high": 3, "critical": 4}

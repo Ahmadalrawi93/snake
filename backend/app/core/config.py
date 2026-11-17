@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -13,6 +14,13 @@ class Settings(BaseSettings):
     access_token_minutes: int = 30
 
     model_config = SettingsConfigDict(env_prefix="SNAKE_", env_file=".env", extra="ignore")
+
+    @model_validator(mode="after")
+    def require_production_secret(self):
+        if self.environment.lower() in {"production", "prod"}:
+            if self.jwt_secret_key == "CHANGE_ME_FOR_LOCAL_DEVELOPMENT_ONLY" or len(self.jwt_secret_key) < 32:
+                raise ValueError("SNAKE_JWT_SECRET_KEY must be a random secret of at least 32 characters in production")
+        return self
 
     @property
     def allowed_origin_list(self) -> list[str]:

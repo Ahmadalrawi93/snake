@@ -63,3 +63,28 @@ def review_authorization(
     db.commit()
     db.refresh(record)
     return {"id": record.id, "status": record.status, "review_notes": payload.review_notes}
+
+@router.post("/scope-snapshots/{snapshot_id}/revoke")
+def revoke_scope_snapshot(
+    snapshot_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    from datetime import datetime, timezone
+    from app.db.models import ScopeSnapshot
+    row = db.get(ScopeSnapshot, snapshot_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Scope snapshot not found")
+    if row.status != "active":
+        raise HTTPException(status_code=409, detail="Only active snapshots can be revoked")
+    row.status = "revoked"
+    row.revoked_at = datetime.now(timezone.utc)
+    db.add(AuditEvent(
+        actor_user_id=admin.id,
+        action="scope_snapshot.revoked",
+        resource_type="scope_snapshot",
+        resource_id=str(row.id),
+        details=f"sha256={row.sha256}",
+    ))
+    db.commit()
+    return {"id": row.id, "status": row.status}

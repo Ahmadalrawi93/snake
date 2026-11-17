@@ -283,3 +283,73 @@ def test_scan_job_rejects_unsupported_profile():
         headers=headers,
     )
     assert response.status_code == 422
+
+
+def test_admin_can_register_list_and_revoke_worker_public_keys():
+    import base64
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from app.db.models import User
+
+    user_headers = register_and_auth("worker-key-nonadmin@example.org")
+    denied = client.post(
+        "/api/v1/admin/workers/validator-01/keys",
+        json={"key_id": "validator-01-v1", "public_key_b64": "not-a-key"},
+        headers=user_headers,
+    )
+    assert denied.status_code == 403
+
+    admin_headers = register_and_auth("worker-key-admin@example.org")
+    db = TestingSession()
+    try:
+        db.query(User).filter_by(email="worker-key-admin@example.org").one().role = "admin"
+        db.commit()
+    finally:
+        db.close()
+
+    private = Ed25519PrivateKey.generate()
+    public_b64 = base64.b64encode(private.public_key().public_bytes(
+        serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo,
+    )).decode()
+    endpoint = "/api/v1/admin/workers/validator-01/keys"
+    registered = client.post(
+        endpoint,
+        json={"key_id": "validator-01-v1", "public_key_b64": public_b64},
+        headers=admin_headers,
+    )
+    assert registered.status_code == 201
+    assert registered.json()["status"] == "active"
+    fingerprint = registered.json()["fingerprint_sha256"]
+    assert len(fingerprint) == 64
+
+    duplicate = client.post(
+        endpoint,
+        json={"key_id": "validator-01-v1", "public_key_b64": public_b64},
+        headers=admin_headers,
+    )
+    assert duplicate.status_code == 409
+
+    forbidden_private = client.post(
+        endpoint,
+        json={"key_id": "validator-02-v1", "public_key_b64": public_b64,
+              "private_key_b64": "must-not-be-accepted"},
+        headers=admin_headers,
+    )
+    assert forbidden_private.status_code == 422
+
+    listed = client.get("/api/v1/admin/workers/keys", headers=admin_headers)
+    assert listed.status_code == 200
+    assert any(row["fingerprint_sha256"] == fingerprint for row in listed.json())
+
+    revoked = client.post(
+        "/api/v1/admin/workers/validator-01/keys/validator-01-v1/revoke",
+        headers=admin_headers,
+    )
+    assert revoked.status_code == 200
+    assert revoked.json()["status"] == "revoked"
+
+    duplicate_revoke = client.post(
+        "/api/v1/admin/workers/validator-01/keys/validator-01-v1/revoke",
+        headers=admin_headers,
+    )
+    assert duplicate_revoke.status_code == 409

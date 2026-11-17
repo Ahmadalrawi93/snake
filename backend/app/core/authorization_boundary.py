@@ -10,7 +10,7 @@ RESOURCE = {"user":"users", "users":"users", "account":"accounts", "accounts":"a
     "order":"orders", "orders":"orders", "invoice":"invoices", "invoices":"invoices",
     "payment":"payments", "payments":"payments", "document":"documents", "documents":"documents",
     "file":"files", "files":"files", "project":"projects", "projects":"projects",
-    "organization":"organizations", "organizations":"organizations", "team":"teams", "teams":"teams"}
+    "organization":"organizations", "organizations":"organizations", "team":"teams", "teams":"teams", "role":"roles", "roles":"roles", "permission":"permissions", "permissions":"permissions"}
 def _surface(path, ids):
     parts=[p.lower() for p in path.split("/") if p]
     markers=sorted(set(parts).intersection(PRIVILEGED | ROLE_MARKERS))

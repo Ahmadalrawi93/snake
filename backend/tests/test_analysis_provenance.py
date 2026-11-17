@@ -303,24 +303,29 @@ def test_investigation_memory_uses_only_linked_human_finding_decisions(provenanc
             status="completed", disposition="requires_independent_validation", result_json="{}", execution_enabled=False)
         db.add(item); db.flush()
         return item
-    candidate_fp = "e"*64
-    previous = make_run()
-    record_and_compare_investigation_memory(
-        db, run=previous, strategy=strategy, actor=user, candidate_fingerprint=candidate_fp,
-    )
-    db.add(HumanFindingDecision(
-        analysis_run_id=previous.id, project_id=project.id, evaluator_id=user.id,
-        candidate_fingerprint=candidate_fp, outcome="false_positive",
-        evidence_sha256="f"*64, validation_method="manual_reproduction",
-        notes="Human-reviewed result", reviewer_attested=True,
-    ))
+    for index in range(3):
+        candidate_fp = str(index + 1) * 64
+        previous = make_run()
+        record_and_compare_investigation_memory(
+            db, run=previous, strategy=strategy, actor=user, candidate_fingerprint=candidate_fp,
+        )
+        db.add(HumanFindingDecision(
+            analysis_run_id=previous.id, project_id=project.id, evaluator_id=user.id,
+            candidate_fingerprint=candidate_fp, outcome="false_positive",
+            evidence_sha256="f"*64, validation_method="manual_reproduction",
+            notes="Human-reviewed result", reviewer_attested=True,
+        ))
     db.flush()
     current = make_run()
     report = record_and_compare_investigation_memory(db, run=current, strategy=strategy, actor=user)
-    assert len(report.prior_matches) == 1
-    assert report.prior_matches[0].human_outcomes == ["false_positive"]
-    assert report.prior_matches[0].review_state == "human_reviewed"
+    assert len(report.prior_matches) == 3
+    assert all(item.human_outcomes == ["false_positive"] for item in report.prior_matches)
+    assert all(item.review_state == "human_reviewed" for item in report.prior_matches)
+    assert report.false_positive_run_count == 3
+    assert report.learning_recommendation == "deprioritize_review_priority"
+    assert report.priority_adjustment == -10
     assert report.review_suppressed is False
+
 
 
 def test_investigation_memory_fingerprint_preserves_non_ascii_hypotheses():

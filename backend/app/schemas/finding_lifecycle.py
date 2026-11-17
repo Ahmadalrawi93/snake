@@ -16,7 +16,7 @@ class FindingLifecycleCreate(BaseModel):
     @field_validator("rationale")
     @classmethod
     def safe_rationale(cls, value: str) -> str:
-        if any(ord(c) < 32 and c not in "\\t\\n" for c in value) or "\\x7f" in value:
+        if any(ord(c) < 32 and ord(c) not in (9, 10) for c in value) or any(ord(c) == 127 for c in value):
             raise ValueError("control characters are not allowed")
         return value.strip()
 
@@ -44,7 +44,7 @@ class EvidenceArtifactCreate(BaseModel):
     @field_validator("filename", "description")
     @classmethod
     def safe_metadata(cls, value: str) -> str:
-        if any(ord(c) < 32 and c not in "\\t\\n" for c in value) or "\\x7f" in value:
+        if any(ord(c) < 32 and ord(c) not in (9, 10) for c in value) or any(ord(c) == 127 for c in value):
             raise ValueError("control characters are not allowed")
         return value.strip()
 

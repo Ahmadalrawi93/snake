@@ -190,8 +190,10 @@ def test_expired_task_is_not_written_to_replay_ledger(tmp_path):
     worker_private, _ = keypair()
     ledger_path = tmp_path / "worker.sqlite3"
     ledger = WorkerReplayLedger(ledger_path)
+    expired_at = datetime.now(timezone.utc) - timedelta(minutes=5)
     task = make_task().model_copy(update={
-        "expires_at": datetime.now(timezone.utc) - timedelta(seconds=5),
+        "issued_at": expired_at - timedelta(minutes=2),
+        "expires_at": expired_at,
     })
     signed = sign_worker_task(
         task, backend_private, worker_id="worker-1", key_id="key-1"

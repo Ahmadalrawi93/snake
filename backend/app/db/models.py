@@ -410,3 +410,23 @@ class EvidenceArtifact(Base):
     encrypted_content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     description: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class InvestigationMemoryRecord(Base):
+    """Append-only, project/target-scoped hypothesis history; never suppresses review."""
+    __tablename__ = "investigation_memory_records"
+    __table_args__ = (
+        UniqueConstraint("analysis_run_id", "strategy_id", name="uq_investigation_memory_run_strategy"),
+        CheckConstraint("execution_enabled = false", name="ck_investigation_memory_execution_disabled"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    target_id: Mapped[int] = mapped_column(ForeignKey("targets.id"), nullable=False, index=True)
+    analysis_run_id: Mapped[int] = mapped_column(ForeignKey("ai_analysis_runs.id"), nullable=False, index=True)
+    strategy_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    hypothesis_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    category: Mapped[str] = mapped_column(String(50), nullable=False)
+    hypothesis_text: Mapped[str] = mapped_column(String(1000), nullable=False)
+    observation_ids_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    execution_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

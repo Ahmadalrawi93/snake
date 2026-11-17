@@ -34,7 +34,7 @@ def test_exact_scope_does_not_expand_to_subdomains():
 
 
 def test_collector_deduplicates_and_ignores_malformed_rows():
-    records = collect_ct_feed(["example.org"], fetcher=lambda _q: [
+    records = collect_ct_feed(["*.example.org"], fetcher=lambda _q: [
         row("api.example.org"), row("api.example.org", "123"),
         {"name_value": 4}, row("bad name.example.org"),
         {"name_value": "other.example.org", "id": "2", "not_before": "not-a-date"},

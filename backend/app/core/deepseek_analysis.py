@@ -53,6 +53,20 @@ class AnalysisAdapterError(RuntimeError):
     """Safe, non-secret-bearing adapter failure."""
 
 
+def _validate_feedback_scope(
+    feedback_profile: IntelligenceFeedbackProfile | None,
+    *,
+    expected_project_id: int | None,
+    expected_target_id: int | None,
+) -> None:
+    if feedback_profile is None:
+        return
+    if expected_project_id is None:
+        raise ValueError("expected project scope is required when feedback is supplied")
+    if feedback_profile.project_id != expected_project_id or feedback_profile.target_id != expected_target_id:
+        raise ValueError("historical feedback scope does not match analysis scope")
+
+
 def _request_payload(
     context: AnalysisContext,
     correlations: CorrelationReport,
@@ -89,8 +103,14 @@ def analyze_observations(
     timeout_seconds: float = 20.0,
     _metadata_out: dict[str, Any] | None = None,
     feedback_profile: IntelligenceFeedbackProfile | None = None,
+    feedback_project_id: int | None = None,
+    feedback_target_id: int | None = None,
 ) -> ObservationTriage:
     """Call DeepSeek only when explicitly invoked, then validate schema and provenance."""
+    _validate_feedback_scope(
+        feedback_profile, expected_project_id=feedback_project_id,
+        expected_target_id=feedback_target_id,
+    )
     if not api_key or len(api_key) > 512 or any(ord(c) < 33 or ord(c) > 126 for c in api_key):
         raise ValueError("invalid DeepSeek API key")
     if not model or len(model) > 100 or any(ord(c) < 33 for c in model):
@@ -154,6 +174,8 @@ def analyze_observations_with_metadata(
     transport: httpx.BaseTransport | None = None,
     timeout_seconds: float = 20.0,
     feedback_profile: IntelligenceFeedbackProfile | None = None,
+    feedback_project_id: int | None = None,
+    feedback_target_id: int | None = None,
 ) -> AnalysisExecutionResult:
     """Explicit call returning validated triage and bounded provider metadata."""
     metadata: dict[str, Any] = {}
@@ -166,6 +188,8 @@ def analyze_observations_with_metadata(
         timeout_seconds=timeout_seconds,
         _metadata_out=metadata,
         feedback_profile=feedback_profile,
+        feedback_project_id=feedback_project_id,
+        feedback_target_id=feedback_target_id,
     )
 
     def digest(value: Any) -> str:

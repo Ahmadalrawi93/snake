@@ -2,7 +2,7 @@
 from sqlalchemy.orm import Session
 
 from app.core.analysis_redaction import redact_text
-from app.db.models import AIAnalysisRun, HumanFindingDecision, Project, User
+from app.db.models import AIAnalysisRun, AuditEvent, HumanFindingDecision, Project, User
 from app.schemas.finding_decisions import HumanFindingDecisionCreate
 
 
@@ -39,6 +39,17 @@ def record_human_finding_decision(
         reviewer_attested=True,
     )
     db.add(record)
+    db.flush()
+    db.add(AuditEvent(
+        actor_user_id=actor.id,
+        action="human_finding_decision.recorded",
+        resource_type="human_finding_decision",
+        resource_id=str(record.id),
+        details=(
+            f"analysis_run_id={run.id};candidate_fingerprint={payload.candidate_fingerprint};"
+            f"outcome={payload.outcome};evidence_sha256={payload.evidence_sha256 or 'none'}"
+        ),
+    ))
     db.flush()
     return record
 

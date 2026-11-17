@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Callable
 
 from asset_intelligence_history import update_history
+from asset_intelligence_prioritization import prioritize_assets
 
 from collect_passive_feed import (
     MAX_FEED_RECORDS,
@@ -40,6 +41,7 @@ def run_cycle(
     dnsdb_collector: Callable = collect_dnsdb_feed,
     environ: dict[str, str] | None = None,
     history_db: str | None = None,
+    priority_report: str | None = None,
 ) -> int:
     """Build a fresh feed and atomically publish it only after all sources succeed."""
     if not providers or len(set(providers)) != len(providers) or any(p not in {"ct", "dnsdb"} for p in providers):
@@ -63,9 +65,13 @@ def run_cycle(
     if not authorization_reference or len(authorization_reference) > 200:
         raise ValueError("invalid authorization audit reference")
     write_feed(output_file, records)
+    changes = update_history(history_db, records) if history_db else []
     if history_db:
-        changes = update_history(history_db, records)
         LOG.info("asset history updated; changes=%d", len(changes))
+    if priority_report:
+        ranked = prioritize_assets(records, events=changes)
+        write_feed(priority_report, ranked)
+        LOG.info("asset priority report written; ranked=%d", len(ranked))
     return len(records)
 
 
@@ -99,6 +105,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--interval-seconds", type=int, default=6 * 60 * 60)
     parser.add_argument("--lock-file", help="defaults to OUTPUT.scheduler.lock")
     parser.add_argument("--history-db", help="SQLite asset history path; defaults to OUTPUT.history.sqlite3")
+    parser.add_argument("--priority-report", help="separate ranked JSON report; defaults to OUTPUT.priority.json")
     args = parser.parse_args(argv)
     if not args.authorization_reference.strip() or len(args.authorization_reference) > 200:
         parser.error("authorization reference must be 1-200 characters")
@@ -131,6 +138,7 @@ def main(argv: list[str] | None = None) -> int:
                     args.scope_file, args.output, providers,
                     args.authorization_reference,
                     history_db=args.history_db or args.output + ".history.sqlite3",
+                    priority_report=args.priority_report or args.output + ".priority.json",
                 )
                 LOG.info("passive feed refreshed; records=%d", count)
             except Exception as exc:

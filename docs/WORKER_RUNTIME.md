@@ -265,3 +265,35 @@ passive-feed.json.history.sqlite3
 passive-feed.json.priority.json
 passive-feed.json.graph.json
 ```
+
+
+## Passive API endpoint intelligence
+
+The scheduler writes a separate endpoint-hints report (default
+`OUTPUT.api-endpoints.json`; override with `--endpoint-report`). It groups
+in-scope passive URL observations into path templates, replacing UUID-like,
+long hexadecimal, and numeric path identifiers with `{id}`. It labels
+recognizable path segments such as authentication, identity, administration,
+commerce, documentation, GraphQL, and API version markers.
+
+The report deliberately records HTTP method as `unknown`: a passive URL
+observation does not prove which methods are supported, whether authentication
+is required, or whether the endpoint is live. Query strings, fragments, and
+credential-bearing URLs are excluded. Hostname mismatch and out-of-scope URLs
+are excluded using the same scope policy as authorization. Evidence retains
+source and observation timestamp, bounded to 20 distinct references per
+endpoint.
+
+This output is a prioritization and review aid only. Category labels do not
+assert the existence of sensitive business functions or a vulnerability.
+No endpoint is contacted. The report is separate from the worker feed and
+always carries classification `passive_unconfirmed_api_endpoint_hints`.
+
+Default scheduler outputs now include:
+```text
+passive-feed.json
+passive-feed.json.history.sqlite3
+passive-feed.json.priority.json
+passive-feed.json.graph.json
+passive-feed.json.api-endpoints.json
+```

@@ -119,3 +119,26 @@ def test_no_claims_never_infers_impact_from_free_text():
     assert result.assessment_status == "no_structured_impact_claims"
     assert result.severity_suggestion == "not_assessed"
     assert any("free-text impact was not interpreted." in item.lower() for item in result.rationale)
+
+
+
+def test_evidence_readiness_gaps_block_severity_suggestion():
+    q, b, a, item, obs = make_inputs()
+    incomplete = a.model_copy(update={
+        "readiness": "more_evidence_required",
+        "required_gaps": ["documented_expected_behavior"],
+    })
+    result = assess_finding_impact(q, b, incomplete, [claim(item, obs)])
+    assert result.severity_suggestion == "not_assessed"
+    assert "evidence_readiness_requirements_unmet" in result.blockers
+
+
+def test_required_gaps_block_severity_even_if_readiness_flag_is_inconsistent():
+    q, b, a, item, obs = make_inputs()
+    inconsistent = a.model_copy(update={
+        "readiness": "human_review_ready",
+        "required_gaps": ["program_policy_or_written_permission"],
+    })
+    result = assess_finding_impact(q, b, inconsistent, [claim(item, obs)])
+    assert result.severity_suggestion == "not_assessed"
+    assert "evidence_readiness_requirements_unmet" in result.blockers

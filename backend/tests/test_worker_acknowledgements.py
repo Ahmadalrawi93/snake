@@ -186,7 +186,7 @@ def test_reconcile_late_signed_ack_after_receipt_expiry(db):
     db.refresh(receipt)
     db.refresh(attempt)
     assert receipt.consumed_at.replace(tzinfo=timezone.utc) == reconciliation_time
-    assert receipt.acknowledgement_validated_at == validated_at
+    assert receipt.acknowledgement_validated_at.replace(tzinfo=timezone.utc) == validated_at
     assert attempt.status == "delivered"
     assert attempt.error_code is None
     assert not reconcile_unknown_worker_acknowledgement(

@@ -101,3 +101,17 @@ def test_reviewer_cannot_submit_duplicate_evaluations(db):
     record_human_evaluation(db, analysis_run_id=run.id, actor=owner, payload=payload)
     with pytest.raises(ValueError):
         record_human_evaluation(db, analysis_run_id=run.id, actor=owner, payload=payload)
+
+
+def test_evaluation_notes_are_redacted_before_persistence(db):
+    owner = User(email="notes-owner@example.test", password_hash="hash")
+    db.add(owner)
+    db.flush()
+    _, run = setup_run(db, owner)
+    payload = AnalysisEvaluationCreate(
+        outcome="inconclusive", validation_method="manual_review",
+        notes="Reviewed request with password=privatevalue",
+    )
+    record = record_human_evaluation(db, analysis_run_id=run.id, actor=owner, payload=payload)
+    assert "privatevalue" not in record.notes
+    assert "[REDACTED]" in record.notes

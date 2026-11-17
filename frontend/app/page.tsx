@@ -7,7 +7,7 @@ type Project = { id: number; name: string; description: string; created_at: stri
 type Target = { id: number; value: string; target_type: string; status: string };
 type Authorization = { id: number; reference: string; starts_at: string | null; expires_at: string | null; status: string; notes: string };
 type ScopeSnapshot = { id: number; target_id: number; authorization_id: number; sha256: string; status: string; created_at: string; expires_at: string | null; snapshot: { target?: string; hostname?: string; execution_enabled?: boolean } };
-type PendingAuthorization = { id: number; project_id: number; reference: string; starts_at: string | null; expires_at: string | null; notes: string; created_at: string };
+type PendingAuthorization = { id: number; project_id: number; reference: string; starts_at: string | null; expires_at: string | null; notes: string; created_at: string };\ntype AnalysisRun = { id: number; provider: string; model: string; source_observation_count: number; status: string; disposition: string; execution_enabled: false; created_at: string };\ntype FindingCandidate = { id: number; analysis_run_id: number; candidate_fingerprint: string; qualification: string; finding_status: string; evidence_bundle_sha256: string; execution_enabled: boolean; created_at: string };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
@@ -19,7 +19,7 @@ export default function Home() {
   const [targets, setTargets] = useState<Target[]>([]);
   const [authorizations, setAuthorizations] = useState<Authorization[]>([]);
   const [snapshots, setSnapshots] = useState<ScopeSnapshot[]>([]);
-  const [snapshotValidity, setSnapshotValidity] = useState<Record<number, string>>({});
+  const [snapshotValidity, setSnapshotValidity] = useState<Record<number, string>>({});\n  const [analysisRuns, setAnalysisRuns] = useState<AnalysisRun[]>([]);\n  const [selectedAnalysisRunId, setSelectedAnalysisRunId] = useState<number | null>(null);\n  const [candidates, setCandidates] = useState<FindingCandidate[]>([]);
   const [pendingAuthorizations, setPendingAuthorizations] = useState<PendingAuthorization[]>([]);
   const [reviewNotes, setReviewNotes] = useState<Record<number, string>>({});
   const [reviewScopes, setReviewScopes] = useState<Record<number, string>>({});
@@ -70,14 +70,14 @@ export default function Home() {
   }, [api]);
 
   const loadProjectResources = useCallback(async (projectId: number) => {
-    const [targetList, authorizationList, snapshotList] = await Promise.all([
+    const [targetList, authorizationList, snapshotList, runList] = await Promise.all([
       api(`/api/v1/projects/${projectId}/targets`),
       api(`/api/v1/projects/${projectId}/authorizations`),
-      api(`/api/v1/projects/${projectId}/scope-snapshots`)
+      api(`/api/v1/projects/${projectId}/scope-snapshots`),\n      api(`/api/v1/projects/${projectId}/analysis-runs`)
     ]);
     setTargets(targetList);
     setAuthorizations(authorizationList);
-    setSnapshots(snapshotList);
+    setSnapshots(snapshotList);\n    setAnalysisRuns(runList);\n    setSelectedAnalysisRunId(null);\n    setCandidates([]);
   }, [api]);
 
   async function selectProject(projectId: number) {
@@ -91,6 +91,18 @@ export default function Home() {
       await loadProjectResources(projectId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load project records");
+    }
+  }
+
+  async function loadCandidates(analysisRunId: number) {
+    setSelectedAnalysisRunId(analysisRunId);
+    setCandidates([]);
+    setError("");
+    try {
+      const rows = await api(`/api/v1/analysis-runs/${analysisRunId}/finding-candidates`);
+      setCandidates(rows);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load finding candidates");
     }
   }
 
@@ -246,7 +258,7 @@ export default function Home() {
       setProjects(current => [created, ...current]);
       setProjectName(""); setProjectDescription("");
       setSelectedProjectId(created.id);
-      setTargets([]); setAuthorizations([]); setSnapshots([]); setSnapshotValidity({});
+      setTargets([]); setAuthorizations([]); setSnapshots([]); setSnapshotValidity({}); setAnalysisRuns([]); setSelectedAnalysisRunId(null); setCandidates([]);
       setMessage("Project created.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create project");
@@ -257,7 +269,7 @@ export default function Home() {
 
   function signOut() {
     window.localStorage.removeItem("snake_access_token");
-    setToken(""); setUser(null); setProjects([]); setSelectedProjectId(null); setTargets([]); setAuthorizations([]); setSnapshots([]); setSnapshotValidity({}); setPendingAuthorizations([]); setReviewNotes({}); setReviewScopes({}); setMessage(""); setError("");
+    setToken(""); setUser(null); setProjects([]); setSelectedProjectId(null); setTargets([]); setAuthorizations([]); setSnapshots([]); setSnapshotValidity({}); setAnalysisRuns([]); setSelectedAnalysisRunId(null); setCandidates([]); setPendingAuthorizations([]); setReviewNotes({}); setReviewScopes({}); setMessage(""); setError("");
   }
 
   return (
@@ -338,7 +350,7 @@ export default function Home() {
 
             {selectedProjectId !== null && (
               <section className="project-detail">
-                <div className="section-heading"><div><p className="eyebrow">PROJECT #{selectedProjectId}</p><h2>Scope & authorization records</h2></div><button className="text-button" onClick={() => { setSelectedProjectId(null); setTargets([]); setAuthorizations([]); setSnapshots([]); setSnapshotValidity({}); }}>CLOSE WORKSPACE</button></div>
+                <div className="section-heading"><div><p className="eyebrow">PROJECT #{selectedProjectId}</p><h2>Scope & authorization records</h2></div><button className="text-button" onClick={() => { setSelectedProjectId(null); setTargets([]); setAuthorizations([]); setSnapshots([]); setSnapshotValidity({}); setAnalysisRuns([]); setSelectedAnalysisRunId(null); setCandidates([]); }}>CLOSE WORKSPACE</button></div>
                 <div className="project-layout">
                   <form onSubmit={createAuthorization} className="project-form">
                     <h3>Record authorization reference</h3>
@@ -364,6 +376,28 @@ export default function Home() {
                 <div className="records-grid">
                   <div className="record-panel snapshot-panel"><h3>Immutable scope snapshots <span>{snapshots.length}</span></h3>{snapshots.length === 0 ? <p className="muted">No scope snapshots. A currently valid, approved authorization must cover a target.</p> : snapshots.map(snapshot => <div className="record-row" key={snapshot.id}><div><b>Snapshot #{snapshot.id} · {snapshot.snapshot.hostname || "Target scope"}</b><small>{snapshot.status.toUpperCase()} · SHA-256 {snapshot.sha256.slice(0, 16)}… · EXECUTION DISABLED</small>{snapshotValidity[snapshot.id] && <small>{snapshotValidity[snapshot.id]}</small>}<button className="text-button" disabled={busy} onClick={() => validateScopeSnapshot(snapshot.id)}>VALIDATE SNAPSHOT</button></div><time>TARGET #{snapshot.target_id}</time></div>)}</div>
                 </div>
+                <div className="records-grid">
+                  <div className="record-panel analysis-panel">
+                    <h3>AI analysis history <span>{analysisRuns.length}</span></h3>
+                    {analysisRuns.length === 0 ? <p className="muted">No persisted AI analysis runs for this project.</p> : analysisRuns.map(run => (
+                      <div className="record-row" key={run.id}>
+                        <div><b>Analysis #{run.id} · {run.provider} / {run.model}</b><small>{run.source_observation_count} source observations · {run.disposition.replaceAll("_", " ").toUpperCase()} · EXECUTION DISABLED</small><button className="text-button" disabled={busy} onClick={() => loadCandidates(run.id)}>VIEW FINDING CANDIDATES</button></div>
+                        <time>{new Date(run.created_at).toLocaleDateString()}</time>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {selectedAnalysisRunId !== null && (
+                  <div className="record-panel candidate-panel">
+                    <h3>Finding candidates from analysis #{selectedAnalysisRunId} <span>{candidates.length}</span></h3>
+                    {candidates.length === 0 ? <p className="muted">No persisted candidates in this analysis run.</p> : candidates.map(candidate => (
+                      <div className="record-row" key={candidate.id}>
+                        <div><b>Candidate #{candidate.id} · {candidate.qualification.replaceAll("_", " ").toUpperCase()}</b><small>{candidate.finding_status.toUpperCase()} · FINGERPRINT {candidate.candidate_fingerprint.slice(0, 16)}… · EXECUTION DISABLED</small><small>EVIDENCE SHA-256 {candidate.evidence_bundle_sha256.slice(0, 16)}…</small></div>
+                        <time>{new Date(candidate.created_at).toLocaleDateString()}</time>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </section>
             )}
           </>

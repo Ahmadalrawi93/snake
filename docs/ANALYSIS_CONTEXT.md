@@ -17,3 +17,6 @@ The context builder converts already authenticated and persisted worker observat
 The default input cap is 5,000 observations. Per-observation evidence is capped at 2,000 characters in the context. A future provider adapter must additionally enforce token budgets, redact secrets, isolate system instructions from evidence, and validate model output with the strict ObservationTriage schema and evidence-reference validator.
 
 No scanning or execution is enabled.
+
+
+The DeepSeek adapter also derives a bounded application-surface inventory from this redacted context. See [Application Intelligence Profile](APPLICATION_INTELLIGENCE.md). This inventory is descriptive only and never triggers probes.

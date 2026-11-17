@@ -305,3 +305,42 @@ def test_persisted_assessment_rejects_direct_update_and_delete(impact_context):
 
     assert db.query(FindingImpactAssessmentRecord).filter_by(id=record_id).count() == 1
 
+
+
+
+def test_database_constraints_keep_assessment_non_final_and_non_executable(impact_context):
+    from sqlalchemy.exc import IntegrityError
+
+    db, owner, _other, candidate, _foreign, claim = impact_context
+    record = service.create_persisted_finding_impact(
+        db, candidate_id=candidate.id, actor=owner, claims=[claim],
+    )
+    db.commit()
+
+    base_values = {
+        "candidate_id": candidate.id,
+        "analysis_run_id": record["analysis_run_id"],
+        "project_id": candidate.project_id,
+        "reviewer_id": owner.id,
+        "evidence_bundle_sha256": candidate.evidence_bundle_sha256,
+        "claims_sha256": "1" * 64,
+        "assessment_sha256": "2" * 64,
+        "assessment_json": "{}",
+        "created_at": record["created_at"],
+    }
+    invalid_values = [
+        {"final_severity": "high", "cvss_vector": None, "execution_enabled": False},
+        {"final_severity": "not_assessed", "cvss_vector": "CVSS:3.1/AV:N", "execution_enabled": False},
+        {"final_severity": "not_assessed", "cvss_vector": None, "execution_enabled": True},
+    ]
+    for index, invalid in enumerate(invalid_values, start=3):
+        values = dict(base_values)
+        values["claims_sha256"] = str(index) * 64
+        values["assessment_sha256"] = str(index + 1) * 64
+        values.update(invalid)
+        with pytest.raises(IntegrityError):
+            db.add(FindingImpactAssessmentRecord(**values))
+            db.flush()
+        db.rollback()
+
+    assert db.query(FindingImpactAssessmentRecord).filter_by(id=record["id"]).count() == 1

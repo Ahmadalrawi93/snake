@@ -16,6 +16,10 @@
 - User-scoped audit event listing.
 - Admin-only authorization review queue and approve/reject endpoint; decisions are audited.
 - Admin account provisioning is an explicit local CLI operation.
+- Authorization approval requires explicit hostname allowlist rules.
+- Scope snapshots bind a target and approved authorization into canonical JSON with a SHA-256 digest.
+- Pre-dispatch validation checks digest integrity, authorization state, target consistency, expiry, and revocation.
+- Administrators can revoke snapshots; snapshot creation and validation do not send traffic.
 - Alembic migration for adding user and ownership data to existing local databases.
 - Hostname allowlist check; no active network scanner.
 
@@ -24,7 +28,7 @@
 2. Each project belongs to one authenticated user. There is no team sharing or admin role workflow yet.
 3. Registration is public and currently lacks email verification and throttling.
 4. JWT access tokens expire; refresh and server-side revocation are not implemented.
-5. Scope policy is deterministic but is not yet bound to a reviewed authorization record.
+5. Scope snapshots bind hostname rules to approved authorization records, but do not yet pin DNS answers or validate redirect destinations.
 6. Redirect destinations and resolved IPs must be checked before any future network access.
 7. Worker egress must be restricted; model-generated strings must never be executed as shell commands.
 8. Intrusive, destructive, or state-changing actions require human approval.

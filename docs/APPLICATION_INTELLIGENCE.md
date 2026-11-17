@@ -21,3 +21,7 @@ SNAKE builds a deterministic application-surface inventory from already persiste
 - The model receives the profile as supplementary context; current evidence remains authoritative and independent validation remains mandatory.
 
 The profile is an inventory aid, not a vulnerability scanner or application crawler.
+
+## Feedback scope binding
+
+When historical human feedback is supplied to the DeepSeek adapter, the caller must also pass the expected project ID and target ID for the current analysis. The adapter rejects a profile whose project or target does not match, and rejects feedback supplied without an explicit expected project scope. A null target ID is an explicit legacy/project-wide scope and matches only another null target ID; it is not interchangeable with a target-specific profile. The caller must derive these expected IDs from the authenticated, ownership-checked analysis request, not from model output or client-provided free-form context.

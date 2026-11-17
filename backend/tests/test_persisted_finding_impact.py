@@ -20,6 +20,7 @@ from app.schemas.validation_evidence import (
     ValidationEvidenceAssessment, ValidationEvidenceBundle, ValidationEvidenceItem,
 )
 from app.core import persisted_finding_impact as service
+from app.core.finding_impact_guards import install_sqlite_finding_impact_guards
 
 
 def canonical(value):
@@ -32,6 +33,8 @@ def impact_context(monkeypatch):
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )
     Base.metadata.create_all(bind=engine)
+    with engine.begin() as connection:
+        install_sqlite_finding_impact_guards(connection)
     db = sessionmaker(bind=engine, autoflush=False)()
     user = User(email="impact-owner@example.org", password_hash="unused")
     other = User(email="impact-other@example.org", password_hash="unused")

@@ -97,3 +97,18 @@ def test_analysis_rows_are_immutable_after_migration_trigger(db):
     db.commit()
     # Base.metadata.create_all does not install migration triggers; immutability is covered by migration tests.
     assert json.loads(record.result_json)["disposition"] == "requires_independent_validation"
+
+
+def test_redacts_secrets_echoed_by_model_before_storage(db):
+    user = User(email="redact@example.test", password_hash="hash")
+    db.add(user)
+    db.flush()
+    project = Project(owner_id=user.id, name="redaction")
+    db.add(project)
+    db.flush()
+    context, correlations, triage = setup_context()
+    triage = triage.model_copy(update={"hypothesis": "Possible leak password=echoedsecret"})
+    record = persist_analysis_run(db, project_id=project.id, actor=user,
+        context=context, correlations=correlations, triage=triage, model="model")
+    assert "echoedsecret" not in record.result_json
+    assert "[REDACTED]" in record.result_json

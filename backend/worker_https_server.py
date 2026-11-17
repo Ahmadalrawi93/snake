@@ -31,7 +31,7 @@ def validate_task_request(raw: bytes, *, backend_public_key: str,
                           key_id: str) -> bytes:
     """Return a signed validation-only acknowledgement for one authenticated task."""
     if not raw or len(raw) > MAX_BODY_BYTES:
-        raise ValueError("invalid_task_body_size")
+        raise ValueError("invalid task body size")
     signed = SignedWorkerTask.model_validate_json(raw)
     if not verify_worker_task(
         signed, backend_public_key,

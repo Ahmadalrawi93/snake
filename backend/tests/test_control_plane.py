@@ -141,6 +141,10 @@ def test_scope_snapshot_requires_approved_matching_authorization():
     assert snapshot["snapshot"]["hostname"] == "app.example.org"
     assert snapshot["snapshot"]["execution_enabled"] is False
     assert len(snapshot["sha256"]) == 64
+    validation = client.get(f"/api/v1/scope-snapshots/{snapshot['id']}/validate", headers=headers)
+    assert validation.status_code == 200
+    assert validation.json()["valid"] is True
+    assert validation.json()["execution_enabled"] is False
 
 def test_scope_snapshot_rejects_out_of_scope_target():
     from app.db.models import User

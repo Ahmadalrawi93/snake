@@ -6,6 +6,7 @@ AI-assisted security assessment platform for **authorized** bug bounty work.
 
 ## Implemented
 - FastAPI authentication, user-owned projects, and admin-reviewed authorization records.
+- Next.js dashboard connected to registration/login, owner-scoped project management, target registration, authorization references, admin review, and immutable scope snapshot creation/validation; scan execution and AI analysis controls are not exposed as working UI actions.
 - Immutable SHA-256 scope snapshots and scope revalidation before dispatch preparation.
 - DNS/IP destination policy and redirect-hop validation foundations; no outbound requests.
 - Persistent scan jobs that remain queued with execution disabled.
@@ -42,6 +43,20 @@ cp ../.env.example .env
 alembic upgrade head
 uvicorn app.main:app --reload
 ```
+
+In a second terminal, start the dashboard:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:3000`. The frontend defaults to the API at
+`http://localhost:8000`; configure `NEXT_PUBLIC_API_URL` and
+`SNAKE_ALLOWED_ORIGINS` if using different local origins. See
+[frontend setup and security notes](frontend/README.md).
+
 
 ## Security boundary
 

@@ -8,11 +8,13 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from app.core.worker_acknowledgements import accept_worker_acknowledgement
+from app.core.worker_acknowledgements import (
+    accept_worker_acknowledgement, reconcile_unknown_worker_acknowledgement,
+)
 from app.core.worker_key_registry import revoke_worker_public_key
 from app.core.worker_protocol import WorkerValidationResult
 from app.core.worker_signing import ed25519_public_key_fingerprint, sign_worker_validation_result
-from app.db.models import WorkerKey, WorkerTaskReceipt
+from app.db.models import WorkerDispatchAttempt, WorkerKey, WorkerTaskReceipt
 
 WORKER_ID = "validator-east-01"
 KEY_ID = "validator-east-01-v1"
@@ -39,6 +41,7 @@ def db():
     engine = create_engine("sqlite://")
     WorkerTaskReceipt.__table__.create(engine)
     WorkerKey.__table__.create(engine)
+    WorkerDispatchAttempt.__table__.create(engine)
     with Session(engine) as session:
         session.add(WorkerKey(
             worker_id=WORKER_ID, key_id=KEY_ID,
@@ -65,10 +68,10 @@ def make_receipt(db):
     return receipt, task_id
 
 
-def make_ack(task_id, *, digest="a" * 64, worker_id=WORKER_ID, key_id=KEY_ID, private=WORKER_PRIVATE):
+def make_ack(task_id, *, digest="a" * 64, worker_id=WORKER_ID, key_id=KEY_ID, private=WORKER_PRIVATE, validated_at=None):
     result = WorkerValidationResult(
         task_id=task_id, envelope_sha256=digest, worker_id=worker_id,
-        outcome="accepted", validated_at=datetime.now(timezone.utc),
+        outcome="accepted", validated_at=validated_at or datetime.now(timezone.utc),
         execution_enabled=False,
     )
     return sign_worker_validation_result(result, private, key_id=key_id)
@@ -144,3 +147,76 @@ def test_ack_rejects_receipt_bound_to_different_worker_key(db):
     receipt.worker_id = "different-worker"
     db.commit()
     assert not accept(db, make_ack(task_id))
+
+
+
+def make_unknown_attempt(db, receipt):
+    attempt = WorkerDispatchAttempt(
+        task_id=receipt.task_id,
+        attempt_number=1,
+        worker_id=receipt.worker_id,
+        key_id=receipt.key_id,
+        envelope_sha256=receipt.envelope_sha256,
+        status="unknown",
+        error_code="transport_exception",
+        started_at=receipt.created_at,
+        completed_at=receipt.created_at + timedelta(seconds=5),
+    )
+    db.add(attempt)
+    db.commit()
+    return attempt
+
+
+def test_reconcile_late_signed_ack_after_receipt_expiry(db):
+    receipt, task_id = make_receipt(db)
+    attempt = make_unknown_attempt(db, receipt)
+    validated_at = receipt.created_at + timedelta(seconds=20)
+    signed = make_ack(task_id, validated_at=validated_at)
+    reconciliation_time = receipt.expires_at + timedelta(minutes=1)
+
+    assert reconcile_unknown_worker_acknowledgement(
+        db, signed, expected_worker_id=WORKER_ID,
+        expected_key_id=KEY_ID, now=reconciliation_time,
+    )
+    db.commit()
+    db.refresh(receipt)
+    db.refresh(attempt)
+    assert receipt.consumed_at == reconciliation_time
+    assert receipt.acknowledgement_validated_at == validated_at
+    assert attempt.status == "delivered"
+    assert attempt.error_code is None
+    assert not reconcile_unknown_worker_acknowledgement(
+        db, signed, expected_worker_id=WORKER_ID,
+        expected_key_id=KEY_ID, now=reconciliation_time,
+    )
+
+
+def test_reconciliation_rejects_ack_validated_after_original_expiry(db):
+    receipt, task_id = make_receipt(db)
+    make_unknown_attempt(db, receipt)
+    signed = make_ack(
+        task_id, validated_at=receipt.expires_at + timedelta(seconds=1)
+    )
+    assert not reconcile_unknown_worker_acknowledgement(
+        db, signed, expected_worker_id=WORKER_ID,
+        expected_key_id=KEY_ID, now=receipt.expires_at + timedelta(minutes=1),
+    )
+
+
+def test_reconciliation_requires_unknown_attempt_and_active_key(db):
+    receipt, task_id = make_receipt(db)
+    attempt = make_unknown_attempt(db, receipt)
+    attempt.status = "failed"
+    db.commit()
+    signed = make_ack(task_id)
+    assert not reconcile_unknown_worker_acknowledgement(
+        db, signed, expected_worker_id=WORKER_ID,
+        expected_key_id=KEY_ID,
+    )
+    attempt.status = "unknown"
+    revoke_worker_public_key(db, worker_id=WORKER_ID, key_id=KEY_ID)
+    db.commit()
+    assert not reconcile_unknown_worker_acknowledgement(
+        db, signed, expected_worker_id=WORKER_ID,
+        expected_key_id=KEY_ID,
+    )

@@ -179,17 +179,44 @@ def validate_scope_snapshot(
         if expiry and datetime.now(timezone.utc) >= expiry:
             reasons.append("authorization_expired")
     authorization = db.get(Authorization, row.authorization_id)
-    if authorization is None or authorization.status != "approved":
+    if (authorization is None or authorization.project_id != row.project_id
+            or authorization.status != "approved"):
         reasons.append("authorization_not_approved")
+    else:
+        now = datetime.now(timezone.utc)
+        starts = parse_time(authorization.starts_at)
+        expires = parse_time(authorization.expires_at)
+        if starts and now < starts:
+            reasons.append("authorization_not_started")
+        if expires and now >= expires:
+            reasons.append("authorization_expired")
+        try:
+            current_rules = json.loads(authorization.scope_rules or "[]")
+            approved_rules = snapshot_data.get("approved_scope_rules")
+            if (not isinstance(current_rules, list) or not isinstance(approved_rules, list)
+                    or sorted(current_rules) != sorted(approved_rules)):
+                reasons.append("authorization_scope_rules_changed")
+        except (TypeError, ValueError):
+            reasons.append("invalid_authorization_scope_rules")
     target = db.get(Target, row.target_id)
     if target is None or target.project_id != row.project_id:
         reasons.append("target_missing_or_moved")
     else:
         original_target = snapshot_data.get("target")
-        current_target = target.value if target.target_type == "url" else (
-            "https://" + target.value if target.target_type == "domain" else None
-        )
+        if target.target_type == "url":
+            current_target = target.value
+        elif target.target_type == "domain":
+            from app.core.scope_policy import normalize_host
+            try:
+                current_target = "https://" + normalize_host(target.value)
+            except ValueError:
+                current_target = None
+        else:
+            current_target = None
         if current_target != original_target:
             reasons.append("target_changed")
+        rules = snapshot_data.get("approved_scope_rules")
+        if not isinstance(rules, list) or not current_target or not ScopePolicy(rules).check_url(current_target).allowed:
+            reasons.append("target_no_longer_matches_snapshot_scope")
     return {"snapshot_id": row.id, "valid": not reasons, "reasons": reasons,
             "sha256": row.sha256, "execution_enabled": False}

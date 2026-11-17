@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
 from app.db.database import get_db
-from app.db.models import AIAnalysisRun, Project, User
+from app.db.models import AIAnalysisRun, AnalysisRunObservationLink, WorkerObservationRecord, Project, User
 from app.schemas.analysis_runs import AnalysisRunRead
 
 router = APIRouter(prefix="/api/v1")
@@ -54,3 +54,51 @@ def list_analysis_runs(
         .all()
     )
     return [_serialize(record) for record in records]
+
+
+
+@router.get("/analysis-runs/{analysis_run_id}/provenance")
+def read_analysis_run_provenance(
+    analysis_run_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+):
+    run = (
+        db.query(AIAnalysisRun)
+        .join(Project, Project.id == AIAnalysisRun.project_id)
+        .filter(AIAnalysisRun.id == analysis_run_id, Project.owner_id == actor.id)
+        .first()
+    )
+    if run is None:
+        raise HTTPException(status_code=404, detail="Analysis run not found")
+    links = (
+        db.query(AnalysisRunObservationLink, WorkerObservationRecord)
+        .join(WorkerObservationRecord, WorkerObservationRecord.id == AnalysisRunObservationLink.observation_record_id)
+        .filter(AnalysisRunObservationLink.analysis_run_id == run.id)
+        .order_by(AnalysisRunObservationLink.id.asc())
+        .all()
+    )
+    return {
+        "analysis_run_id": run.id,
+        "project_id": run.project_id,
+        "target_id": run.target_id,
+        "provenance_sha256": run.provenance_sha256,
+        "source_observation_count": run.source_observation_count,
+        "sources": [
+            {
+                "observation_id": record.observation_id,
+                "kind": record.kind,
+                "value": record.value,
+                "source": record.source,
+                "task_id": link.task_id,
+                "worker_id": link.worker_id,
+                "key_id": link.key_id,
+                "envelope_sha256": link.envelope_sha256,
+                "batch_sha256": link.batch_sha256,
+                "scope_snapshot_id": link.scope_snapshot_id,
+                "scope_snapshot_sha256": link.scope_snapshot_sha256,
+                "authorization_id": link.authorization_id,
+            }
+            for link, record in links
+        ],
+    }

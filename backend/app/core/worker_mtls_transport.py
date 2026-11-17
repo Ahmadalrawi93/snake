@@ -119,6 +119,21 @@ def deliver_signed_worker_task(
     if receipt.worker_id != worker_id or receipt.key_id != key_id:
         raise ValueError("signed task worker identity does not match receipt")
 
+    # Validate local mTLS material and construct the connection object before
+    # reserving an attempt. The constructor performs no network I/O.
+    context = _build_mtls_context(
+        client_certificate_path, client_private_key_path
+    )
+    address = destination.addresses[0]
+    connection = connection_factory(
+        pinned_ip=address,
+        hostname=endpoint.tls_server_name,
+        port=destination.port,
+        context=context,
+        timeout=timeout_seconds,
+        expected_fingerprint=endpoint.certificate_sha256,
+    )
+
     attempt = begin_dispatch_attempt(
         db,
         task_id=signed_task.envelope.task_id,
@@ -142,18 +157,6 @@ def deliver_signed_worker_task(
         )
         raise ValueError("worker endpoint changed before connection")
 
-    context = _build_mtls_context(
-        client_certificate_path, client_private_key_path
-    )
-    address = destination.addresses[0]
-    connection = connection_factory(
-        pinned_ip=address,
-        hostname=endpoint.tls_server_name,
-        port=destination.port,
-        context=context,
-        timeout=timeout_seconds,
-        expected_fingerprint=endpoint.certificate_sha256,
-    )
     host_header = endpoint.tls_server_name
     if destination.port != 443:
         host_header = f"{host_header}:{destination.port}"

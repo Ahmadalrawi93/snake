@@ -203,7 +203,8 @@ def deliver_signed_worker_task(
             )
             raise WorkerTransportError(f"worker_http_status_{response.status}")
         try:
-            signed_ack = SignedWorkerValidationResult.model_validate_json(payload)
+            worker_response = WorkerTaskResponse.model_validate_json(payload)
+            signed_ack = worker_response.acknowledgement
         except Exception as exc:
             finish_dispatch_attempt(
                 db, attempt.id, "unknown", error_code="invalid_signed_acknowledgement", now=now
@@ -220,6 +221,10 @@ def deliver_signed_worker_task(
                 db, attempt.id, "unknown", error_code="acknowledgement_rejected", now=now
             )
             raise WorkerTransportError("worker_acknowledgement_verification_failed")
+        stored_observations = 0
+        if worker_response.observation_batch is not None:
+            stored_observations = store_worker_observation_batch(db, worker_response.observation_batch, now=now)
+            db.commit()
         finish_dispatch_attempt(db, attempt.id, "delivered", now=now)
         return {
             "task_id": str(signed_task.envelope.task_id),
@@ -227,6 +232,8 @@ def deliver_signed_worker_task(
             "attempt_id": attempt.id,
             "http_status": response.status,
             "acknowledgement": signed_ack.model_dump(mode="json"),
+            "observation_count": stored_observations,
+            "observation_batch_received": worker_response.observation_batch is not None,
         }
     except Exception as exc:
         # A failure before a request is attempted is definite; after transmission

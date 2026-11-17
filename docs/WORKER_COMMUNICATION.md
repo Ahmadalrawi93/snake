@@ -8,10 +8,15 @@ Task issuance now requires the destination worker's (worker_id, key_id) to exist
 in the database-backed registry with status active. A revoked or unknown key is
 rejected before scope preparation or job reservation.
 
-The worker validator accepts a signed JSON message on stdin, verifies the backend
-signature and worker/key binding, checks expiry, and emits a signed validation-only
-acknowledgement on stdout. The backend verifies acknowledgements against the active
-registered public key and consumes the durable receipt once.
+The one-shot worker validator accepts signed JSON on stdin. A separate minimal
+HTTPS listener now accepts the same signed task at the fixed
+`POST /internal/v1/tasks` path, requires a client certificate issued by the
+configured backend CA, validates the backend Ed25519 signature, worker/key binding,
+and expiry, then returns a signed validation-only acknowledgement. It caps
+request bodies at 64 KiB, applies a five-second socket read timeout, and bounds
+concurrent handler threads. The backend mTLS adapter now requires the worker's
+signed acknowledgement, verifies it against the active registered public key,
+and consumes the durable receipt once.
 
 ## Durable dispatch attempt ledger
 
@@ -45,15 +50,18 @@ link-local, reserved, or otherwise non-global, and returns validated public
 addresses for pinning. Revoked or missing endpoint records cannot be resolved.
 An internal mTLS transport adapter now dials one returned IP directly, preserves
 the registered DNS name for TLS SNI/hostname verification, requires a client
-certificate, verifies the exact SHA-256 server-certificate fingerprint, and
-re-checks endpoint/key state immediately before sending.
+certificate and configured CA trust, verifies the exact SHA-256 server-certificate
+fingerprint, and re-checks endpoint/key state immediately before sending. It
+validates the returned signed acknowledgement rather than treating HTTP 200 as
+proof of acceptance.
 
 ## Deliberately not connected yet
 
 There is currently **no enabled production delivery path** between the API and a worker:
-- the mTLS adapter exists as an internal callable only; no API route, scheduler,
-  worker polling endpoint, or background dispatcher invokes it;
-- the worker runtime still consumes signed JSON from stdin, not HTTP;
+- the mTLS adapter and HTTPS listener exist as internal components only; no API
+  route, scheduler, worker polling endpoint, or background dispatcher invokes them;
+- the existing Compose worker service still runs the isolated stdin/stdout validator;
+  the HTTPS listener is not launched or exposed by Compose;
 - no broker, message queue, or automatic process/container launcher;
 - no automatic network retry or automatic requeue (only the internal attempt ledger exists);
 - no scan execution (the protocol requires execution_enabled=false).
@@ -61,9 +69,9 @@ There is currently **no enabled production delivery path** between the API and a
 Do not interpret a successful task-issuance call as successful delivery or execution.
 A job reserved for dispatch must not be silently returned to queued.
 
-## Required transport contract
+## Remaining transport contract
 
-A future transport adapter must:
+Before enabling delivery in a deployment, the operator must:
 1. Select a worker only from an administratively provisioned registry entry.
 2. Use authenticated TLS (prefer mutual TLS) with certificate identity bound to the
    registered worker identity; never accept a caller-provided arbitrary worker URL.
@@ -84,8 +92,8 @@ A future transport adapter must:
 
 ## Next implementation gate
 
-Next, define and implement the worker-side authenticated HTTPS listener and a
-signed acknowledgement response protocol, then add end-to-end TLS tests for
-certificate mismatch, client identity rejection, timeouts/unknown outcomes,
-duplicate delivery, revoked endpoints/keys, malformed/oversized responses, and
-replayed acknowledgements. Production PostgreSQL concurrency tests remain required.
+Next, add end-to-end TLS integration tests for certificate mismatch, client
+identity rejection, timeouts/unknown outcomes, duplicate delivery, revoked
+endpoints/keys, malformed/oversized responses, and replayed acknowledgements.
+The current HTTPS listener is a validation-only prototype, not an enabled
+production worker. Production PostgreSQL concurrency tests remain required.

@@ -46,7 +46,7 @@ def _record_matches_batch(record: WorkerObservationRecord, batch) -> bool:
     )
 
 
-def _verify_snapshot(snapshot: ScopeSnapshot, authorization: Authorization) -> bool:
+def _verify_snapshot(snapshot: ScopeSnapshot, authorization: Authorization, *, require_current_rules: bool = True) -> bool:
     try:
         data = json.loads(snapshot.snapshot_json)
         canonical = json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
@@ -59,9 +59,12 @@ def _verify_snapshot(snapshot: ScopeSnapshot, authorization: Authorization) -> b
                 or data.get("authorization_status") != "approved"):
             return False
         rules = data.get("approved_scope_rules")
-        current_rules = json.loads(authorization.scope_rules or "[]")
-        if not isinstance(rules, list) or sorted(rules) != sorted(current_rules):
+        if not isinstance(rules, list):
             return False
+        if require_current_rules:
+            current_rules = json.loads(authorization.scope_rules or "[]")
+            if sorted(rules) != sorted(current_rules):
+                return False
         target_url = data.get("target")
         decision = ScopePolicy(rules).check_url(target_url if isinstance(target_url, str) else "")
         return bool(decision.allowed and decision.hostname == data.get("hostname"))
@@ -191,7 +194,6 @@ def bind_analysis_run_provenance(
     """Persist immutable observation-to-run edges after the analysis result is stored."""
     run.provenance_sha256 = source.provenance_sha256
     run.source_observation_count = len(source.records)
-    by_id = {record.id: record for record in source.records}
     for record in source.records:
         receipt, job, snapshot, authorization = (
             db.query(WorkerTaskReceipt, ScanJob, ScopeSnapshot, Authorization)

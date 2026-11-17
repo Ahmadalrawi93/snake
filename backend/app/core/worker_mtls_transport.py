@@ -144,7 +144,7 @@ def deliver_signed_worker_task(
 
     attempt = begin_dispatch_attempt(
         db,
-        task_id=signed_task.envelope.task_id,
+        task_id=str(signed_task.envelope.task_id),
         worker_id=worker_id,
         key_id=key_id,
         envelope_sha256=digest,

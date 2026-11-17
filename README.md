@@ -13,7 +13,7 @@ AI-assisted security assessment platform for **authorized** bug bounty work.
 - Strict worker task envelope with a fixed passive profile, expiry, and no arbitrary command fields.
 - Database-backed dispatch validation gate that re-reads persisted ownership, linkage, authorization, and snapshot state before preparing a short-lived disabled envelope.
 - Validation-only Docker worker image: non-root, read-only runtime, dropped capabilities, no-new-privileges, bounded resources, and no network.
-- HMAC-SHA256 task-envelope signing and constant-time verification helpers. These are not yet connected to a worker transport.
+- HMAC-SHA256 task-envelope signing and signed validation-acknowledgement helpers with result-specific domain separation. These are not yet connected to a worker transport.
 - Atomic queued-job reservation and durable one-time task receipt/consumption primitives. Internal only; not exposed over HTTP or connected to a worker.
 - GitHub Actions runs backend tests and builds the validation-only worker image.
 

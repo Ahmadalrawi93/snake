@@ -516,3 +516,63 @@ def test_worker_observations_are_visible_only_to_owning_project_user():
 
     hidden = client.get(f"/api/v1/scan-jobs/{job_id}/observations", headers=other_headers)
     assert hidden.status_code == 404
+
+
+def test_analysis_evaluation_api_is_owner_scoped_and_human_only():
+    from app.db.models import AIAnalysisRun, Project
+
+    owner_headers = register_and_auth("evaluation-owner@example.org")
+    other_headers = register_and_auth("evaluation-other@example.org")
+    project_response = client.post(
+        "/api/v1/projects", json={"name": "Evaluation project"}, headers=owner_headers
+    )
+    project_id = project_response.json()["id"]
+    db = TestingSession()
+    try:
+        owner = db.query(Project).filter_by(id=project_id).one()
+        run = AIAnalysisRun(
+            project_id=project_id, created_by=owner.owner_id,
+            context_sha256="a" * 64, correlations_sha256="b" * 64,
+            provider="deepseek", model="test-model", status="completed",
+            disposition="requires_independent_validation", result_json="{}",
+            execution_enabled=False,
+        )
+        db.add(run)
+        db.commit()
+        run_id = run.id
+    finally:
+        db.close()
+
+    denied = client.post(
+        f"/api/v1/analysis-runs/{run_id}/evaluations",
+        json={"outcome": "confirmed", "evidence_sha256": "c" * 64,
+              "validation_method": "manual reproduction"},
+        headers=other_headers,
+    )
+    assert denied.status_code == 404
+
+    invalid = client.post(
+        f"/api/v1/analysis-runs/{run_id}/evaluations",
+        json={"outcome": "confirmed", "validation_method": "manual reproduction"},
+        headers=owner_headers,
+    )
+    assert invalid.status_code == 422
+
+    created = client.post(
+        f"/api/v1/analysis-runs/{run_id}/evaluations",
+        json={"outcome": "confirmed", "evidence_sha256": "c" * 64,
+              "validation_method": "manual reproduction", "notes": "Verified independently"},
+        headers=owner_headers,
+    )
+    assert created.status_code == 201
+    assert created.json()["outcome"] == "confirmed"
+
+    metrics = client.get(
+        f"/api/v1/projects/{project_id}/analysis-evaluation-metrics", headers=owner_headers
+    )
+    assert metrics.status_code == 200
+    assert metrics.json()["confirmed"] == 1
+    assert metrics.json()["resolved_precision"] == 1.0
+    assert client.get(
+        f"/api/v1/projects/{project_id}/analysis-evaluation-metrics", headers=other_headers
+    ).status_code == 404

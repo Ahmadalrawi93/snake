@@ -29,6 +29,18 @@ This ledger is implemented as internal primitives only; no HTTP or socket
 transport calls them yet. Database concurrency behavior still requires testing
 on the intended production PostgreSQL deployment.
 
+## Worker endpoint registry
+
+Administrators can now provision one HTTPS origin per worker identity. The registry
+stores the canonical origin, exact TLS server name, and SHA-256 certificate
+fingerprint. Registration rejects plain HTTP, IP-literal hosts, localhost/internal
+suffixes, embedded credentials, non-root paths, query strings, fragments, and
+mismatched TLS names. Endpoint revocation is one-way and audited. These records
+are configuration only: no code connects to them yet, and registration does not
+prove DNS resolution is safe. Before any socket is opened, the future transport
+must resolve and validate every address, pin the connection to the validated
+address, verify the TLS certificate fingerprint, and re-check endpoint/key status.
+
 ## Deliberately not connected yet
 
 There is currently **no network transport** between the API and a worker:

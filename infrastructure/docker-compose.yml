@@ -14,5 +14,28 @@ services:
       - snake-data:/data
     restart: unless-stopped
 
+  # Opt-in validation-only container. It has no queue consumer or scan capability.
+  # It accepts one JSON envelope on stdin, validates it, and exits.
+  worker-validator:
+    profiles: ["worker"]
+    build:
+      context: ../backend
+      dockerfile: worker.Dockerfile
+    init: true
+    read_only: true
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 32
+    mem_limit: 128m
+    cpus: 0.50
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=8m
+    network_mode: none
+    stdin_open: true
+    restart: "no"
+
 volumes:
   snake-data:

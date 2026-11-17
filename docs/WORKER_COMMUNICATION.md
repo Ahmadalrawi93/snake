@@ -22,7 +22,8 @@ Only a definite `failed` outcome permits another attempt, and that retry reuses
 the same signed task ID and envelope. A timeout/ambiguous result becomes
 `unknown` and blocks automatic retry until reconciled. Worker key status,
 receipt digest, receipt expiry, and one-time consumption are checked before
-starting an attempt.
+starting an attempt. The receipt binds the worker ID and key ID selected at signing time,
+so a valid task cannot be redirected to a different registered worker.
 
 This ledger is implemented as internal primitives only; no HTTP or socket
 transport calls them yet. Database concurrency behavior still requires testing
@@ -34,7 +35,7 @@ There is currently **no network transport** between the API and a worker:
 - no worker polling or callback HTTP endpoint;
 - no outbound HTTP client, mTLS channel, broker, or message queue;
 - no automatic process/container launcher;
-- no delivery retry or automatic requeue;
+- no automatic network retry or automatic requeue (only the internal attempt ledger exists);
 - no scan execution (the protocol requires execution_enabled=false).
 
 Do not interpret a successful task-issuance call as successful delivery or execution.

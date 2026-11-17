@@ -106,6 +106,7 @@ def consume_task_receipt(
             acknowledgement_worker_id=acknowledgement_worker_id,
             acknowledgement_validated_at=acknowledgement_validated_at,
         )
+        .execution_options(synchronize_session=False)
     )
     if result.rowcount != 1:
         db.rollback()

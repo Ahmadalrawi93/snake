@@ -546,14 +546,14 @@ def test_analysis_evaluation_api_is_owner_scoped_and_human_only():
     denied = client.post(
         f"/api/v1/analysis-runs/{run_id}/evaluations",
         json={"outcome": "confirmed", "evidence_sha256": "c" * 64,
-              "validation_method": "manual reproduction"},
+              "validation_method": "manual_reproduction"},
         headers=other_headers,
     )
     assert denied.status_code == 404
 
     invalid = client.post(
         f"/api/v1/analysis-runs/{run_id}/evaluations",
-        json={"outcome": "confirmed", "validation_method": "manual reproduction"},
+        json={"outcome": "confirmed", "validation_method": "manual_reproduction"},
         headers=owner_headers,
     )
     assert invalid.status_code == 422
@@ -561,7 +561,7 @@ def test_analysis_evaluation_api_is_owner_scoped_and_human_only():
     created = client.post(
         f"/api/v1/analysis-runs/{run_id}/evaluations",
         json={"outcome": "confirmed", "evidence_sha256": "c" * 64,
-              "validation_method": "manual reproduction", "notes": "Verified independently"},
+              "validation_method": "manual_reproduction", "notes": "Verified independently"},
         headers=owner_headers,
     )
     assert created.status_code == 201

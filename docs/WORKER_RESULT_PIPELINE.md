@@ -12,8 +12,9 @@ It is not a vulnerability-finding API and does not execute scans.
 - Observation IDs are globally unique. Replays or collisions are rejected.
 - The batch digest is stored with every observation to preserve provenance.
 - Every row is classified as `unconfirmed_observation`; a database constraint
-  rejects any insert/update that tries to use another classification. The current
-  service exposes inserts only; database-level append-only enforcement is still a hardening item.
+  rejects other classifications. Migration `0011` adds database triggers that
+  reject UPDATE and DELETE for SQLite and PostgreSQL. Unsupported database
+  dialects fail the migration closed rather than silently losing this guarantee.
 - The schema has no severity, exploitability, confirmation, command, script,
   or arbitrary fetch instruction fields.
 
@@ -32,7 +33,9 @@ perform reconnaissance or produce these batches yet.
 
 Before enabling ingestion over the network, implement a separately authenticated
 result transport, strict request-size and rate limits, transaction/audit handling,
-retention controls, and end-to-end tests. Any future promotion to a vulnerability
+retention controls, and end-to-end tests. The append-only triggers intentionally
+mean evidence correction must be represented as a new, linked record in a future
+supersession model; operators must not edit or delete source evidence. Any future promotion to a vulnerability
 candidate must be a separate workflow with independent evidence validation.
 No observation may become a confirmed vulnerability solely because a worker or
 LLM labels it that way.

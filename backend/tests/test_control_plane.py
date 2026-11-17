@@ -443,3 +443,76 @@ def test_admin_reconciles_late_signed_worker_ack_once():
         ).count() == 1
     finally:
         db.close()
+
+
+
+def test_worker_observations_are_visible_only_to_owning_project_user():
+    from datetime import datetime, timedelta, timezone
+    from uuid import uuid4
+    from app.db.models import (
+        Authorization, Project, ScanJob, ScopeSnapshot, Target, User,
+        WorkerObservationRecord, WorkerTaskReceipt,
+    )
+
+    owner_headers = register_and_auth("evidence-owner@example.org")
+    other_headers = register_and_auth("evidence-other@example.org")
+    db = TestingSession()
+    try:
+        owner = db.query(User).filter_by(email="evidence-owner@example.org").one()
+        project = Project(owner_id=owner.id, name="Evidence Project", description="")
+        db.add(project)
+        db.flush()
+        target = Target(project_id=project.id, value="https://example.test", target_type="url")
+        authorization = Authorization(
+            project_id=project.id, reference="https://example.test/program",
+            status="approved", scope_rules='["example.test"]',
+        )
+        db.add_all([target, authorization])
+        db.flush()
+        snapshot = ScopeSnapshot(
+            project_id=project.id, target_id=target.id,
+            authorization_id=authorization.id, created_by=owner.id,
+            snapshot_json="{}", sha256="a" * 64, status="active",
+        )
+        db.add(snapshot)
+        db.flush()
+        job = ScanJob(
+            project_id=project.id, target_id=target.id,
+            scope_snapshot_id=snapshot.id, created_by=owner.id,
+            profile="passive_recon", status="queued", execution_enabled=False,
+        )
+        db.add(job)
+        db.flush()
+        task_id = str(uuid4())
+        now = datetime.now(timezone.utc)
+        receipt = WorkerTaskReceipt(
+            task_id=task_id, job_id=job.id, envelope_sha256="b" * 64,
+            worker_id="recon-worker-01", key_id="key-v1",
+            expires_at=now + timedelta(minutes=2), consumed_at=now,
+            created_at=now - timedelta(seconds=5),
+        )
+        db.add(receipt)
+        db.flush()
+        db.add(WorkerObservationRecord(
+            observation_id=str(uuid4()), task_id=task_id,
+            worker_id="recon-worker-01", key_id="key-v1",
+            envelope_sha256="b" * 64, batch_sha256="c" * 64,
+            kind="hostname", value="api.example.test",
+            evidence="passive source evidence", source="passive_dns",
+            observed_at=now, collected_at=now, received_at=now,
+            classification="unconfirmed_observation",
+        ))
+        db.commit()
+        job_id = job.id
+    finally:
+        db.close()
+
+    visible = client.get(f"/api/v1/scan-jobs/{job_id}/observations", headers=owner_headers)
+    assert visible.status_code == 200
+    payload = visible.json()
+    assert payload["total"] == 1
+    assert payload["items"][0]["value"] == "api.example.test"
+    assert payload["items"][0]["classification"] == "unconfirmed_observation"
+
+    hidden = client.get(f"/api/v1/scan-jobs/{job_id}/observations", headers=other_headers)
+    assert hidden.status_code == 404

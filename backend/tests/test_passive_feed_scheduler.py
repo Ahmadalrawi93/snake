@@ -103,3 +103,23 @@ def test_scheduler_records_asset_changes_after_successful_feed_publish(tmp_path)
     )]
     connection.close()
     assert event_types == ["new", "missing"]
+
+
+def test_scheduler_writes_separate_priority_report(tmp_path):
+    scope = tmp_path / "scope.json"
+    scope.write_text(json.dumps({"approved_scope_rules": ["example.org"]}))
+    scope.chmod(0o600)
+    output = tmp_path / "feed.json"
+    priority = tmp_path / "priority.json"
+    history = tmp_path / "history.sqlite3"
+    record = {"hostname": "api.example.org", "kind": "url", "value": "https://api.example.org/v1",
+              "source": "crt_sh_ct", "evidence": "ct", "observed_at": "2026-11-17T10:00:00+00:00"}
+    run_cycle(str(scope), str(output), ["ct"], "ticket",
+              ct_collector=lambda _rules: [record], history_db=str(history),
+              priority_report=str(priority))
+    feed = json.loads(output.read_text())
+    ranked = json.loads(priority.read_text())
+    assert "priority_score" not in feed[0]
+    assert ranked[0]["priority_score"] > 0
+    assert ranked[0]["priority_label"] in {"low", "medium", "high"}
+    assert priority.stat().st_mode & 0o777 == 0o600

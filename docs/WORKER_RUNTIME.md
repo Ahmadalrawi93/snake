@@ -76,3 +76,41 @@ authorized. Scan execution remains disabled.
 The optional feed file is a JSON array, maximum 1 MiB / 500 records. Each record contains `hostname`, `kind` (`hostname`, `url`, `dns_record`, `technology`, or `http_header`), `value`, `evidence`, `source`, and an ISO-8601 timezone-aware `observed_at`. It must be a regular non-symlink file and not group/world writable. Provision it through a trusted external feed preparation process and mount it read-only. The worker does not fetch or refresh the feed.
 
 The producer matches every record to the exact scope manifest carried inside the signed task. Out-of-scope records are dropped; URL records with credentials, query strings, fragments, or mismatched hosts are rejected. The worker signs the remaining records with its registered Ed25519 key. The replay ledger stores the exact complete response, not just the acknowledgement, so retries cannot silently substitute a newer feed. This component does not establish the truth or collection legality of the input feed.
+
+
+## External passive CT collector
+
+`backend/collect_passive_feed.py` is a separate, network-enabled operator tool.
+It queries only the fixed HTTPS origin `crt.sh` (Certificate Transparency),
+never resolves or connects to discovered target hosts, and filters every
+returned DNS name through the operator-supplied scope rules before writing a
+feed accepted by the offline worker.
+
+Example scope file (mode 0600):
+```json
+{"approved_scope_rules":["example.org","*.example.org"]}
+```
+
+Run from the backend environment:
+```sh
+python collect_passive_feed.py \
+  --scope-file ./approved-scope.json \
+  --output ./passive-feed.json \
+  --authorization-reference "program-approval-ticket-123"
+```
+
+The authorization reference is an audit label only. The collector does not
+verify a program policy, signed scope snapshot, domain ownership, or legal
+authorization. An operator must review the program's current rules and create
+the scope file from an explicitly authorized asset list before running it.
+The collector has no arbitrary provider URL option; redirects are disabled,
+requests and response sizes are bounded, and output is atomically written with
+mode 0600. CT names are untrusted leads, can be stale or unrelated, and do not
+prove asset ownership, service reachability, or vulnerability. Human review
+and the backend's signed-scope checks remain mandatory.
+
+This collector is intentionally not installed in or copied into the isolated
+worker image. Run it on a separate controlled host with outbound access only
+to the provider. Transfer the resulting feed to the worker through a trusted
+channel and mount it read-only. Provider availability, terms, rate limits, and
+data retention practices must be reviewed before operational use.

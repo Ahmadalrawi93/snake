@@ -5,6 +5,7 @@ import json
 from dataclasses import dataclass
 from uuid import UUID
 from datetime import datetime, timezone
+from app.core.scope_policy import ScopePolicy
 from sqlalchemy.orm import Session
 from app.core.analysis_context import build_analysis_context
 from app.core.evidence_correlation import correlate_analysis_context
@@ -45,11 +46,25 @@ def _record_matches_batch(record: WorkerObservationRecord, batch) -> bool:
     )
 
 
-def _verify_snapshot(snapshot: ScopeSnapshot) -> bool:
+def _verify_snapshot(snapshot: ScopeSnapshot, authorization: Authorization) -> bool:
     try:
         data = json.loads(snapshot.snapshot_json)
         canonical = json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-        return hashlib.sha256(canonical.encode()).hexdigest() == snapshot.sha256
+        if hashlib.sha256(canonical.encode()).hexdigest() != snapshot.sha256:
+            return False
+        if (data.get("project_id") != snapshot.project_id
+                or data.get("target_id") != snapshot.target_id
+                or data.get("authorization_id") != snapshot.authorization_id
+                or data.get("execution_enabled") is not False
+                or data.get("authorization_status") != "approved"):
+            return False
+        rules = data.get("approved_scope_rules")
+        current_rules = json.loads(authorization.scope_rules or "[]")
+        if not isinstance(rules, list) or sorted(rules) != sorted(current_rules):
+            return False
+        target_url = data.get("target")
+        decision = ScopePolicy(rules).check_url(target_url if isinstance(target_url, str) else "")
+        return bool(decision.allowed and decision.hostname == data.get("hostname"))
     except (TypeError, ValueError):
         return False
 
@@ -96,7 +111,7 @@ def build_persisted_analysis_input(
             raise ValueError("observation provenance crosses project or target boundary")
         if snapshot.status != "active" or authorization.status != "approved":
             raise ValueError("scope snapshot or authorization is no longer active")
-        if not _verify_snapshot(snapshot):
+        if not _verify_snapshot(snapshot, authorization):
             raise ValueError("scope snapshot integrity check failed")
         if snapshot.expires_at:
             expiry = datetime.fromisoformat(snapshot.expires_at.replace("Z", "+00:00"))
@@ -125,6 +140,13 @@ def build_persisted_analysis_input(
                 "signature": record.batch_signature,
             }))
             batch = signed.batch
+            if (_utc(batch.collected_at) < _utc(receipt.created_at)
+                    or _utc(batch.collected_at) >= _utc(receipt.expires_at)
+                    or _utc(batch.collected_at) > current):
+                raise ValueError("signed observation batch timestamp is outside task validity")
+            if (receipt.acknowledgement_outcome != "accepted"
+                    or receipt.acknowledgement_worker_id != receipt.worker_id):
+                raise ValueError("worker task was not acknowledged as accepted")
             if (batch.task_id != UUID(receipt.task_id)
                     or batch.envelope_sha256 != receipt.envelope_sha256
                     or batch.worker_id != receipt.worker_id or batch.key_id != receipt.key_id

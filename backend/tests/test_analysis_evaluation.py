@@ -48,8 +48,14 @@ def test_human_outcomes_and_metrics_exclude_unresolved_from_precision(db):
         AnalysisEvaluationCreate(outcome="inconclusive", validation_method="manual_review"),
         AnalysisEvaluationCreate(outcome="duplicate", validation_method="triage_review"),
     ]
-    for payload in payloads:
-        record_human_evaluation(db, analysis_run_id=run.id, actor=owner, payload=payload)
+    reviewers = [owner]
+    for index in range(1, len(payloads)):
+        reviewer = User(email=f"reviewer{index}@example.test", password_hash="hash")
+        db.add(reviewer)
+        db.flush()
+        reviewers.append(reviewer)
+    for reviewer, payload in zip(reviewers, payloads):
+        record_human_evaluation(db, analysis_run_id=run.id, actor=reviewer, payload=payload)
     db.commit()
     metrics = get_project_evaluation_metrics(db, project_id=project.id, actor=owner)
     assert metrics == {

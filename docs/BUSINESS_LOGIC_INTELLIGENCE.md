@@ -5,7 +5,7 @@ SNAKE now derives conservative business-logic review leads from URL observations
 ## What it extracts
 
 - Known resource path families such as users, accounts, orders, invoices, payments, roles, documents, and projects.
-- Collection routes and identifier-shaped object routes (numeric/UUID-like identifiers normalized to `:id`).
+- Collection routes and identifier-shaped object routes (numeric/UUID-like identifiers normalized to `:id`). An object-level authorization lead is emitted only when both the collection route and its direct identifier route were independently observed; nested action routes do not count as object-route evidence.
 - Explicit action-like path terms such as approve, cancel, delete, export, transfer, and pay.
 - Evidence-linked hypotheses for object-level authorization and potentially sensitive actions, with validation questions.
 

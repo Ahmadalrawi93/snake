@@ -167,6 +167,10 @@ def collect_ct_feed(scope_rules: list[str], *, fetcher=fetch_ct_rows) -> list[di
 
 
 def _dnsdb_url(query: str) -> str:
+    candidate = query[2:] if query.startswith("*.") else query
+    normalized = normalize_host(candidate)
+    if query != normalized and query != "*." + normalized:
+        raise ValueError("DNSDB query must be a canonical hostname or wildcard scope")
     encoded = urllib.parse.quote(query, safe="*.-")
     return f"https://{DNSDB_HOST}{DNSDB_PATH}{encoded}?limit={DNSDB_QUERY_LIMIT}"
 
@@ -297,7 +301,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Collect passive DNS intelligence for an operator-reviewed scope")
     parser.add_argument("--scope-file", required=True, help="JSON file containing approved_scope_rules")
     parser.add_argument("--output", required=True, help="private JSON feed output path")
-    parser.add_argument("--provider", action="append", choices=["ct", "dnsdb"],\n                        help="passive source to query; repeat to combine providers (default: ct)")\n    parser.add_argument("--authorization-reference", required=True,
+    parser.add_argument("--provider", action="append", choices=["ct", "dnsdb"],
+                        help="passive source to query; repeat to combine providers (default: ct)")
+    parser.add_argument("--authorization-reference", required=True,
                         help="operator's audit reference; this is not independently verified")
     args = parser.parse_args()
     if not args.authorization_reference.strip() or len(args.authorization_reference) > 200:

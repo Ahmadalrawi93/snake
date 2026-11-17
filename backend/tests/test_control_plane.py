@@ -424,7 +424,7 @@ def test_admin_reconciles_late_signed_worker_ack_once():
         endpoint, json={"acknowledgement": signed.model_dump(mode="json")},
         headers=admin_headers,
     )
-    assert response.status_code == 200
+    assert response.status_code == 200, response.text
     assert response.json()["status"] == "delivered"
     assert response.json()["execution_enabled"] is False
 

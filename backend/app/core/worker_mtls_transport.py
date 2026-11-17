@@ -207,10 +207,11 @@ def deliver_signed_worker_task(
         try:
             decoded_response = json.loads(payload)
             if isinstance(decoded_response, dict) and "acknowledgement" in decoded_response:
-                worker_response = WorkerTaskResponse.model_validate(decoded_response)
+                # JSON-mode validation is required for strict UUID/datetime fields.
+                worker_response = WorkerTaskResponse.model_validate_json(payload)
             else:
                 # Backward-compatible parsing for already deployed validation-only workers.
-                legacy_ack = SignedWorkerValidationResult.model_validate(decoded_response)
+                legacy_ack = SignedWorkerValidationResult.model_validate_json(payload)
                 worker_response = WorkerTaskResponse(acknowledgement=legacy_ack, observation_batch=None)
             signed_ack = worker_response.acknowledgement
         except Exception as exc:

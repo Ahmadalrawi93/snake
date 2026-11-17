@@ -94,6 +94,8 @@ def assess_finding_impact(
 
     if assessment.evidence_status != "consistent":
         blockers.append("evidence_is_not_consistent")
+    if assessment.readiness != "human_review_ready" or assessment.required_gaps:
+        blockers.append("evidence_readiness_requirements_unmet")
     if not impact_evidence:
         blockers.append("supporting_impact_context_evidence_missing")
     if not accepted:

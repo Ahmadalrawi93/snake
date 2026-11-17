@@ -5,12 +5,8 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-_TEXT = r"^[^\x00-\x08\x0b\x0c\x0e-\x1f\x7f]{1,2000}$"
-
-
 class ObservationTriage(BaseModel):
     """A hypothesis only; this contract cannot represent a confirmed finding."""
-
     model_config = ConfigDict(extra="forbid", strict=True)
 
     category: Literal[

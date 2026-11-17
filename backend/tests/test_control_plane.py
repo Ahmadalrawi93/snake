@@ -566,6 +566,12 @@ def test_analysis_evaluation_api_is_owner_scoped_and_human_only():
     )
     assert created.status_code == 201
     assert created.json()["outcome"] == "confirmed"
+    repeated = client.post(
+        f"/api/v1/analysis-runs/{run_id}/evaluations",
+        json={"outcome": "inconclusive", "validation_method": "second review"},
+        headers=owner_headers,
+    )
+    assert repeated.status_code == 409
 
     metrics = client.get(
         f"/api/v1/projects/{project_id}/analysis-evaluation-metrics", headers=owner_headers

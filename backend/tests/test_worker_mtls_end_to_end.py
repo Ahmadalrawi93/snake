@@ -311,3 +311,35 @@ def test_real_worker_accepts_task_but_delayed_ack_leaves_backend_unknown(integra
     # No retry is permitted because the worker may already have accepted it.
     with pytest.raises(ValueError, match="previous attempt is not confirmed failed"):
         state["dispatch"](timeout_seconds=0.2)
+
+
+def test_full_mtls_dispatch_persists_signed_passive_observations(integrated_transport, tmp_path):
+    state = integrated_transport
+    observed_at = datetime.now(timezone.utc) - timedelta(seconds=2)
+    feed = tmp_path / "feed.json"
+    feed.write_text(__import__("json").dumps([
+        {
+            "hostname": "api.authorized.example", "kind": "hostname",
+            "value": "api.authorized.example", "evidence": "CT record",
+            "source": "ct_log", "observed_at": observed_at.isoformat(),
+        },
+        {
+            "hostname": "outside.invalid", "kind": "hostname",
+            "value": "outside.invalid", "evidence": "must be filtered",
+            "source": "ct_log", "observed_at": observed_at.isoformat(),
+        },
+    ]))
+    feed.chmod(0o600)
+    state["server"].passive_feed_path = str(feed)
+
+    result = state["dispatch"]()
+    db = state["db"]
+    rows = db.query(WorkerObservationRecord).filter_by(
+        task_id=str(state["envelope"].task_id)
+    ).all()
+    assert result["observation_batch_received"] is True
+    assert result["observation_count"] == 1
+    assert len(rows) == 1
+    assert rows[0].value == "api.authorized.example"
+    assert rows[0].classification == "unconfirmed_observation"
+    assert rows[0].batch_signature.startswith("ed25519:v1:")

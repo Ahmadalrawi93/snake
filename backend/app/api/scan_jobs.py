@@ -3,7 +3,7 @@ import hashlib
 import json
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
@@ -11,7 +11,7 @@ from app.api.dependencies import get_current_user
 from app.core.scope_policy import ScopePolicy, normalize_host
 from app.db.database import get_db
 from app.db.models import (
-    AuditEvent, Authorization, Project, ScanJob, ScopeSnapshot, Target, User,
+    AuditEvent, Authorization, Project, ScanJob, ScopeSnapshot, Target, User,\n    WorkerObservationRecord, WorkerTaskReceipt,
 )
 
 router = APIRouter(prefix="/api/v1", tags=["scan jobs"])
@@ -219,3 +219,64 @@ def cancel_scan_job(
     db.commit()
     db.refresh(job)
     return job
+
+
+
+class WorkerObservationRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    observation_id: str
+    task_id: str
+    worker_id: str
+    key_id: str
+    envelope_sha256: str
+    batch_sha256: str
+    kind: str
+    value: str
+    evidence: str
+    source: str
+    observed_at: datetime
+    collected_at: datetime
+    received_at: datetime
+    classification: str
+
+
+class WorkerObservationPage(BaseModel):
+    items: list[WorkerObservationRead]
+    total: int
+    limit: int
+    offset: int
+
+
+@router.get("/scan-jobs/{job_id}/observations", response_model=WorkerObservationPage)
+def list_scan_job_observations(
+    job_id: int,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0, le=1000000),
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+):
+    """Return unconfirmed worker evidence only to the owning project user."""
+    job = db.query(ScanJob).join(
+        Project, Project.id == ScanJob.project_id
+    ).filter(
+        ScanJob.id == job_id,
+        Project.owner_id == actor.id,
+    ).first()
+    if job is None:
+        raise HTTPException(status_code=404, detail="Scan job not found")
+
+    query = db.query(WorkerObservationRecord).join(
+        WorkerTaskReceipt,
+        WorkerTaskReceipt.task_id == WorkerObservationRecord.task_id,
+    ).filter(WorkerTaskReceipt.job_id == job.id)
+    total = query.count()
+    rows = query.order_by(
+        WorkerObservationRecord.received_at.desc(),
+        WorkerObservationRecord.id.desc(),
+    ).offset(offset).limit(limit).all()
+    return WorkerObservationPage(
+        items=rows,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )

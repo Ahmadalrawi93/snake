@@ -19,6 +19,7 @@ from worker_https_server import (
     validate_http_task_headers,
     validate_task_request,
 )
+from worker_replay_ledger import ReplayConflict, WorkerReplayLedger
 
 
 def keypair():
@@ -147,3 +148,35 @@ def _headers(**values):
 )
 def test_http_task_header_framing_is_strict(headers, expected):
     assert validate_http_task_headers(headers) == expected
+
+
+def test_https_worker_replay_returns_identical_persisted_ack(tmp_path):
+    backend_private, backend_public = keypair()
+    worker_private, _ = keypair()
+    ledger_path = tmp_path / "worker.sqlite3"
+    ledger = WorkerReplayLedger(ledger_path)
+    task = sign_worker_task(
+        make_task(), backend_private, worker_id="worker-1", key_id="key-1"
+    )
+    raw = task.model_dump_json().encode()
+    first = validate_task_request(
+        raw, backend_public_key=backend_public, worker_private_key=worker_private,
+        worker_id="worker-1", key_id="key-1", replay_ledger=ledger,
+    )
+    reopened = WorkerReplayLedger(ledger_path)
+    replay = validate_task_request(
+        raw, backend_public_key=backend_public, worker_private_key=worker_private,
+        worker_id="worker-1", key_id="key-1", replay_ledger=reopened,
+    )
+    assert replay == first
+
+    altered_envelope = task.envelope.model_copy(update={"job_id": 999})
+    altered = sign_worker_task(
+        altered_envelope, backend_private, worker_id="worker-1", key_id="key-1"
+    )
+    with pytest.raises(ReplayConflict):
+        validate_task_request(
+            altered.model_dump_json().encode(),
+            backend_public_key=backend_public, worker_private_key=worker_private,
+            worker_id="worker-1", key_id="key-1", replay_ledger=reopened,
+        )

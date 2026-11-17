@@ -247,7 +247,7 @@ def build_handler(*, backend_public_key: str, worker_private_key: str,
                     worker_id=worker_id,
                     key_id=key_id,
                     replay_ledger=replay_ledger,
-                    passive_feed_path=passive_feed_path,
+                    passive_feed_path=getattr(self.server, "passive_feed_path", passive_feed_path),
                 )
             except (ValidationError, ValueError):
                 self._send(400, b'{"error":"task_rejected"}')

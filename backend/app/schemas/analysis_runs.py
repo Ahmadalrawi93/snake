@@ -11,6 +11,8 @@ class AnalysisRunRead(BaseModel):
     target_id: int | None = None
     created_by: int
     context_sha256: str
+    provenance_sha256: str | None = None
+    source_observation_count: int = 0
     correlations_sha256: str
     provider: str
     model: str

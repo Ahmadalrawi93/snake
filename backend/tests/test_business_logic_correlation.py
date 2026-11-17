@@ -56,3 +56,12 @@ def test_ignores_malformed_records_and_rejects_oversized_input():
     import pytest
     with pytest.raises(ValueError):
         correlate_business_logic([{}] * 1001)
+
+
+def test_nested_action_route_does_not_create_object_authorization_hypothesis():
+    report = correlate_business_logic([
+        endpoint("/v1/orders"),
+        endpoint("/v1/orders/{id}/refund"),
+    ])
+    assert report["summary"]["object_authorization"] == 0
+    assert report["summary"]["sensitive_business_operation"] == 1

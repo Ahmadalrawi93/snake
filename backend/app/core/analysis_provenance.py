@@ -138,8 +138,8 @@ def build_persisted_analysis_input(
             key = db.query(WorkerKey).filter_by(
                 worker_id=record.worker_id, key_id=record.key_id
             ).first()
-            if key is None:
-                raise ValueError("historical worker verification key is unavailable")
+            if key is None or key.status != "active":
+                raise ValueError("worker verification key is unavailable or revoked for new analysis")
             signed = SignedWorkerObservationBatch.model_validate_json(json.dumps({
                 "batch": json.loads(record.batch_payload_json),
                 "signature": record.batch_signature,

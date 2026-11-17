@@ -172,6 +172,8 @@ export default function Home() {
       });
       setProjects(current => [created, ...current]);
       setProjectName(""); setProjectDescription("");
+      setSelectedProjectId(created.id);
+      setTargets([]); setAuthorizations([]);
       setMessage("Project created.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create project");
@@ -205,7 +207,7 @@ export default function Home() {
           {user ? <div className="profile">{user.email} <button className="text-button" onClick={signOut}>SIGN OUT</button></div> : <div className="profile">LOCAL INSTANCE <span>●</span></div>}
         </header>
 
-        <div className="notice"><b>FOUNDATION MODE</b><span>Only account and project management are active. No scanning or target requests are initiated from this dashboard.</span></div>
+        <div className="notice"><b>FOUNDATION MODE</b><span>Account, project, authorization-reference, and target registration are active. No scanning or target network requests are initiated from this dashboard.</span></div>
 
         {error && <div className="feedback error" role="alert">{error}</div>}
         {message && <div className="feedback success" role="status">{message}</div>}

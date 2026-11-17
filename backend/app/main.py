@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router as scope_router
 from app.api.auth import router as auth_router
+from app.api.admin import router as admin_router
 from app.api.control_plane import router as control_plane_router
 from app.core.config import get_settings
 from app.db.database import Base, engine
@@ -24,6 +25,7 @@ app.add_middleware(
 )
 app.include_router(scope_router)
 app.include_router(auth_router)
+app.include_router(admin_router)
 app.include_router(control_plane_router)
 
 @app.get("/")

@@ -44,3 +44,12 @@ Threat modeling, security testing of SNAKE itself, secrets management, backups, 
 - [ ] Passive recon adapters; no adapter is executable yet.
 
 The worker protocol is a data contract only. No worker, dispatcher, network request, or scan execution is enabled.
+
+
+## Dispatch validation gate
+- [x] Re-read persisted job/project/target/snapshot/authorization before preparing a task.
+- [x] Enforce job queued state, fixed passive profile, ownership/linkage, snapshot integrity and authorization validity.
+- [x] Short-lived task expiry capped at five minutes and never beyond authorization/snapshot expiry.
+- [x] Envelope remains execution-disabled; no job claim, worker contact, DNS lookup, or HTTP traffic.
+- [ ] Atomic queue claim and replay protection.
+- [ ] Authenticated worker transport and signed task/result messages.

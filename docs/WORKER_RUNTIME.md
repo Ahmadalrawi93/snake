@@ -28,7 +28,7 @@ Required HTTPS listener environment:
 - `SNAKE_WORKER_ED25519_PRIVATE_KEY_B64`
 - `SNAKE_WORKER_ID`
 - `SNAKE_WORKER_KEY_ID`
-- `SNAKE_WORKER_REPLAY_DB_PATH` (required durable SQLite ledger path)
+- `SNAKE_WORKER_REPLAY_DB_PATH` (required durable SQLite ledger path)\n- Optional `SNAKE_WORKER_PASSIVE_FEED_FILE` (trusted, pre-collected JSON feed; mount read-only)
 - Optional bind host/port: `SNAKE_WORKER_BIND_HOST`, `SNAKE_WORKER_BIND_PORT`. The default bind is `127.0.0.1:8443`; host must be an explicit IP address and wildcard binds (`0.0.0.0` / `::`) are rejected. Remote deployment must explicitly bind a private interface address and enforce ingress with the host/network firewall.
 
 Run the HTTPS listener in the worker image by overriding its one-shot entrypoint:
@@ -67,3 +67,10 @@ and deployment-specific egress policy are configured.
 A valid signed acknowledgement proves only that the registered worker key holder
 signed validation metadata. It does not prove a scan ran or that a target was
 authorized. Scan execution remains disabled.
+
+
+## Offline passive feed
+
+The optional feed file is a JSON array, maximum 1 MiB / 500 records. Each record contains `hostname`, `kind` (`hostname` or `url`), `value`, `evidence`, `source`, and an ISO-8601 timezone-aware `observed_at`. It must be a regular non-symlink file and not group/world writable. Provision it through a trusted external feed preparation process and mount it read-only. The worker does not fetch or refresh the feed.
+
+The producer matches every record to the exact scope manifest carried inside the signed task. Out-of-scope records are dropped; URL records with credentials, query strings, fragments, or mismatched hosts are rejected. The worker signs the remaining records with its registered Ed25519 key. The replay ledger stores the exact complete response, not just the acknowledgement, so retries cannot silently substitute a newer feed. This component does not establish the truth or collection legality of the input feed.

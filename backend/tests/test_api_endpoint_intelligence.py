@@ -51,3 +51,17 @@ def test_rejects_oversized_input():
     import pytest
     with pytest.raises(ValueError):
         build_api_endpoint_intelligence([{}] * 501, ["example.org"])
+
+
+def test_extracts_object_reference_and_business_operation_review_hints():
+    result = build_api_endpoint_intelligence(
+        [rec("api.example.org", "https://api.example.org/v1/orders/123/refund")],
+        ["*.example.org"],
+    )
+    endpoint = result["endpoints"][0]
+    assert endpoint["resource_segments"] == ["orders"]
+    assert endpoint["action_segments"] == ["refund"]
+    assert endpoint["object_reference_present"] is True
+    assert "object_reference_authorization_review" in endpoint["business_logic_review_hints"]
+    assert "named_business_operation_manual_review" in endpoint["business_logic_review_hints"]
+    assert endpoint["method"] == "unknown"

@@ -97,3 +97,50 @@ def test_ledger_rejects_symlink_database_path(tmp_path):
     link_path.symlink_to(real_path)
     with pytest.raises(ValueError, match="must_not_be_a_symlink"):
         WorkerReplayLedger(link_path)
+
+
+
+def test_failed_acknowledgement_creation_does_not_reserve_task_id(tmp_path):
+    path = tmp_path / "ledger.sqlite3"
+    ledger = WorkerReplayLedger(path)
+
+    def fail_acknowledgement():
+        raise RuntimeError("signing service unavailable")
+
+    with pytest.raises(RuntimeError, match="signing service unavailable"):
+        ledger.get_or_create(
+            task_id="task-retry-safe", envelope_sha256="d" * 64,
+            worker_id="worker-1", key_id="key-1",
+            create_acknowledgement=fail_acknowledgement,
+            validate_first_acceptance=lambda: None,
+        )
+
+    # The transaction must roll back completely; a later valid attempt may
+    # become the single durable acceptance because no acknowledgement escaped.
+    ack, duplicate = ledger.get_or_create(
+        task_id="task-retry-safe", envelope_sha256="d" * 64,
+        worker_id="worker-1", key_id="key-1",
+        create_acknowledgement=lambda: b"valid-signed-ack",
+        validate_first_acceptance=lambda: None,
+    )
+    assert ack == b"valid-signed-ack"
+    assert duplicate is False
+
+
+def test_empty_or_non_bytes_acknowledgement_is_not_committed(tmp_path):
+    ledger = WorkerReplayLedger(tmp_path / "ledger.sqlite3")
+    for invalid in (b"", "not-bytes"):
+        with pytest.raises(ValueError, match="acknowledgement_must_be_non_empty_bytes"):
+            ledger.get_or_create(
+                task_id="task-invalid-ack", envelope_sha256="e" * 64,
+                worker_id="worker-1", key_id="key-1",
+                create_acknowledgement=lambda value=invalid: value,
+                validate_first_acceptance=lambda: None,
+            )
+    ack, duplicate = ledger.get_or_create(
+        task_id="task-invalid-ack", envelope_sha256="e" * 64,
+        worker_id="worker-1", key_id="key-1",
+        create_acknowledgement=lambda: b"valid",
+        validate_first_acceptance=lambda: None,
+    )
+    assert (ack, duplicate) == (b"valid", False)

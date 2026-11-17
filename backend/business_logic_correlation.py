@@ -63,12 +63,12 @@ def correlate_business_logic(endpoints: list[dict[str, Any]]) -> dict[str, Any]:
             prefix = "/" + "/".join(segments[:index + 1])
             if len(segments) == index + 1:
                 bucket["collections"].setdefault(resource, {}).setdefault(prefix, refs)
-            if len(segments) > index + 1 and segments[index + 1] == "{id}":
+            if len(segments) == index + 2 and segments[index + 1] == "{id}":
                 object_path = "/" + "/".join(segments[:index + 2])
                 bucket["objects"].setdefault(resource, {}).setdefault(object_path, refs)
         if actions:
-            for action in actions:
-                related = next((resource for resource in resources if resource in segments), None)
+            for action in sorted(actions):
+                related = next((resource for resource in sorted(resources) if resource in segments), None)
                 route = "/" + "/".join(segments)
                 bucket["actions"].setdefault((related or "unknown", action, route), refs)
 

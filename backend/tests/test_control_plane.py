@@ -657,6 +657,7 @@ def test_human_finding_decisions_are_owner_scoped_and_append_only():
 
 
 def test_finding_candidate_persistence_binds_run_context_and_exact_evidence_bundle():
+    import pytest
     from datetime import datetime, timezone
     from uuid import uuid4
     from app.db.models import AIAnalysisRun, Project, User, FindingCandidateRecord

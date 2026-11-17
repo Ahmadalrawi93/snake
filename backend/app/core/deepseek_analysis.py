@@ -3,6 +3,9 @@
 No tools, browser, shell, scanner, retries, or automatic invocation are exposed.
 """
 import json
+import hashlib
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
@@ -24,6 +27,20 @@ Do not claim a vulnerability is confirmed or infer impact without direct evidenc
 Return only a JSON object matching the requested schema. Cite only supplied observation IDs.
 Your output is a hypothesis requiring independent human validation.
 You have no tools and must not propose executing actions outside the supplied evidence."""
+
+
+@dataclass(frozen=True)
+class AnalysisExecutionResult:
+    triage: ObservationTriage
+    provider: str
+    model: str
+    prompt_tokens: int | None
+    completion_tokens: int | None
+    total_tokens: int | None
+    provider_request_id: str | None
+    context_sha256: str
+    correlations_sha256: str
+    response_received_at: datetime
 
 
 class AnalysisAdapterError(RuntimeError):
@@ -55,6 +72,7 @@ def analyze_observations(
     model: str,
     transport: httpx.BaseTransport | None = None,
     timeout_seconds: float = 20.0,
+    _metadata_out: dict[str, Any] | None = None,
 ) -> ObservationTriage:
     """Call DeepSeek only when explicitly invoked, then validate schema and provenance."""
     if not api_key or len(api_key) > 512 or any(ord(c) < 33 or ord(c) > 126 for c in api_key):
@@ -84,6 +102,13 @@ def analyze_observations(
                     if len(chunks) > MAX_RESPONSE_BYTES:
                         raise AnalysisAdapterError("provider response exceeds size limit")
         envelope = json.loads(chunks)
+        if _metadata_out is not None:
+            usage = envelope.get("usage") or {}
+            for field in ("prompt_tokens", "completion_tokens", "total_tokens"):
+                value = usage.get(field)
+                _metadata_out[field] = value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
+            request_id = response.headers.get("x-request-id")
+            _metadata_out["provider_request_id"] = request_id[:160] if isinstance(request_id, str) and request_id else None
         content = envelope["choices"][0]["message"]["content"]
         if not isinstance(content, str) or len(content.encode("utf-8")) > 64_000:
             raise AnalysisAdapterError("provider returned invalid analysis content")
@@ -101,3 +126,38 @@ def analyze_observations(
         raise
     except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
         raise AnalysisAdapterError("DeepSeek analysis request or response validation failed") from exc
+
+
+
+def analyze_observations_with_metadata(
+    context: AnalysisContext,
+    correlations: CorrelationReport,
+    *,
+    api_key: str,
+    model: str,
+    transport: httpx.BaseTransport | None = None,
+    timeout_seconds: float = 20.0,
+) -> AnalysisExecutionResult:
+    """Explicit call returning validated triage and bounded provider metadata."""
+    metadata: dict[str, Any] = {}
+    triage = analyze_observations(
+        context, correlations, api_key=api_key, model=model,
+        transport=transport, timeout_seconds=timeout_seconds, _metadata_out=metadata,
+    )
+
+    def digest(value: Any) -> str:
+        raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return hashlib.sha256(raw).hexdigest()
+
+    return AnalysisExecutionResult(
+        triage=triage,
+        provider="deepseek",
+        model=model,
+        prompt_tokens=metadata.get("prompt_tokens"),
+        completion_tokens=metadata.get("completion_tokens"),
+        total_tokens=metadata.get("total_tokens"),
+        provider_request_id=metadata.get("provider_request_id"),
+        context_sha256=digest(context.model_dump(mode="json")),
+        correlations_sha256=digest(correlations.model_dump(mode="json")),
+        response_received_at=datetime.now(timezone.utc),
+    )

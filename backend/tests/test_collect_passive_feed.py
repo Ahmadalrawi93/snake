@@ -155,9 +155,9 @@ def test_dnsdb_url_uses_fixed_https_origin_and_wildcard_path():
 
 def test_dnsdb_fetch_parses_saf_ndjson_and_sends_api_key():
     payload = (
-        b'{"cond":"begin"}\\n'
-        b'{"obj":{"rrname":"api.example.org.","rrtype":"A","rdata":["192.0.2.1"]}}\\n'
-        b'{"cond":"succeeded"}\\n'
+        b'{"cond":"begin"}\n'
+        b'{"obj":{"rrname":"api.example.org.","rrtype":"A","rdata":["192.0.2.1"]}}\n'
+        b'{"cond":"succeeded"}\n'
     )
     class Response:
         status = 200
@@ -189,10 +189,10 @@ def test_dnsdb_fetch_rejects_missing_key_incomplete_and_bad_frames():
         def __init__(self, payload): self.payload = payload
         def open(self, request, timeout): return Response(self.payload)
     with pytest.raises(ValueError, match="incomplete"):
-        fetch_dnsdb_rows("example.org", "key", opener=Opener(b'{"cond":"begin"}\\n'))
+        fetch_dnsdb_rows("example.org", "key", opener=Opener(b'{"cond":"begin"}\n'))
     with pytest.raises(ValueError, match="invalid SAF object"):
         fetch_dnsdb_rows("example.org", "key", opener=Opener(
-            b'{"cond":"begin"}\\n{"unexpected":true}\\n{"cond":"succeeded"}\\n'
+            b'{"cond":"begin"}\n{"unexpected":true}\n{"cond":"succeeded"}\n'
         ))
 
 
@@ -238,7 +238,7 @@ def test_dnsdb_collector_exact_scope_does_not_expand():
 
 def test_dnsdb_collector_rejects_invalid_rrdata_and_dates():
     records = collect_dnsdb_feed(["*.example.org"], "key", fetcher=lambda q, k: (
-        [dns_row("api.example.org.", rdata=["valid", "bad\\nvalue"]),
+        [dns_row("api.example.org.", rdata=["valid", "bad\nvalue"]),
          dns_row("badtime.example.org.", timestamp=10**30)], "succeeded"
     ))
     assert len(records) == 1

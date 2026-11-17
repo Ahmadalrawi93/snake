@@ -13,7 +13,7 @@ AI-assisted security assessment platform for **authorized** bug bounty work.
 - Strict worker task envelope with a fixed passive profile, expiry, and no arbitrary command fields.
 - Database-backed dispatch validation gate that re-reads persisted ownership, linkage, authorization, and snapshot state before preparing a short-lived disabled envelope.
 - Validation-only Docker worker image: non-root, read-only runtime, dropped capabilities, no-new-privileges, bounded resources, and no network.
-- HMAC-SHA256 task-envelope signing and signed validation-acknowledgement helpers with result-specific domain separation. These are not yet connected to a worker transport.
+- HMAC-SHA256 task signing and signed validation acknowledgements; the isolated validator verifies signed stdin messages and returns signed stdout acknowledgements.
 - Atomic queued-job reservation and durable one-time task receipt/consumption primitives. Internal only; not exposed over HTTP or connected to a worker.
 - GitHub Actions runs backend tests and builds the validation-only worker image.
 
@@ -32,8 +32,8 @@ API docs: http://127.0.0.1:8000/docs
 For local development the example JWT secret is intentionally marked as a placeholder. Never use it outside local development. Production mode refuses to start with the placeholder or a secret shorter than 32 characters.
 
 ## Current boundary
-The worker container is a **validator only**. It reads one JSON envelope from stdin (maximum 64 KiB), validates the strict schema and expiry, prints a validation-only acknowledgement, and exits. It has no network, queue consumer, job-claim operation, Docker socket, or scan adapter. A valid envelope is not proof of authorization.
+The worker container is a **validator only**. It reads one signed task message from stdin (maximum 64 KiB), verifies HMAC and expiry, returns a signed validation acknowledgement, and exits. It has no network, queue consumer, database receipt access, Docker socket, or scan adapter. A valid signature is not proof of authorization.
 
-HMAC signing protects message integrity/authenticity only. Durable receipt primitives now prevent duplicate reservation and repeated receipt consumption at the database layer, but are not connected to authenticated transport or a worker. Socket-level IP pinning, per-request scope checks, and real scanning remain unimplemented. Keep the API private; this is not production-ready.
+HMAC signing protects message integrity/authenticity only. Durable receipt primitives prevent duplicate reservation and repeated receipt consumption in the backend database, but are not yet connected to the isolated validator. Socket-level IP pinning, per-request scope checks, and real scanning remain unimplemented. Keep the API private; this is not production-ready.
 
 See [architecture](docs/ARCHITECTURE.md), [roadmap](docs/ROADMAP.md), [worker runtime](docs/WORKER_RUNTIME.md), [task authentication](docs/WORKER_TASK_AUTHENTICATION.md), and [replay protection](docs/WORKER_REPLAY_PROTECTION.md).

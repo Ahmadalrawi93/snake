@@ -4,6 +4,8 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 
 type User = { id: number; email: string; role: string };
 type Project = { id: number; name: string; description: string; created_at: string };
+type Target = { id: number; value: string; target_type: string; status: string };
+type Authorization = { id: number; reference: string; starts_at: string | null; expires_at: string | null; status: string; notes: string };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
@@ -11,6 +13,15 @@ export default function Home() {
   const [token, setToken] = useState("");
   const [user, setUser] = useState<User | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [targets, setTargets] = useState<Target[]>([]);
+  const [authorizations, setAuthorizations] = useState<Authorization[]>([]);
+  const [targetValue, setTargetValue] = useState("");
+  const [targetType, setTargetType] = useState("domain");
+  const [authReference, setAuthReference] = useState("");
+  const [authStartsAt, setAuthStartsAt] = useState("");
+  const [authExpiresAt, setAuthExpiresAt] = useState("");
+  const [authNotes, setAuthNotes] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
@@ -45,6 +56,70 @@ export default function Home() {
     setUser(currentUser);
     setProjects(projectList);
   }, [api]);
+
+  const loadProjectResources = useCallback(async (projectId: number) => {
+    const [targetList, authorizationList] = await Promise.all([
+      api(`/api/v1/projects/${projectId}/targets`),
+      api(`/api/v1/projects/${projectId}/authorizations`)
+    ]);
+    setTargets(targetList);
+    setAuthorizations(authorizationList);
+  }, [api]);
+
+  async function selectProject(projectId: number) {
+    setSelectedProjectId(projectId);
+    setTargets([]);
+    setAuthorizations([]);
+    setError("");
+    try {
+      await loadProjectResources(projectId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load project records");
+    }
+  }
+
+  async function createTarget(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProjectId || !targetValue.trim()) return;
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const created = await api(`/api/v1/projects/${selectedProjectId}/targets`, {
+        method: "POST",
+        body: JSON.stringify({ value: targetValue.trim(), target_type: targetType })
+      });
+      setTargets(current => [created, ...current]);
+      setTargetValue("");
+      setMessage("Target stored. No DNS lookup, HTTP request, or scan was performed.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not register target");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createAuthorization(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProjectId || !authReference.trim()) return;
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const created = await api(`/api/v1/projects/${selectedProjectId}/authorizations`, {
+        method: "POST",
+        body: JSON.stringify({
+          reference: authReference.trim(),
+          starts_at: authStartsAt || null,
+          expires_at: authExpiresAt || null,
+          notes: authNotes.trim()
+        })
+      });
+      setAuthorizations(current => [created, ...current]);
+      setAuthReference(""); setAuthStartsAt(""); setAuthExpiresAt(""); setAuthNotes("");
+      setMessage("Authorization reference recorded as PENDING. This does not authorize scanning.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not record authorization");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   useEffect(() => {
     const saved = window.localStorage.getItem("snake_access_token");
@@ -161,11 +236,38 @@ export default function Home() {
               </form>
               <div className="project-list">
                 {projects.length === 0 ? <div className="empty-state"><b>No projects yet</b><span>Create a project to start organizing authorization records and targets.</span></div> :
-                  projects.map(project => <article className="project-card" key={project.id}><div><small>PROJECT #{project.id}</small><h3>{project.name}</h3><p>{project.description || "No description provided."}</p></div><time>{new Date(project.created_at).toLocaleDateString()}</time></article>)}
+                  projects.map(project => <article className={selectedProjectId === project.id ? "project-card selected" : "project-card"} key={project.id}><div><small>PROJECT #{project.id}</small><h3>{project.name}</h3><p>{project.description || "No description provided."}</p></div><div className="project-actions"><time>{new Date(project.created_at).toLocaleDateString()}</time><button className="text-button" onClick={() => selectProject(project.id)}>OPEN WORKSPACE →</button></div></article>)}
               </div>
             </section>
+
+            {selectedProjectId !== null && (
+              <section className="project-detail">
+                <div className="section-heading"><div><p className="eyebrow">PROJECT #{selectedProjectId}</p><h2>Scope & authorization records</h2></div><button className="text-button" onClick={() => { setSelectedProjectId(null); setTargets([]); setAuthorizations([]); }}>CLOSE WORKSPACE</button></div>
+                <div className="project-layout">
+                  <form onSubmit={createAuthorization} className="project-form">
+                    <h3>Record authorization reference</h3>
+                    <label>Program / permission URL<input required minLength={3} maxLength={500} value={authReference} onChange={e => setAuthReference(e.target.value)} placeholder="https://bugcrowd.com/program/..." /></label>
+                    <label>Start date (optional)<input type="date" value={authStartsAt} onChange={e => setAuthStartsAt(e.target.value)} /></label>
+                    <label>Expiry date (optional)<input type="date" value={authExpiresAt} onChange={e => setAuthExpiresAt(e.target.value)} /></label>
+                    <label>Notes<textarea rows={3} maxLength={4000} value={authNotes} onChange={e => setAuthNotes(e.target.value)} placeholder="Scope notes and permission details" /></label>
+                    <button className="primary-button" disabled={busy || authReference.trim().length < 3}>SAVE AS PENDING</button>
+                    <p className="hint">A saved reference is not proof of authorization and does not enable testing. Approval and scope validation remain separate controls.</p>
+                  </form>
+                  <form onSubmit={createTarget} className="project-form">
+                    <h3>Register target</h3>
+                    <label>Target value<input required maxLength={2048} value={targetValue} onChange={e => setTargetValue(e.target.value)} placeholder="example.com or https://example.com" /></label>
+                    <label>Target type<select value={targetType} onChange={e => setTargetType(e.target.value)}><option value="domain">Domain</option><option value="url">URL</option><option value="ip">IP address</option><option value="cidr">CIDR</option></select></label>
+                    <button className="primary-button" disabled={busy || !targetValue.trim()}>STORE TARGET</button>
+                    <p className="hint">Registration is storage only. SNAKE will not resolve, connect to, or scan this target.</p>
+                  </form>
+                </div>
+                <div className="records-grid">
+                  <div className="record-panel"><h3>Registered targets <span>{targets.length}</span></h3>{targets.length === 0 ? <p className="muted">No targets registered.</p> : targets.map(target => <div className="record-row" key={target.id}><div><b>{target.value}</b><small>{target.target_type.toUpperCase()} · {target.status.toUpperCase()}</small></div><time>#{target.id}</time></div>)}</div>
+                  <div className="record-panel"><h3>Authorization references <span>{authorizations.length}</span></h3>{authorizations.length === 0 ? <p className="muted">No authorization records.</p> : authorizations.map(record => <div className="record-row" key={record.id}><div><b>{record.reference}</b><small>{record.status.toUpperCase()} · {record.starts_at || "Start unspecified"} → {record.expires_at || "Expiry unspecified"}</small>{record.notes && <p>{record.notes}</p>}</div><time>#{record.id}</time></div>)}</div>
+                </div>
+              </section>
+            )}
           </>
-        )}
 
         <footer>SNAKE SECURITY PLATFORM <span>BUILT FOR AUTHORIZED TESTING ONLY</span></footer>
       </section>

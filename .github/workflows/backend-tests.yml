@@ -30,7 +30,7 @@ jobs:
       - name: Verify database migrations
         env:
           SNAKE_DATABASE_URL: sqlite:///./migration-ci.db
-        run: python scripts/prepare_migration_ci.py && alembic upgrade head
+        run: alembic upgrade head
       - name: Build validation-only worker image
         run: docker build -f worker.Dockerfile -t snake-worker-validator:test .
       - name: Smoke-test worker runtime imports

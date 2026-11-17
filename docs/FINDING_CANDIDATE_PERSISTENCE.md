@@ -2,7 +2,6 @@
 
 ## API
 
-- `POST /api/v1/analysis-runs/{analysis_run_id}/finding-candidates`
 - `GET /api/v1/analysis-runs/{analysis_run_id}/finding-candidates`
 
 Both endpoints are authenticated and project-owner scoped.
@@ -13,7 +12,7 @@ A record stores the candidate fingerprint, qualification JSON, exact validation 
 
 Only `human_review_candidate` artifacts can be persisted. The database enforces `finding_status=unconfirmed` and `execution_enabled=false`.
 
-The API checks that:
+There is deliberately no public candidate-creation endpoint. The persistence service is an internal orchestration boundary and must only be called after the server itself has recomputed the qualification. The public API is read-only. The service checks that:
 - the analysis run belongs to the authenticated project owner;
 - the evidence bundle context digest equals the analysis run context digest;
 - evidence and observation IDs in the qualification exactly match the supplied bundle;
@@ -23,4 +22,4 @@ Human finding decisions now require a persisted candidate with matching analysis
 
 ## Trust boundary
 
-The API structurally binds the submitted artifact to its run and evidence bundle. It does not independently recompute the original qualification from raw observations or establish that statements in the evidence bundle are true. Candidate creation must be performed by trusted server-side orchestration after the deterministic qualification engine runs. A human decision remains an authenticated reviewer assertion, not cryptographic proof or automatic authorization to test.
+The API structurally binds the submitted artifact to its run and evidence bundle. It does not independently recompute the original qualification from raw observations or establish that statements in the evidence bundle are true. Candidate creation is restricted to trusted server-side orchestration after the deterministic qualification engine runs. A human decision remains an authenticated reviewer assertion, not cryptographic proof or automatic authorization to test.

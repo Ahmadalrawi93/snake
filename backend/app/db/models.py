@@ -170,6 +170,25 @@ class WorkerEndpoint(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+
+class WorkerObservationBatchReceipt(Base):
+    """Idempotency record for one authenticated worker result batch per task."""
+    __tablename__ = "worker_observation_batch_receipts"
+    __table_args__ = (
+        UniqueConstraint("task_id", name="uq_worker_observation_batch_task"),
+        CheckConstraint("observation_count >= 0 AND observation_count <= 500", name="ck_worker_batch_observation_count"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    task_id: Mapped[str] = mapped_column(String(36), ForeignKey("worker_task_receipts.task_id"), nullable=False)
+    worker_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    key_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    envelope_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    batch_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    signature: Mapped[str] = mapped_column(String(128), nullable=False)
+    observation_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
 class WorkerObservationRecord(Base):
     """Immutable passive-recon evidence; never a confirmed vulnerability finding."""
     __tablename__ = "worker_observations"

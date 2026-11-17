@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir "pydantic>=2.8,<3.0" \
 COPY app/__init__.py /opt/snake/app/__init__.py
 COPY app/core/__init__.py /opt/snake/app/core/__init__.py
 COPY app/core/worker_protocol.py /opt/snake/app/core/worker_protocol.py
+COPY app/core/worker_signing.py /opt/snake/app/core/worker_signing.py
 COPY worker_entrypoint.py /opt/snake/worker_entrypoint.py
 
 USER 10001:10001

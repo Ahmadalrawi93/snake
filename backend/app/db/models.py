@@ -218,6 +218,7 @@ class AIAnalysisRun(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    target_id: Mapped[int | None] = mapped_column(ForeignKey("targets.id"), nullable=True, index=True)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     context_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     correlations_sha256: Mapped[str] = mapped_column(String(64), nullable=False)

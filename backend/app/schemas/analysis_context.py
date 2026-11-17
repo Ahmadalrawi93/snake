@@ -28,5 +28,5 @@ class AnalysisContext(BaseModel):
     total_observations: int = Field(ge=0, le=5000)
     unique_observations: int = Field(ge=0, le=5000)
     duplicate_count: int = Field(ge=0, le=5000)
-    groups: list[ObservationGroup] = Field(max_length=500)
+    groups: list[ObservationGroup] = Field(max_length=5000)
     ungrouped: list[ContextObservation] = Field(max_length=5000)

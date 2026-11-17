@@ -52,7 +52,12 @@ def accept_worker_acknowledgement(
         .filter(WorkerTaskReceipt.task_id == str(result.task_id))
         .first()
     )
-    if receipt is None or receipt.envelope_sha256 != result.envelope_sha256:
+    if (
+        receipt is None
+        or receipt.envelope_sha256 != result.envelope_sha256
+        or receipt.worker_id != expected_worker_id
+        or receipt.key_id != expected_key_id
+    ):
         return False
 
     validated_at = _as_utc(result.validated_at)

@@ -16,8 +16,8 @@ registered public key and consumes the durable receipt once.
 ## Durable dispatch attempt ledger
 
 The backend now has an internal attempt state machine backed by
-`worker_dispatch_attempts`. An attempt is committed as `started` before any
-future network I/O. It can close as `delivered`, `failed`, or `unknown`.
+`worker_dispatch_attempts`. An attempt is committed as `started` before network
+I/O. It can close as `delivered`, `failed`, or `unknown`.
 Only a definite `failed` outcome permits another attempt, and that retry reuses
 the same signed task ID and envelope. A timeout/ambiguous result becomes
 `unknown` and blocks automatic retry until reconciled. Worker key status,
@@ -25,9 +25,12 @@ receipt digest, receipt expiry, and one-time consumption are checked before
 starting an attempt. The receipt binds the worker ID and key ID selected at signing time,
 so a valid task cannot be redirected to a different registered worker.
 
-This ledger is implemented as internal primitives only; no HTTP or socket
-transport calls them yet. Database concurrency behavior still requires testing
-on the intended production PostgreSQL deployment.
+The transport adapter calls this ledger. It uses explicit connect/read timeouts,
+a fixed task endpoint, bounded response bodies (64 KiB maximum), and no automatic
+retry. Once request transmission begins, ambiguous errors and unexpected HTTP
+responses are recorded as `unknown`; only failures proven before network delivery
+may be marked `failed`. Database concurrency behavior still requires testing on
+the intended production PostgreSQL deployment.
 
 ## Worker endpoint registry
 
@@ -36,22 +39,22 @@ stores the canonical origin, exact TLS server name, and SHA-256 certificate
 fingerprint. Registration rejects plain HTTP, IP-literal hosts, localhost/internal
 suffixes, embedded credentials, non-root paths, query strings, fragments, and
 mismatched TLS names. Endpoint revocation is one-way and audited. These records
-are configuration only: no code connects to them yet. The backend now resolves
-registered hostnames through the existing network destination policy. It rejects
-the entire DNS answer if any address is private, loopback, link-local, reserved,
-or otherwise non-global, and returns validated public addresses for pinning.
-Revoked or missing endpoint records cannot be resolved. This remains DNS-only:
-the future transport must connect directly to one returned IP (never perform a
-second unconstrained DNS lookup), preserve the registered TLS server name, verify
-the exact certificate fingerprint, and re-check endpoint/key status immediately
-before connecting.
+are configuration only: no code connects to them yet. The backend resolves registered hostnames through the existing network destination
+policy. It rejects the entire DNS answer if any address is private, loopback,
+link-local, reserved, or otherwise non-global, and returns validated public
+addresses for pinning. Revoked or missing endpoint records cannot be resolved.
+An internal mTLS transport adapter now dials one returned IP directly, preserves
+the registered DNS name for TLS SNI/hostname verification, requires a client
+certificate, verifies the exact SHA-256 server-certificate fingerprint, and
+re-checks endpoint/key state immediately before sending.
 
 ## Deliberately not connected yet
 
-There is currently **no network transport** between the API and a worker:
-- no worker polling or callback HTTP endpoint;
-- no outbound HTTP client, mTLS channel, broker, or message queue;
-- no automatic process/container launcher;
+There is currently **no enabled production delivery path** between the API and a worker:
+- the mTLS adapter exists as an internal callable only; no API route, scheduler,
+  worker polling endpoint, or background dispatcher invokes it;
+- the worker runtime still consumes signed JSON from stdin, not HTTP;
+- no broker, message queue, or automatic process/container launcher;
 - no automatic network retry or automatic requeue (only the internal attempt ledger exists);
 - no scan execution (the protocol requires execution_enabled=false).
 
@@ -81,9 +84,8 @@ A future transport adapter must:
 
 ## Next implementation gate
 
-Implement outbound TLS transport using only validated pinned IP addresses, with
-certificate fingerprint verification, mutual TLS client identity, bounded
-requests/responses, strict deadlines, and attempt-ledger integration. Add transport
-integration tests for TLS identity mismatch, timeout/unknown outcome, duplicate
-delivery, revoked endpoints/keys, malformed or oversized responses, and replayed
-acknowledgements. Production PostgreSQL concurrency tests remain required.
+Next, define and implement the worker-side authenticated HTTPS listener and a
+signed acknowledgement response protocol, then add end-to-end TLS tests for
+certificate mismatch, client identity rejection, timeouts/unknown outcomes,
+duplicate delivery, revoked endpoints/keys, malformed/oversized responses, and
+replayed acknowledgements. Production PostgreSQL concurrency tests remain required.

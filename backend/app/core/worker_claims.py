@@ -12,17 +12,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.worker_protocol import WorkerTaskEnvelope, ensure_not_expired
+from app.core.worker_signing import worker_task_digest
 from app.db.models import ScanJob, WorkerTaskReceipt
 
 
 def envelope_digest(envelope: WorkerTaskEnvelope) -> str:
-    payload = json.dumps(
-        envelope.model_dump(mode="json"),
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-    ).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
+    return worker_task_digest(envelope)
 
 
 def reserve_task_receipt(

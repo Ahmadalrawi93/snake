@@ -1,38 +1,39 @@
 # Worker task and acknowledgement authentication
 
-The worker signing module provides HMAC-SHA256 signatures for strict task envelopes
-and validation-only worker acknowledgements.
+SNAKE now uses Ed25519 asymmetric signatures rather than a shared HMAC secret.
 
-- Task signatures cover canonical JSON containing the envelope, intended worker ID,
-  and key ID; changing any of them invalidates the signature.
-- Acknowledgement signatures cover canonical JSON containing the result and key ID,
-  using a result-specific domain-separation prefix.
-- Signatures use the v1 hex-digest format and constant-time comparison.
-- Every worker must have its own independent high-entropy secret (minimum 32
-  characters). Never reuse the JWT secret or another worker's secret.
-- key_id is a non-secret key version/selector. It is not itself proof of identity;
-  the HMAC under that worker's unique secret provides message authentication.
-- Worker validation rejects issue timestamps more than 30 seconds in the future,
-  expired tasks, and task lifetimes longer than 300 seconds.
+- The backend signs canonical task payloads with its Ed25519 private key.
+- Each worker receives only the backend public key, so a compromised worker
+  cannot mint backend-authorized tasks.
+- Each worker signs its validation acknowledgements with its own Ed25519
+  private key. The backend verifies using that worker's registered/configured
+  public key; the backend does not need the worker private key.
+- Task signatures bind the envelope, intended worker ID, and key ID.
+  Acknowledgement signatures bind the result and key ID; verification also
+  enforces the expected worker ID.
+- Task and result signatures use separate domain prefixes.
+- Public/private keys are DER encoded then base64 encoded for environment
+  injection. Private keys must never be placed in source control, task payloads,
+  database rows, logs, or worker images.
 
-The result contract is limited to accepted or rejected, includes the task ID
-and envelope digest, and fixes execution_enabled=false. It cannot claim that a
-scan completed or provide scan findings.
+The backend task private key must remain backend-only. A worker must never
+receive it. Conversely, the worker's private key stays in that worker's secret
+store; only its public key is provided to the backend. Each worker gets a
+different keypair and key ID. Key provisioning, secure storage, revocation,
+and automated rotation are not implemented yet; the caller must select the
+correct trusted key material out of band.
 
-The isolated stdin/stdout validator requires SNAKE_WORKER_ID, SNAKE_WORKER_KEY_ID,
-and that worker's unique SNAKE_WORKER_SIGNING_SECRET. It rejects tasks addressed
-to a different worker or key version. The backend acknowledgement verifier also
-requires the expected worker ID and key ID and verifies using the selected worker
-secret before consuming the matching durable receipt.
+The isolated validator requires:
+- SNAKE_BACKEND_ED25519_PUBLIC_KEY_B64
+- SNAKE_WORKER_ED25519_PRIVATE_KEY_B64
+- SNAKE_WORKER_ID
+- SNAKE_WORKER_KEY_ID
 
-Secrets are currently injected out of band through environment variables by the
-operator. There is no backend key registry, encrypted secret store, KMS integration,
-automated provisioning, or key-rotation workflow yet. The caller of the internal
-issuance/acknowledgement functions must select the correct secret from a trusted
-configuration source. Do not place secrets in the database, source control, task
-payloads, or logs.
+The backend's internal issuance function requires the backend private key.
+Acknowledgement acceptance requires the expected worker's public key. The
+validation result is limited to accepted/rejected and fixes execution_enabled=false.
 
-There is still no HTTP/network transport or process orchestration connecting the
-backend to the validator. Signatures do not independently provide authorization,
-scope revalidation, replay protection across the process boundary, or network
-isolation. No scan execution is enabled.
+Task issue-time skew, maximum 300-second task lifetime, expiry, scope revalidation,
+durable receipt binding, and one-time receipt consumption remain separate controls.
+There is still no network transport or process orchestration connecting backend
+and validator. No scan execution is enabled.

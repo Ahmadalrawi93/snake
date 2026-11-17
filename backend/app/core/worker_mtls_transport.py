@@ -152,16 +152,17 @@ def deliver_signed_worker_task(
     )
 
     # Re-read endpoint immediately before the first network operation.
-    current_endpoint = db.query(WorkerEndpoint).filter_by(
+    current_endpoint = db.query(WorkerEndpoint).populate_existing().filter_by(
         worker_id=worker_id, status="active"
     ).first()
-    current_key = db.query(WorkerKey).filter_by(
+    current_key = db.query(WorkerKey).populate_existing().filter_by(
         worker_id=worker_id, key_id=key_id, status="active"
     ).first()
     if current_key is None or current_endpoint is None or (
         current_endpoint.id != endpoint.id
         or current_endpoint.certificate_sha256 != endpoint.certificate_sha256
         or current_endpoint.base_url != endpoint.base_url
+        or current_endpoint.tls_server_name != endpoint.tls_server_name
     ):
         finish_dispatch_attempt(
             db, attempt.id, "failed", error_code="endpoint_changed_before_connect", now=now

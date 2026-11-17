@@ -55,3 +55,18 @@ def rank_hypotheses(plan: ValidationStrategyPlan) -> HypothesisRankingReport:
             priority_basis=item.priority_basis, ranking_factors=factors,
         ))
     return HypothesisRankingReport(items=result, duplicate_group_count=duplicate_groups)
+
+
+def apply_investigation_learning(report: HypothesisRankingReport, memory):
+    """Apply only a bounded human-review priority hint; never remove a hypothesis."""
+    adjusted = []
+    for item in report.items:
+        if item.strategy_id == memory.current_strategy_id and memory.priority_adjustment:
+            score = max(0, min(100, item.rank_score + memory.priority_adjustment))
+            factors = list(item.ranking_factors)
+            factors.append("human_review_history_priority_adjustment:" + str(memory.priority_adjustment))
+            item = item.model_copy(update={"rank_score": score, "ranking_factors": factors[:8]})
+        adjusted.append(item)
+    adjusted.sort(key=lambda item: (-item.rank_score, item.strategy_id, item.hypothesis_fingerprint))
+    ranked = [item.model_copy(update={"rank": index}) for index, item in enumerate(adjusted, 1)]
+    return report.model_copy(update={"items": ranked})

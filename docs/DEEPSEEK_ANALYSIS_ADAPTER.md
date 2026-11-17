@@ -19,3 +19,8 @@ The adapter is an explicitly invoked, synchronous provider boundary. It sends th
 - Prompt injection cannot be solved by wording alone. The security boundary is that the model receives no tools or execution capability and its output is schema/provenance checked.
 - Do not send sensitive customer data or secrets in evidence. Redaction and retention policy must be implemented before production use.
 - The configured model identifier must be verified against the provider account; the adapter does not assume a specific model alias.
+
+
+## Usage metadata
+
+`analyze_observations_with_metadata()` returns the same strictly validated triage plus bounded usage counts, the provider request ID when supplied, canonical context/correlation SHA-256 digests, and a local response timestamp. Missing provider usage fields remain `null`; they are not reported as zero. The existing `analyze_observations()` API remains available and returns only the triage object. No API key or raw provider response is persisted by the adapter.

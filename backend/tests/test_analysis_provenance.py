@@ -52,7 +52,7 @@ def provenance_db():
         project_id=project.id, reference="authorized test program",
         starts_at=(now - timedelta(minutes=2)).isoformat(),
         expires_at=(now + timedelta(hours=1)).isoformat(),
-        status="approved", scope_rules='["example.test"]',
+        status="approved", scope_rules='["example.test", "*.example.test"]',
     )
     db.add(auth)
     db.flush()
@@ -60,7 +60,7 @@ def provenance_db():
         "schema_version": 1, "project_id": project.id, "target_id": target.id,
         "target": "https://example.test", "hostname": "example.test",
         "authorization_id": auth.id, "authorization_reference": auth.reference,
-        "authorization_status": "approved", "approved_scope_rules": ["example.test"],
+        "authorization_status": "approved", "approved_scope_rules": ["example.test", "*.example.test"],
         "created_at": now.isoformat(), "authorization_expires_at": auth.expires_at,
         "policy": "hostname-allowlist-v1", "execution_enabled": False,
     }

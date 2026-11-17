@@ -9,9 +9,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.core.worker_acknowledgements import accept_worker_acknowledgement
+from app.core.worker_key_registry import revoke_worker_public_key
 from app.core.worker_protocol import WorkerValidationResult
-from app.core.worker_signing import sign_worker_validation_result
-from app.db.models import WorkerTaskReceipt
+from app.core.worker_signing import ed25519_public_key_fingerprint, sign_worker_validation_result
+from app.db.models import WorkerKey, WorkerTaskReceipt
 
 WORKER_ID = "validator-east-01"
 KEY_ID = "validator-east-01-v1"
@@ -37,7 +38,15 @@ OTHER_PRIVATE, _ = keypair()
 def db():
     engine = create_engine("sqlite://")
     WorkerTaskReceipt.__table__.create(engine)
+    WorkerKey.__table__.create(engine)
     with Session(engine) as session:
+        session.add(WorkerKey(
+            worker_id=WORKER_ID, key_id=KEY_ID,
+            public_key_b64=WORKER_PUBLIC,
+            fingerprint_sha256=ed25519_public_key_fingerprint(WORKER_PUBLIC),
+            status="active", created_by=None,
+        ))
+        session.commit()
         yield session
     engine.dispose()
 
@@ -66,8 +75,8 @@ def make_ack(task_id, *, digest="a" * 64, worker_id=WORKER_ID, key_id=KEY_ID, pr
 
 def accept(db, signed, **kwargs):
     return accept_worker_acknowledgement(
-        db, signed, worker_public_key_b64=WORKER_PUBLIC,
-        expected_worker_id=WORKER_ID, expected_key_id=KEY_ID, **kwargs
+        db, signed, expected_worker_id=WORKER_ID,
+        expected_key_id=KEY_ID, **kwargs
     )
 
 
@@ -109,6 +118,13 @@ def test_ack_rejects_tampered_signature(db):
         "result": signed.result.model_copy(update={"outcome": "rejected"})
     })
     assert not accept(db, tampered)
+
+
+def test_revoked_worker_key_cannot_acknowledge(db):
+    _, task_id = make_receipt(db)
+    revoke_worker_public_key(db, worker_id=WORKER_ID, key_id=KEY_ID)
+    db.commit()
+    assert not accept(db, make_ack(task_id))
 
 
 def test_ack_rejects_expired_receipt(db):

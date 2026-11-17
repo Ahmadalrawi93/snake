@@ -75,3 +75,12 @@ def test_nested_action_route_does_not_pollute_object_surface_evidence():
     ]
     profile = build_business_logic_profile(build_analysis_context(items))
     assert set(profile.object_surfaces[0].observation_ids) == {str(x.observation_id) for x in items[:2]}
+
+
+def test_nested_action_route_alone_does_not_create_empty_object_surface():
+    profile = build_business_logic_profile(build_analysis_context([
+        obs("https://billing.example.test/api/payments/123/pay"),
+    ]))
+    assert profile.object_surfaces == []
+    assert len(profile.action_surfaces) == 1
+    assert profile.action_surfaces[0].action == "pay"

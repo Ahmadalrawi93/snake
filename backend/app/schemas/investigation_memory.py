@@ -18,5 +18,13 @@ class InvestigationMemoryReport(BaseModel):
     hypothesis_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
     prior_matches: list[PriorInvestigationMatch] = Field(max_length=50)
     memory_scope: Literal["same_project_and_same_target_only"]
+    reviewed_run_count: int = Field(ge=0, le=50)
+    confirmed_run_count: int = Field(ge=0, le=50)
+    false_positive_run_count: int = Field(ge=0, le=50)
+    inconclusive_run_count: int = Field(ge=0, le=50)
+    duplicate_run_count: int = Field(ge=0, le=50)
+    learning_recommendation: Literal["insufficient_history", "retain_priority", "deprioritize_review_priority", "mixed_human_reviews"]
+    priority_adjustment: int = Field(ge=-10, le=0)
+    priority_only: Literal[True] = True
     review_suppressed: Literal[False] = False
     execution_enabled: Literal[False] = False

@@ -1,4 +1,4 @@
-"""Owner-checked persistent hypothesis history, scoped to one project and target."""
+"""Owner-checked persistent hypothesis history with verified human-decision linkage."""
 import hashlib
 import json
 import re
@@ -11,11 +11,12 @@ def _normalize(value: str) -> str:
     return " ".join(re.sub(r"[^a-z0-9]+", " ", value.casefold()).split())
 
 def hypothesis_fingerprint(strategy: ValidationStrategyItem) -> str:
-    raw = strategy.category + "\\0" + _normalize(strategy.hypothesis)
+    raw = strategy.category + "\0" + _normalize(strategy.hypothesis)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 def record_and_compare_investigation_memory(
-    db: Session, *, run: AIAnalysisRun, strategy: ValidationStrategyItem, actor: User, candidate_fingerprint: str | None = None,
+    db: Session, *, run: AIAnalysisRun, strategy: ValidationStrategyItem, actor: User,
+    candidate_fingerprint: str | None = None,
 ) -> InvestigationMemoryReport:
     owned = db.query(AIAnalysisRun).join(Project, Project.id == AIAnalysisRun.project_id).filter(
         AIAnalysisRun.id == run.id, Project.owner_id == actor.id,
@@ -35,11 +36,20 @@ def record_and_compare_investigation_memory(
     for row in prior_rows:
         old_obs = set(json.loads(row.observation_ids_json))
         shared = old_obs.intersection(current_obs)
-        new = set(current_obs).difference(old_obs)
+        new = current_obs.difference(old_obs)
+        outcomes = []
+        if row.candidate_fingerprint:
+            outcomes = [item[0] for item in db.query(HumanFindingDecision.outcome).filter(
+                HumanFindingDecision.project_id == run.project_id,
+                HumanFindingDecision.analysis_run_id == row.analysis_run_id,
+                HumanFindingDecision.candidate_fingerprint == row.candidate_fingerprint,
+                HumanFindingDecision.reviewer_attested.is_(True),
+            ).order_by(HumanFindingDecision.id.asc()).limit(20).all()]
         matches.append(PriorInvestigationMatch(
             analysis_run_id=row.analysis_run_id, strategy_id=row.strategy_id,
             shared_observation_count=len(shared), new_observation_count=len(new),
             disposition="new_observations_available" if new else "previously_seen_no_new_observations",
+            human_outcomes=outcomes, review_state="human_reviewed" if outcomes else "not_reviewed",
         ))
     existing = db.query(InvestigationMemoryRecord).filter_by(
         analysis_run_id=run.id, strategy_id=strategy.strategy_id
@@ -50,11 +60,16 @@ def record_and_compare_investigation_memory(
             strategy_id=strategy.strategy_id, hypothesis_fingerprint=fp,
             category=strategy.category, hypothesis_text=strategy.hypothesis,
             observation_ids_json=json.dumps(current_obs, separators=(",", ":")),
-            execution_enabled=False,
+            candidate_fingerprint=candidate_fingerprint, execution_enabled=False,
         ))
         db.flush()
-    elif existing.hypothesis_fingerprint != fp or json.loads(existing.observation_ids_json) != current_obs or (candidate_fingerprint is not None and existing.candidate_fingerprint not in {None, candidate_fingerprint}):
+    elif existing.hypothesis_fingerprint != fp or json.loads(existing.observation_ids_json) != current_obs or (
+        candidate_fingerprint is not None and existing.candidate_fingerprint not in {None, candidate_fingerprint}
+    ):
         raise ValueError("investigation memory entry already exists with different content")
+    elif candidate_fingerprint is not None and existing.candidate_fingerprint is None:
+        existing.candidate_fingerprint = candidate_fingerprint
+        db.flush()
     return InvestigationMemoryReport(
         current_strategy_id=strategy.strategy_id, hypothesis_fingerprint=fp,
         prior_matches=matches, memory_scope="same_project_and_same_target_only",

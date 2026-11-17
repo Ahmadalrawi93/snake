@@ -80,6 +80,7 @@ its local replay ledger. From the backend directory (or the equivalent deployed
 worker application path), run:
 
 ```bash
+umask 077
 python export_worker_ack.py --task-id <task-uuid> > acknowledgement.json
 ```
 

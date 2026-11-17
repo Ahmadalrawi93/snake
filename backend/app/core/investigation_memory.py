@@ -73,7 +73,24 @@ def record_and_compare_investigation_memory(
     elif candidate_fingerprint is not None and existing.candidate_fingerprint is None:
         existing.candidate_fingerprint = candidate_fingerprint
         db.flush()
+    reviewed = [set(item.human_outcomes) for item in matches if item.human_outcomes]
+    confirmed = sum(1 for outcomes in reviewed if "confirmed" in outcomes)
+    false_positive = sum(1 for outcomes in reviewed if "confirmed" not in outcomes and "false_positive" in outcomes)
+    inconclusive = sum(1 for outcomes in reviewed if "confirmed" not in outcomes and "false_positive" not in outcomes and "inconclusive" in outcomes)
+    duplicate = sum(1 for outcomes in reviewed if "confirmed" not in outcomes and "false_positive" not in outcomes and "inconclusive" not in outcomes and "duplicate" in outcomes)
+    if len(reviewed) < 3:
+        recommendation, adjustment = "insufficient_history", 0
+    elif confirmed and false_positive:
+        recommendation, adjustment = "mixed_human_reviews", 0
+    elif false_positive >= 3 and confirmed == 0:
+        recommendation, adjustment = "deprioritize_review_priority", -10
+    else:
+        recommendation, adjustment = "retain_priority", 0
     return InvestigationMemoryReport(
         current_strategy_id=strategy.strategy_id, hypothesis_fingerprint=fp,
         prior_matches=matches, memory_scope="same_project_and_same_target_only",
+        reviewed_run_count=len(reviewed), confirmed_run_count=confirmed,
+        false_positive_run_count=false_positive, inconclusive_run_count=inconclusive,
+        duplicate_run_count=duplicate, learning_recommendation=recommendation,
+        priority_adjustment=adjustment,
     )

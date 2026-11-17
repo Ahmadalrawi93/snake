@@ -157,9 +157,17 @@ def test_duplicate_persisted_observation_id_rejects_second_batch(db):
     first = sign_worker_observation_batch(make_batch(observations=[observation]), PRIVATE)
     assert store_worker_observation_batch(db, first, now=NOW) == 1
     db.commit()  # Persist the first batch before testing a conflicting transaction.
+    other_task_id = uuid4()
+    db.add(WorkerTaskReceipt(
+        task_id=str(other_task_id), job_id=902, envelope_sha256="c" * 64,
+        worker_id=WORKER_ID, key_id=KEY_ID, expires_at=NOW + timedelta(minutes=3),
+        consumed_at=NOW, acknowledgement_outcome="accepted",
+        acknowledgement_worker_id=WORKER_ID, created_at=NOW - timedelta(seconds=30),
+    ))
+    db.commit()
     second_observation = observation.model_copy(update={"value": "two.example.test"})
-    second = sign_worker_observation_batch(make_batch(observations=[second_observation]), PRIVATE)
-    with pytest.raises(ValueError, match="duplicate"):
+    second = sign_worker_observation_batch(make_batch(task_id=other_task_id, observations=[second_observation]), PRIVATE)
+    with pytest.raises(ValueError, match="duplicate batch"):
         store_worker_observation_batch(db, second, now=NOW)
     db.rollback()
     records = db.scalars(select(WorkerObservationRecord)).all()
@@ -230,8 +238,16 @@ def test_duplicate_observation_does_not_rollback_outer_transaction(db):
     first = sign_worker_observation_batch(make_batch(observations=[item]), PRIVATE)
     assert store_worker_observation_batch(db, first, now=NOW) == 1
     db.commit()
+    other_task_id = uuid4()
+    db.add(WorkerTaskReceipt(
+        task_id=str(other_task_id), job_id=903, envelope_sha256="c" * 64,
+        worker_id=WORKER_ID, key_id=KEY_ID, expires_at=NOW + timedelta(minutes=3),
+        consumed_at=NOW, acknowledgement_outcome="accepted",
+        acknowledgement_worker_id=WORKER_ID, created_at=NOW - timedelta(seconds=30),
+    ))
+    db.commit()
     second_item = item.model_copy(update={"value": "two.example.test"})
-    second = sign_worker_observation_batch(make_batch(observations=[second_item]), PRIVATE)
+    second = sign_worker_observation_batch(make_batch(task_id=other_task_id, observations=[second_item]), PRIVATE)
     with pytest.raises(ValueError, match="duplicate batch"):
         store_worker_observation_batch(db, second, now=NOW)
     assert len(db.scalars(select(WorkerObservationRecord)).all()) == 1

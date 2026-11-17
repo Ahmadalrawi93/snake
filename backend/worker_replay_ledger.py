@@ -15,7 +15,10 @@ class WorkerReplayLedger:
     def __init__(self, database_path: str | Path):
         self.database_path = str(database_path)
         if self.database_path != ":memory:":
-            Path(self.database_path).parent.mkdir(parents=True, exist_ok=True)
+            path = Path(self.database_path)
+            path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            if path.is_symlink():
+                raise ValueError("worker_replay_database_must_not_be_a_symlink")
         with closing(self._connect()) as db:
             if self.database_path != ":memory:":
                 db.execute("PRAGMA journal_mode = WAL")
@@ -29,11 +32,18 @@ class WorkerReplayLedger:
                     accepted_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
                 )
             """)
-            db.execute("PRAGMA user_version = 1")
+            version = db.execute("PRAGMA user_version").fetchone()[0]
+            if version > 1:
+                raise ValueError("worker_replay_database_schema_is_newer_than_runtime")
+            if version == 0:
+                db.execute("PRAGMA user_version = 1")
+        if self.database_path != ":memory:":
+            Path(self.database_path).chmod(0o600)
 
     def _connect(self):
         db = sqlite3.connect(self.database_path, timeout=10.0, isolation_level=None)
         db.execute("PRAGMA busy_timeout = 10000")
+        db.execute("PRAGMA trusted_schema = OFF")
         db.execute("PRAGMA synchronous = FULL")
         return db
 

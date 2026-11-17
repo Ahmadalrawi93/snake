@@ -6,7 +6,7 @@ type User = { id: number; email: string; role: string };
 type Project = { id: number; name: string; description: string; created_at: string };
 type Target = { id: number; value: string; target_type: string; status: string };
 type Authorization = { id: number; reference: string; starts_at: string | null; expires_at: string | null; status: string; notes: string };
-type ScopeSnapshot = { id: number; target_id: number; authorization_id: number; sha256: string; status: string; created_at: string; expires_at: string | null; snapshot: { target?: string; hostname?: string; execution_enabled?: boolean } };
+type ScopeSnapshot = { id: number; target_id: number; authorization_id: number; sha256: string; status: string; created_at: string; expires_at: string | null; snapshot: { target?: string; hostname?: string; execution_enabled?: boolean } };\ntype PendingAuthorization = { id: number; project_id: number; reference: string; starts_at: string | null; expires_at: string | null; notes: string; created_at: string };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
@@ -18,7 +18,7 @@ export default function Home() {
   const [targets, setTargets] = useState<Target[]>([]);
   const [authorizations, setAuthorizations] = useState<Authorization[]>([]);
   const [snapshots, setSnapshots] = useState<ScopeSnapshot[]>([]);
-  const [snapshotValidity, setSnapshotValidity] = useState<Record<number, string>>({});
+  const [snapshotValidity, setSnapshotValidity] = useState<Record<number, string>>({});\n  const [pendingAuthorizations, setPendingAuthorizations] = useState<PendingAuthorization[]>([]);\n  const [reviewNotes, setReviewNotes] = useState<Record<number, string>>({});\n  const [reviewScopes, setReviewScopes] = useState<Record<number, string>>({});
   const [targetValue, setTargetValue] = useState("");
   const [targetType, setTargetType] = useState("domain");
   const [authReference, setAuthReference] = useState("");
@@ -82,6 +82,32 @@ export default function Home() {
       await loadProjectResources(projectId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load project records");
+    }
+  }
+
+  async function reviewAuthorization(authorizationId: number, decision: "approved" | "rejected") {
+    const notes = (reviewNotes[authorizationId] || "").trim();
+    const scopeRules = (reviewScopes[authorizationId] || "").split(",").map(rule => rule.trim()).filter(Boolean);
+    if (notes.length < 3) {
+      setError("Review notes must contain at least 3 characters.");
+      return;
+    }
+    if (decision === "approved" && scopeRules.length === 0) {
+      setError("Approval requires explicit hostname scope rules.");
+      return;
+    }
+    setBusy(true); setError(""); setMessage("");
+    try {
+      await api(`/api/v1/admin/authorizations/${authorizationId}/review`, {
+        method: "POST",
+        body: JSON.stringify({ decision, review_notes: notes, scope_rules: decision === "approved" ? scopeRules : [] })
+      });
+      setPendingAuthorizations(current => current.filter(item => item.id !== authorizationId));
+      setMessage(`Authorization #${authorizationId} ${decision}. The owner can now request a scope snapshot if the approved rules cover a target.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Authorization review failed");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -222,7 +248,7 @@ export default function Home() {
 
   function signOut() {
     window.localStorage.removeItem("snake_access_token");
-    setToken(""); setUser(null); setProjects([]); setSelectedProjectId(null); setTargets([]); setAuthorizations([]); setSnapshots([]); setSnapshotValidity({}); setMessage(""); setError("");
+    setToken(""); setUser(null); setProjects([]); setSelectedProjectId(null); setTargets([]); setAuthorizations([]); setSnapshots([]); setSnapshotValidity({}); setPendingAuthorizations([]); setReviewNotes({}); setReviewScopes({}); setMessage(""); setError("");
   }
 
   return (
@@ -269,6 +295,23 @@ export default function Home() {
               <article><small>OPEN FINDINGS</small><strong>0</strong><span>Not loaded in dashboard yet</span></article>
               <article><small>ACCOUNT ROLE</small><strong className="pending">{user.role.toUpperCase()}</strong><span>Authenticated session</span></article>
             </div>
+
+            {user.role === "admin" && (
+              <section className="admin-review">
+                <div className="section-heading"><div><p className="eyebrow">ADMINISTRATION</p><h2>Authorization review queue</h2></div><span className="muted">{pendingAuthorizations.length} PENDING</span></div>
+                {pendingAuthorizations.length === 0 ? <div className="empty-state admin-empty">No pending authorization records.</div> : pendingAuthorizations.map(item => (
+                  <article className="review-card" key={item.id}>
+                    <div className="review-meta"><b>Authorization #{item.id} · Project #{item.project_id}</b><small>{item.starts_at || "Start unspecified"} → {item.expires_at || "Expiry unspecified"}</small></div>
+                    <a href={item.reference} target="_blank" rel="noreferrer">{item.reference}</a>
+                    <p>{item.notes || "No submitter notes."}</p>
+                    <label>Review notes<input value={reviewNotes[item.id] || ""} onChange={e => setReviewNotes(current => ({ ...current, [item.id]: e.target.value }))} placeholder="What did you verify?" maxLength={4000} /></label>
+                    <label>Approved hostname rules (comma-separated)<input value={reviewScopes[item.id] || ""} onChange={e => setReviewScopes(current => ({ ...current, [item.id]: e.target.value }))} placeholder="example.com, *.example.com" /></label>
+                    <div className="review-actions"><button className="primary-button" disabled={busy} onClick={() => reviewAuthorization(item.id, "approved")}>APPROVE WITH SCOPE</button><button className="danger-button" disabled={busy} onClick={() => reviewAuthorization(item.id, "rejected")}>REJECT</button></div>
+                  </article>
+                ))}
+                <p className="hint">Approval is an administrative decision. Enter only hostnames actually covered by independently verified program permission. Never approve a wildcard unless the program explicitly authorizes it.</p>
+              </section>
+            )}
 
             <div className="section-heading"><div><p className="eyebrow">PROJECT MANAGEMENT</p><h2>Your projects</h2></div><span className="muted">{projects.length} RECORDS</span></div>
             <section className="project-layout">

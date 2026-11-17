@@ -111,11 +111,12 @@ receipt consumption. A separate listener test rejects an unpinned backend
 client certificate.
 
 This proves the local transport protocol path, not production deployment
-readiness. Remaining gates include timeout/unknown-outcome integration tests,
-revoked endpoint/key races under PostgreSQL, duplicate/replayed HTTP delivery,
-malformed and oversized responses, production PostgreSQL concurrency tests,
-network firewall/egress enforcement, certificate lifecycle/rotation, and
-operator-controlled deployment. The HTTPS listener remains validation-only;
+readiness. Remaining gates include a real delayed-response timeout integration test,
+revoked endpoint/key races under PostgreSQL, malformed and oversized response
+coverage, production PostgreSQL concurrency tests, network firewall/egress
+enforcement, certificate lifecycle/rotation, and operator-controlled deployment.
+The listener now defaults to loopback and rejects wildcard bind addresses; an
+operator must explicitly select a non-wildcard interface for remote connectivity. The HTTPS listener remains validation-only;
 no API route, scheduler, or background dispatcher invokes it, and scan execution
 remains disabled. The listener requires `SNAKE_WORKER_REPLAY_DB_PATH`; point it
 at a durable writable filesystem location. The current hardened Compose
@@ -138,3 +139,23 @@ This is validation idempotency only; it does not make future scan execution
 idempotent. The ledger path must be persistent and writable in any listener
 deployment, and SQLite concurrency/durability must be re-evaluated if multiple
 worker processes or hosts share the same task namespace.
+
+
+## Certificate rotation gate
+
+The current registries and listener configuration support one active worker
+server-certificate fingerprint per endpoint and one pinned backend client
+certificate fingerprint per worker listener. There is no overlapping-pin
+rotation protocol. Rotate certificates only in a controlled maintenance window:
+stop any delivery process (none is enabled by default), prepare and validate the
+new certificate chain and private key, update the worker's trusted backend CA
+and exact backend-client certificate pin, update the backend endpoint's server
+certificate fingerprint, deploy the matching certificates on both sides, then
+run a real mTLS handshake and signed-task/acknowledgement validation before
+restoring connectivity. Keep the previous material offline for a bounded rollback
+window; never leave both old and new private keys mounted longer than necessary.
+If any step fails, keep delivery stopped and restore the complete previous
+configuration as a unit. Do not attempt zero-downtime rotation with the current
+single-pin schema. Track certificate owner, serial number, SHA-256 fingerprint,
+not-before/not-after dates, deployment window, and revocation status in the
+operator's change record; never commit private keys or CA private material.

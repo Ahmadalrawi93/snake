@@ -155,7 +155,10 @@ def deliver_signed_worker_task(
     current_endpoint = db.query(WorkerEndpoint).filter_by(
         worker_id=worker_id, status="active"
     ).first()
-    if current_endpoint is None or (
+    current_key = db.query(WorkerKey).filter_by(
+        worker_id=worker_id, key_id=key_id, status="active"
+    ).first()
+    if current_key is None or current_endpoint is None or (
         current_endpoint.id != endpoint.id
         or current_endpoint.certificate_sha256 != endpoint.certificate_sha256
         or current_endpoint.base_url != endpoint.base_url

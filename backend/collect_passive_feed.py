@@ -228,6 +228,8 @@ def collect_dnsdb_feed(
     for query in queries:
         rows, completion = fetcher(query, api_key)
         for row in rows:
+            if not isinstance(row, dict):
+                continue
             rrname, rrtype, rdata = row.get("rrname"), row.get("rrtype"), row.get("rdata")
             timestamp = row.get("time_last") or row.get("time_first")
             if not isinstance(rrname, str) or not isinstance(rrtype, str):

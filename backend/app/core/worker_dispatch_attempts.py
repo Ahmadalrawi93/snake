@@ -34,6 +34,8 @@ def begin_dispatch_attempt(
     receipt = db.query(WorkerTaskReceipt).filter_by(task_id=task_id).with_for_update().first()
     if receipt is None or receipt.envelope_sha256 != envelope_sha256:
         raise ValueError("task receipt or digest not found")
+    if receipt.worker_id != worker_id or receipt.key_id != key_id:
+        raise ValueError("worker identity does not match signed task receipt")
     if receipt.consumed_at is not None:
         raise ValueError("task receipt already consumed")
     receipt_expiry = receipt.expires_at

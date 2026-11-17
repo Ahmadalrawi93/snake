@@ -50,3 +50,5 @@ See [architecture](docs/ARCHITECTURE.md), [roadmap](docs/ROADMAP.md),\n[worker c
 
 
 See [human AI hypothesis evaluation](docs/AI_ANALYSIS_EVALUATION.md) for outcome definitions and metric caveats.
+
+See [intelligence feedback](docs/INTELLIGENCE_FEEDBACK.md) for aggregation rules and limitations.

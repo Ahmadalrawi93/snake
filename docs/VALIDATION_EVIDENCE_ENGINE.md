@@ -37,3 +37,26 @@ alongside the existing validation evidence assessment and qualification. The
 coverage function cross-checks evidence IDs, observation IDs, and relationship
 counts against the exact bundle rather than trusting detached assessment
 summaries. No automated testing or finding confirmation is triggered.
+
+
+## Evidence Gap Intelligence
+
+The candidate pipeline also returns a deterministic, strategy-bound evidence-gap
+report. Gaps are derived from the exact human evidence bundle and verified
+analysis context references; model-authored gap descriptions are not accepted.
+Each gap identifies the affected hypothesis, required evidence type, minimum
+acceptable record, related evidence/observation IDs, and safe manual collection
+guidance. Missing evidence is explicitly **not evidence of absence**.
+
+Written policy, expected behavior, source-linked supporting behavior,
+designated test-account context, impact context, strategy linkage, and source
+traceability are treated as independent documentary requirements. Contradictory
+records create a separate hard blocker and remain linked for review. A record
+that exists but is contradictory or only contextual does not satisfy a
+supporting-evidence requirement.
+
+Acquisition guidance is limited to official documentation, program-owner
+clarification, designated test identities, and records already obtained inside
+written authorization. The engine creates no network requests, test commands,
+payloads, or state changes. Evidence gaps are not a vulnerability verdict and
+do not independently qualify a finding.

@@ -28,6 +28,9 @@ def create_evaluation(
     except LookupError:
         db.rollback()
         raise HTTPException(status_code=404, detail="Analysis run not found")
+    except ValueError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="This reviewer has already evaluated the analysis run")
 
 
 @router.get("/projects/{project_id}/analysis-evaluation-metrics", response_model=AnalysisEvaluationMetrics)

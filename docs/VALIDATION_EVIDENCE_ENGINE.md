@@ -140,3 +140,21 @@ The tenant-isolation engine groups passive route observations by host and resour
 ## Cross-Endpoint Authorization Reasoning
 
 This passive-only engine groups URL observations by host and recognized resource, classifying route shapes as collection, object-reference, named action, bulk, or export surfaces. It highlights combinations that deserve manual comparison of authorization controls across handlers, including object ownership, per-item bulk checks, export/download access, role restrictions, state transitions, and API-version parity. It does not infer HTTP methods or claim that any endpoint is reachable or vulnerable. Findings are unconfirmed review hypotheses tied to observation IDs; execution remains disabled.
+
+
+## Manual Authorization Test Case Generator
+
+The candidate pipeline now converts authorization-boundary, tenant-isolation,
+cross-endpoint, and business-workflow hypotheses into deterministic manual
+validation plans. Each plan includes its objective, prerequisites, bounded
+review steps, expected secure behavior, evidence to preserve, and source
+observation IDs.
+
+Plans require explicitly authorized test identities; cross-account and
+cross-tenant scenarios require two designated identities. State-changing
+checks are gated by explicit program permission and disposable test records.
+The generator creates no HTTP requests, payloads, credentials, commands, or
+network activity. It does not execute tests, infer endpoint methods, confirm
+authorization behavior, or qualify a finding. Every output is a manual plan
+only, and all evidence remains linked to the passive observations that
+motivated the review.

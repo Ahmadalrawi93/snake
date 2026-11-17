@@ -87,6 +87,7 @@ def download_evidence(artifact_id: int, db: Session = Depends(get_db),
         raise HTTPException(status_code=404, detail="Evidence artifact not found")
     except RuntimeError:
         raise HTTPException(status_code=503, detail="Evidence integrity or encryption check failed")
+    db.commit()
     return Response(
         content=raw, media_type="application/octet-stream",
         headers={"Content-Disposition": f'attachment; filename="{row.filename}"',

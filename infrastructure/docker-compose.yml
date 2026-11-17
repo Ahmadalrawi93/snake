@@ -15,7 +15,7 @@ services:
     restart: unless-stopped
 
   # Opt-in validation-only container. It has no queue consumer or scan capability.
-  # It accepts one JSON envelope on stdin, validates it, and exits.
+  # Use a unique secret/key ID pair for this worker; never reuse another worker's key.
   worker-validator:
     profiles: ["worker"]
     build:
@@ -37,6 +37,7 @@ services:
     environment:
       SNAKE_WORKER_SIGNING_SECRET: ${SNAKE_WORKER_SIGNING_SECRET:-}
       SNAKE_WORKER_ID: ${SNAKE_WORKER_ID:-local-validator}
+      SNAKE_WORKER_KEY_ID: ${SNAKE_WORKER_KEY_ID:-local-validator-v1}
     stdin_open: true
     restart: "no"
 

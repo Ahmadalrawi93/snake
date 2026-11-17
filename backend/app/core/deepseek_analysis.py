@@ -13,6 +13,7 @@ import httpx
 from app.core.analysis_redaction import redact_analysis_context
 from app.core.application_profile import build_application_profile
 from app.core.business_logic_intelligence import build_business_logic_profile
+from app.core.cross_surface_reasoning import build_cross_surface_profile
 from app.core.observation_triage import validate_triage_references
 from app.schemas.analysis_context import AnalysisContext
 from app.schemas.evidence_correlation import CorrelationReport
@@ -75,10 +76,12 @@ def _request_payload(
     feedback_profile: IntelligenceFeedbackProfile | None = None,
 ) -> dict[str, Any]:
     redacted_context = redact_analysis_context(context)
+    business_profile = build_business_logic_profile(redacted_context)
     evidence = {
         "analysis_context": redacted_context.model_dump(mode="json"),
         "application_profile": build_application_profile(redacted_context).model_dump(mode="json"),
-        "business_logic_profile": build_business_logic_profile(redacted_context).model_dump(mode="json"),
+        "business_logic_profile": business_profile.model_dump(mode="json"),
+        "cross_surface_profile": build_cross_surface_profile(redacted_context, business_profile).model_dump(mode="json"),
         "correlations": correlations.model_dump(mode="json"),
     }
     if feedback_profile is not None:

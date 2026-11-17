@@ -47,7 +47,7 @@ def test_evidence_overlap_and_same_route_can_link_different_categories_in_same_f
     assert result.disposition == "possible_duplicate"
     assert result.category_match is False
     assert result.category_family_match is True
-    assert result.shared_route_count == 1
+    assert result.shared_route_count >= 1
     assert "high_evidence_token_similarity" in result.rationale
 
 

@@ -235,3 +235,31 @@ class AIAnalysisRun(Base):
     provider_request_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
     execution_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class AIAnalysisEvaluation(Base):
+    """Human-only feedback on an AI hypothesis; append-only and separate from triage."""
+    __tablename__ = "ai_analysis_evaluations"
+    __table_args__ = (
+        CheckConstraint(
+            "outcome IN ('confirmed', 'false_positive', 'inconclusive', 'duplicate')",
+            name="ck_ai_analysis_evaluation_outcome",
+        ),
+        CheckConstraint(
+            "(outcome IN ('confirmed', 'false_positive') AND evidence_sha256 IS NOT NULL) OR "
+            "(outcome IN ('inconclusive', 'duplicate'))",
+            name="ck_ai_analysis_evaluation_evidence",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    analysis_run_id: Mapped[int] = mapped_column(
+        ForeignKey("ai_analysis_runs.id"), nullable=False, index=True
+    )
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    evaluator_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    outcome: Mapped[str] = mapped_column(String(24), nullable=False)
+    evidence_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    validation_method: Mapped[str] = mapped_column(String(80), nullable=False)
+    notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

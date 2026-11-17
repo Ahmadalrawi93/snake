@@ -8,13 +8,13 @@ services:
       SNAKE_DATABASE_URL: sqlite:////data/snake.db
       SNAKE_JWT_SECRET_KEY: ${SNAKE_JWT_SECRET_KEY:?Set SNAKE_JWT_SECRET_KEY to a random secret of at least 32 characters}
       SNAKE_ALLOWED_ORIGINS: ${SNAKE_ALLOWED_ORIGINS:-http://localhost:3000}
+      SNAKE_BACKEND_ED25519_PRIVATE_KEY_B64: ${SNAKE_BACKEND_ED25519_PRIVATE_KEY_B64:-}
     ports:
       - "8000:8000"
     volumes:
       - snake-data:/data
     restart: unless-stopped
 
-  # Isolated protocol validator only; not a queue consumer and cannot scan.
   worker-validator:
     profiles: ["worker"]
     build:

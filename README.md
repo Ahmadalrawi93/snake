@@ -23,6 +23,7 @@ AI-assisted security assessment platform for **authorized** bug bounty work.
 - Deterministic pre-provider redaction of common credential patterns; this is not a complete DLP system.
 - Evidence-only cross-surface reasoning links authentication, object-resource, and sensitive-action route observations on the same host; it never infers shared controls or confirms vulnerabilities.
 - Evidence-bound validation strategy ranks manual review questions, records missing evidence and prerequisites, and remains non-executable; no requests, commands, or payloads are generated.
+- Validation evidence assessment checks human-attested supporting/contradictory evidence, source provenance, expected/observed behavior, and impact context; readiness never means a confirmed vulnerability.
 - Immutable AI triage history with context/correlation digests, optional provider usage metadata, and owner-scoped read access.
 - Human-only hypothesis evaluation with append-only outcomes and conservative precision/coverage metrics.
 - Target-aware AI analysis history and strictly isolated human-feedback profiles; target associations are explicit and never inferred.
@@ -73,4 +74,4 @@ See [intelligence feedback](docs/INTELLIGENCE_FEEDBACK.md) for aggregation rules
 See [application intelligence profile](docs/APPLICATION_INTELLIGENCE.md) for its evidence limits and route classification rules.
 
 
-See [business logic intelligence](docs/BUSINESS_LOGIC_INTELLIGENCE.md), [cross-surface reasoning](docs/CROSS_SURFACE_REASONING.md), and [validation strategy engine](docs/VALIDATION_STRATEGY_ENGINE.md) for evidence boundaries and manual review limitations.
+See [business logic intelligence](docs/BUSINESS_LOGIC_INTELLIGENCE.md), [cross-surface reasoning](docs/CROSS_SURFACE_REASONING.md), and [validation strategy engine](docs/VALIDATION_STRATEGY_ENGINE.md) and [validation evidence engine](docs/VALIDATION_EVIDENCE_ENGINE.md) for evidence boundaries and confirmation limitations.

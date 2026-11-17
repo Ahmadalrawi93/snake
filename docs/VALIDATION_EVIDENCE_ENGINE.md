@@ -158,3 +158,19 @@ network activity. It does not execute tests, infer endpoint methods, confirm
 authorization behavior, or qualify a finding. Every output is a manual plan
 only, and all evidence remains linked to the passive observations that
 motivated the review.
+
+
+## Evidence-Based Finding Report Draft Engine
+
+For candidates that pass the existing evidence qualification gate, the
+pipeline can now produce a structured, Markdown-renderable report draft from
+the exact human-attested validation evidence bundle. It binds evidence IDs
+and observation IDs, rejects mismatched or incomplete evidence, and requires
+documented supporting observed behavior, expected behavior, and impact context.
+
+The draft includes affected surface, prerequisites, reproduction guidance,
+observed and expected results, impact context, evidence references, and
+unresolved review questions. It deliberately leaves severity and CVSS
+unassessed, labels the report unconfirmed, and requires independent human
+validation. It does not create requests, execute reproduction steps, or
+assert exploitability.

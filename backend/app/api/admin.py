@@ -187,3 +187,90 @@ def revoke_worker_key(
     ))
     db.commit()
     return {"worker_id": row.worker_id, "key_id": row.key_id, "status": row.status}
+
+
+class WorkerEndpointCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    base_url: str = Field(min_length=8, max_length=512)
+    tls_server_name: str = Field(min_length=1, max_length=253)
+    certificate_sha256: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-fA-F]{64}$")
+
+
+@router.get("/workers/endpoints")
+def list_worker_endpoints(
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    from app.db.models import WorkerEndpoint
+    rows = db.query(WorkerEndpoint).order_by(WorkerEndpoint.worker_id).all()
+    return [{
+        "worker_id": row.worker_id,
+        "base_url": row.base_url,
+        "tls_server_name": row.tls_server_name,
+        "certificate_sha256": row.certificate_sha256,
+        "status": row.status,
+        "created_at": row.created_at,
+        "revoked_at": row.revoked_at,
+    } for row in rows]
+
+
+@router.post("/workers/{worker_id}/endpoint", status_code=201)
+def register_worker_endpoint_route(
+    worker_id: str,
+    payload: WorkerEndpointCreate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    from app.core.worker_endpoint_registry import register_worker_endpoint
+    if not re.fullmatch(r"[a-zA-Z0-9._-]{1,128}", worker_id):
+        raise HTTPException(status_code=422, detail="Invalid worker ID")
+    try:
+        row = register_worker_endpoint(
+            db, worker_id=worker_id, base_url=payload.base_url,
+            tls_server_name=payload.tls_server_name,
+            certificate_sha256=payload.certificate_sha256,
+            created_by=admin.id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    db.add(AuditEvent(
+        actor_user_id=admin.id,
+        action="worker_endpoint.registered",
+        resource_type="worker_endpoint",
+        resource_id=worker_id,
+        details=f"tls_server_name={row.tls_server_name}; certificate_sha256={row.certificate_sha256}",
+    ))
+    db.commit()
+    return {
+        "worker_id": row.worker_id,
+        "base_url": row.base_url,
+        "tls_server_name": row.tls_server_name,
+        "certificate_sha256": row.certificate_sha256,
+        "status": row.status,
+    }
+
+
+@router.post("/workers/{worker_id}/endpoint/revoke")
+def revoke_worker_endpoint_route(
+    worker_id: str,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    from app.core.worker_endpoint_registry import revoke_worker_endpoint
+    if not re.fullmatch(r"[a-zA-Z0-9._-]{1,128}", worker_id):
+        raise HTTPException(status_code=422, detail="Invalid worker ID")
+    try:
+        row = revoke_worker_endpoint(db, worker_id=worker_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    if row is None:
+        raise HTTPException(status_code=404, detail="Worker endpoint not found")
+    db.add(AuditEvent(
+        actor_user_id=admin.id,
+        action="worker_endpoint.revoked",
+        resource_type="worker_endpoint",
+        resource_id=worker_id,
+        details=f"certificate_sha256={row.certificate_sha256}",
+    ))
+    db.commit()
+    return {"worker_id": row.worker_id, "status": row.status}

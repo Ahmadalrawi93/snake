@@ -9,7 +9,7 @@ class PriorInvestigationMatch(BaseModel):
     shared_observation_count: int = Field(ge=0, le=500)
     new_observation_count: int = Field(ge=0, le=500)
     disposition: Literal["new_observations_available", "previously_seen_no_new_observations"]
-    human_outcome: Literal["not_linked_to_human_decision"] = "not_linked_to_human_decision"
+    human_outcome: Literal["confirmed", "false_positive", "inconclusive", "duplicate", "not_reviewed"]
 
 class InvestigationMemoryReport(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)

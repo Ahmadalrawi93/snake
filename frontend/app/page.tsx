@@ -100,6 +100,10 @@ export default function Home() {
   async function createAuthorization(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedProjectId || !authReference.trim()) return;
+    if (authStartsAt && authExpiresAt && authExpiresAt < authStartsAt) {
+      setError("Expiry date cannot be earlier than the authorization start date.");
+      return;
+    }
     setBusy(true); setError(""); setMessage("");
     try {
       const created = await api(`/api/v1/projects/${selectedProjectId}/authorizations`, {
@@ -178,7 +182,7 @@ export default function Home() {
 
   function signOut() {
     window.localStorage.removeItem("snake_access_token");
-    setToken(""); setUser(null); setProjects([]); setMessage(""); setError("");
+    setToken(""); setUser(null); setProjects([]); setSelectedProjectId(null); setTargets([]); setAuthorizations([]); setMessage(""); setError("");
   }
 
   return (

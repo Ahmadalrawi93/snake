@@ -654,3 +654,78 @@ def test_human_finding_decisions_are_owner_scoped_and_append_only():
         for item in audit.json()
     )
 
+
+
+def test_finding_candidate_persistence_binds_run_context_and_exact_evidence_bundle():
+    from datetime import datetime, timezone
+    from uuid import uuid4
+    from app.db.models import AIAnalysisRun, Project, User, FindingCandidateRecord
+    from app.core.finding_candidates import persist_finding_candidate
+    from app.schemas.finding_candidates import FindingCandidateCreate
+    from app.schemas.finding_qualification import FindingQualification
+    from app.schemas.validation_evidence import ValidationEvidenceBundle, ValidationEvidenceItem
+
+    headers = register_and_auth("candidate-persistence-owner@example.org")
+    project_data = client.post(
+        "/api/v1/projects", json={"name": "Candidate Persistence"}, headers=headers
+    ).json()
+    context_digest = "e" * 64
+    db = TestingSession()
+    try:
+        project = db.query(Project).filter_by(id=project_data["id"]).one()
+        actor = db.query(User).filter_by(id=project.owner_id).one()
+        run = AIAnalysisRun(
+            project_id=project.id, created_by=actor.id, context_sha256=context_digest,
+            correlations_sha256="f" * 64, provider="deepseek", model="test",
+            status="completed", disposition="requires_independent_validation",
+            result_json="{}", execution_enabled=False,
+        )
+        db.add(run)
+        db.flush()
+        now = datetime.now(timezone.utc)
+        observation_id = uuid4()
+        items = [
+            ValidationEvidenceItem(
+                evidence_id=uuid4(), evidence_type=kind, relationship="supports",
+                statement="Evidence statement recorded for human review",
+                source_label="review_record", observation_ids=ids,
+                recorded_at=now, human_attested=True,
+            )
+            for kind, ids in [
+                ("program_policy", []),
+                ("expected_behavior", [observation_id]),
+                ("observed_behavior", [observation_id]),
+                ("impact_context", [observation_id]),
+            ]
+        ]
+        bundle = ValidationEvidenceBundle(
+            strategy_id="object_access_review", analysis_context_sha256=context_digest,
+            items=items, reviewed_at=now,
+        )
+        qualification = FindingQualification(
+            candidate_fingerprint="9" * 64, category="object_authorization",
+            title="Possible cross-account invoice access", qualification="human_review_candidate",
+            evidence_quality="documented_consistent",
+            impact_quality="documented_not_independently_verified",
+            blockers=[], evidence_ids=[str(item.evidence_id) for item in items],
+            observation_ids=[str(observation_id)],
+        )
+        payload = FindingCandidateCreate(qualification=qualification, evidence_bundle=bundle)
+        record = persist_finding_candidate(
+            db, analysis_run_id=run.id, actor=actor, payload=payload
+        )
+        db.commit()
+        assert record.evidence_bundle_sha256
+        assert record.finding_status == "unconfirmed"
+        assert record.execution_enabled is False
+        stored = db.query(FindingCandidateRecord).filter_by(id=record.id).one()
+        assert stored.evidence_bundle_json
+        assert stored.qualification_json
+        with pytest.raises(ValueError, match="different evidence"):
+            changed = bundle.model_copy(update={"reviewer_note": "changed evidence context"})
+            persist_finding_candidate(
+                db, analysis_run_id=run.id, actor=actor,
+                payload=FindingCandidateCreate(qualification=qualification, evidence_bundle=changed),
+            )
+    finally:
+        db.close()

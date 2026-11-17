@@ -23,6 +23,11 @@ from app.core.scope_policy import ScopePolicy, normalize_host
 
 PROVIDER_HOST = "crt.sh"
 PROVIDER_PATH = "/"
+DNSDB_HOST = "api.dnsdb.info"
+DNSDB_PATH = "/dnsdb/v2/lookup/rrset/name/"
+DNSDB_MAX_RESPONSE_BYTES = 1024 * 1024
+DNSDB_MAX_ROWS = 2000
+DNSDB_QUERY_LIMIT = 1000
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 MAX_SCOPE_RULES = 100
 MAX_PROVIDER_QUERIES = 200

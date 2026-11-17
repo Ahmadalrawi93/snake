@@ -39,3 +39,31 @@ def test_issue_signed_task_revalidates_reserves_then_signs(monkeypatch):
     assert events == [("revalidate", 22), ("reserve", envelope.task_id)]
     assert signed.envelope.task_id == envelope.task_id
     assert verify_worker_task(signed, SECRET)
+
+
+def test_invalid_secret_does_not_reserve_job(monkeypatch):
+    now = datetime.now(timezone.utc)
+    envelope = WorkerTaskEnvelope(
+        task_id=uuid4(),
+        job_id=23,
+        scope_snapshot_id=34,
+        scope_snapshot_sha256="d" * 64,
+        profile="passive_recon",
+        target_url="https://example.net/",
+        issued_at=now,
+        expires_at=now + timedelta(minutes=1),
+        execution_enabled=False,
+    )
+    reserved = []
+    monkeypatch.setattr(
+        worker_transport, "prepare_dispatch_envelope",
+        lambda *args, **kwargs: envelope,
+    )
+    monkeypatch.setattr(
+        worker_transport, "reserve_task_receipt",
+        lambda *args, **kwargs: reserved.append(True),
+    )
+    import pytest
+    with pytest.raises(ValueError, match="32 characters"):
+        worker_transport.issue_signed_worker_task(object(), 23, secret="too-short", now=now)
+    assert reserved == []

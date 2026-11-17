@@ -237,5 +237,5 @@ def test_backend_to_worker_full_mtls_dispatch_and_ack(integrated_transport):
 
 def test_full_dispatch_does_not_enable_scan_execution(integrated_transport):
     state = integrated_transport
-    assert state["result"]["acknowledgement"]["execution_enabled"] is False
+    assert state["result"]["acknowledgement"]["result"]["execution_enabled"] is False
     assert state["attempt"].status == "delivered"

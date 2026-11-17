@@ -179,6 +179,9 @@ def test_same_assessment_is_idempotent_and_different_claims_append(impact_contex
     assert db.query(FindingImpactAssessmentRecord).filter_by(
         candidate_id=candidate.id
     ).count() == 1
+    assert db.query(AuditEvent).filter_by(
+        action="finding_impact_assessment.recorded"
+    ).count() == 1
 
 
 

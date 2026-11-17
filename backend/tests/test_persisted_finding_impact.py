@@ -405,3 +405,56 @@ def test_impact_api_rejects_empty_claim_list_without_persisting(impact_context):
     finally:
         app.dependency_overrides.pop(get_current_user, None)
         app.dependency_overrides.pop(get_db, None)
+
+
+
+def test_persisted_impact_rejects_tampered_evidence_bundle(impact_context):
+    db, owner, _other, candidate, _foreign, claim = impact_context
+    payload = json.loads(candidate.evidence_bundle_json)
+    payload["items"][0]["statement"] = "Changed after candidate persistence."
+    candidate.evidence_bundle_json = canonical(payload)
+    db.flush()
+
+    with pytest.raises(ValueError, match="evidence bundle digest mismatch"):
+        service.create_persisted_finding_impact(
+            db, candidate_id=candidate.id, actor=owner, claims=[claim],
+        )
+    assert db.query(FindingImpactAssessmentRecord).filter_by(
+        candidate_id=candidate.id
+    ).count() == 0
+
+
+def test_persisted_impact_rejects_candidate_qualification_binding_mismatch(impact_context):
+    db, owner, _other, candidate, _foreign, claim = impact_context
+    payload = json.loads(candidate.qualification_json)
+    payload["candidate_fingerprint"] = "9" * 64
+    candidate.qualification_json = canonical(payload)
+    db.flush()
+
+    with pytest.raises(ValueError, match="qualification binding mismatch"):
+        service.create_persisted_finding_impact(
+            db, candidate_id=candidate.id, actor=owner, claims=[claim],
+        )
+    assert db.query(FindingImpactAssessmentRecord).filter_by(
+        candidate_id=candidate.id
+    ).count() == 0
+
+
+def test_persisted_impact_rejects_verified_context_digest_mismatch(impact_context, monkeypatch):
+    db, owner, _other, candidate, _foreign, claim = impact_context
+    changed_context = AnalysisContext(
+        total_observations=1, unique_observations=1, duplicate_count=0,
+        groups=[], ungrouped=[],
+    )
+    monkeypatch.setattr(
+        service, "load_verified_analysis_run_context",
+        lambda _db, *, run: (changed_context, None),
+    )
+
+    with pytest.raises(ValueError, match="context digest mismatch"):
+        service.create_persisted_finding_impact(
+            db, candidate_id=candidate.id, actor=owner, claims=[claim],
+        )
+    assert db.query(FindingImpactAssessmentRecord).filter_by(
+        candidate_id=candidate.id
+    ).count() == 0

@@ -177,7 +177,7 @@ def _dnsdb_url(query: str) -> str:
 
 def fetch_dnsdb_rows(query: str, api_key: str, *, opener=None) -> tuple[list[dict[str, Any]], str]:
     """Fetch one DNSDB v2 SAF/NDJSON response from the fixed provider."""
-    if not isinstance(api_key, str) or not api_key or len(api_key) > 4096:
+    if (not isinstance(api_key, str) or not api_key or len(api_key) > 4096\n            or any(ord(char) < 33 or ord(char) > 126 for char in api_key)):
         raise ValueError("DNSDB API key is missing or invalid")
     url = _dnsdb_url(query)
     parsed = urllib.parse.urlsplit(url)

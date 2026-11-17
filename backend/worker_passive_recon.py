@@ -70,16 +70,25 @@ _FEED_ADAPTER = TypeAdapter(list[PassiveFeedRecord])
 def read_passive_feed(path: str | os.PathLike[str]) -> list[PassiveFeedRecord]:
     """Read a bounded, regular, non-symlink, non-group/world-writable JSON feed."""
     feed_path = Path(path)
-    metadata = feed_path.lstat()
-    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
-        raise ValueError("passive feed must be a regular non-symlink file")
-    if metadata.st_mode & 0o022:
-        raise ValueError("passive feed must not be group- or world-writable")
-    if metadata.st_size < 2 or metadata.st_size > MAX_FEED_BYTES:
-        raise ValueError("passive feed size is outside the allowed range")
-    raw = feed_path.read_bytes()
-    if len(raw) > MAX_FEED_BYTES:
-        raise ValueError("passive feed exceeds the 1 MiB limit")
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(feed_path, flags)
+    except OSError as exc:
+        raise ValueError("passive feed cannot be opened safely") from exc
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise ValueError("passive feed must be a regular non-symlink file")
+        if metadata.st_mode & 0o022:
+            raise ValueError("passive feed must not be group- or world-writable")
+        if metadata.st_size < 2 or metadata.st_size > MAX_FEED_BYTES:
+            raise ValueError("passive feed size is outside the allowed range")
+        with os.fdopen(descriptor, "rb", closefd=False) as stream:
+            raw = stream.read(MAX_FEED_BYTES + 1)
+        if len(raw) > MAX_FEED_BYTES:
+            raise ValueError("passive feed exceeds the 1 MiB limit")
+    finally:
+        os.close(descriptor)
     records = _FEED_ADAPTER.validate_json(raw)
     if len(records) > MAX_FEED_RECORDS:
         raise ValueError("passive feed exceeds the 500 record limit")

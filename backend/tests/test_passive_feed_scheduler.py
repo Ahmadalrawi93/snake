@@ -123,3 +123,25 @@ def test_scheduler_writes_separate_priority_report(tmp_path):
     assert ranked[0]["priority_score"] > 0
     assert ranked[0]["priority_label"] in {"low", "medium", "high"}
     assert priority.stat().st_mode & 0o777 == 0o600
+
+
+def test_scheduler_writes_separate_passive_graph(tmp_path):
+    scope = tmp_path / "scope.json"
+    scope.write_text(json.dumps({"approved_scope_rules": ["example.org"]}))
+    scope.chmod(0o600)
+    output = tmp_path / "feed.json"
+    graph_path = tmp_path / "graph.json"
+    history = tmp_path / "history.sqlite3"
+    record = {"hostname": "api.example.org", "kind": "url",
+              "value": "https://api.example.org/v1/users", "source": "ct_sh_ct",
+              "evidence": "passive", "observed_at": "2026-11-17T10:00:00+00:00"}
+    run_cycle(str(scope), str(output), ["ct"], "ticket",
+              ct_collector=lambda _rules: [record], history_db=str(history),
+              graph_report=str(graph_path))
+    feed = json.loads(output.read_text())
+    graph = json.loads(graph_path.read_text())
+    assert "id" not in feed[0]
+    assert graph["classification"] == "passive_unconfirmed_attack_surface_graph"
+    assert graph["summary"]["api_route_hints"] == 1
+    assert graph["execution_enabled"] is False
+    assert graph_path.stat().st_mode & 0o777 == 0o600

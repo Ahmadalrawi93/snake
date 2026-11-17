@@ -77,3 +77,16 @@ def test_resolved_outcomes_require_evidence_digest():
         AnalysisEvaluationCreate(outcome="confirmed", validation_method="manual")
     with pytest.raises(ValueError):
         AnalysisEvaluationCreate(outcome="false_positive", evidence_sha256="not-a-hash", validation_method="manual")
+
+
+def test_reviewer_cannot_submit_duplicate_evaluations(db):
+    owner = User(email="duplicate-reviewer@example.test", password_hash="hash")
+    db.add(owner)
+    db.flush()
+    _, run = setup_run(db, owner)
+    payload = AnalysisEvaluationCreate(
+        outcome="confirmed", evidence_sha256="e"*64, validation_method="manual"
+    )
+    record_human_evaluation(db, analysis_run_id=run.id, actor=owner, payload=payload)
+    with pytest.raises(ValueError):
+        record_human_evaluation(db, analysis_run_id=run.id, actor=owner, payload=payload)

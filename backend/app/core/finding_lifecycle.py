@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.analysis_redaction import redact_text
 from app.db.models import (
     AuditEvent, EvidenceArtifact, FindingCandidateRecord, FindingLifecycleEvent,
-    Project, User,
+    HumanFindingDecision, Project, User,
 )
 from app.schemas.finding_lifecycle import EvidenceArtifactCreate, FindingLifecycleCreate
 
@@ -60,6 +60,27 @@ def append_lifecycle_event(
         raise ValueError("stale lifecycle state")
     if payload.new_status not in _ALLOWED_TRANSITIONS[current]:
         raise ValueError("transition is not allowed")
+    if payload.new_status in {"confirmed", "rejected", "duplicate"}:
+        expected_outcome = {
+            "confirmed": "confirmed", "rejected": "false_positive", "duplicate": "duplicate"
+        }[payload.new_status]
+        decision = db.query(HumanFindingDecision).filter_by(
+            analysis_run_id=candidate.analysis_run_id,
+            project_id=candidate.project_id,
+            evaluator_id=actor.id,
+            candidate_fingerprint=candidate.candidate_fingerprint,
+            outcome=expected_outcome,
+        ).first()
+        if decision is None:
+            raise ValueError("matching authenticated human decision is required")
+        if payload.new_status == "confirmed":
+            if not decision.evidence_sha256:
+                raise ValueError("confirmation requires a recorded evidence digest")
+            artifact = db.query(EvidenceArtifact.id).filter_by(
+                candidate_id=candidate.id, content_sha256=decision.evidence_sha256
+            ).first()
+            if artifact is None:
+                raise ValueError("confirmation evidence must exist in the encrypted vault")
     if payload.new_status == "duplicate":
         if not payload.related_candidate_fingerprint or payload.related_candidate_fingerprint == candidate.candidate_fingerprint:
             raise ValueError("duplicate status requires a different related candidate")
@@ -138,4 +159,10 @@ def read_evidence_artifact(db: Session, *, artifact_id: int, actor: User):
         raise RuntimeError("Evidence integrity/decryption check failed") from exc
     if hashlib.sha256(raw).hexdigest() != row.content_sha256 or len(raw) != row.size_bytes:
         raise RuntimeError("Evidence integrity check failed")
+    db.add(AuditEvent(
+        actor_user_id=actor.id, action="finding_evidence.downloaded",
+        resource_type="finding_evidence", resource_id=str(row.id),
+        details=f"candidate_id={row.candidate_id};sha256={row.content_sha256}",
+    ))
+    db.flush()
     return row, raw

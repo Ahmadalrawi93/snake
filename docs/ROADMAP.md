@@ -39,9 +39,5 @@ Safe validation library, reproducible evidence, severity rationale, exportable r
 ## Phase 7 — Production Hardening
 Threat modeling, security testing of SNAKE itself, secrets management, backups, observability, deployment automation, and operational procedures.
 
-- [ ] Authenticated worker transport and signed task/result messages.
-- [ ] DNS/IP pinning and redirect-hop enforcement at the actual socket/request layer.
-- [ ] Passive recon adapters and isolated worker execution. No scanner is executable yet.
-
 ## Explicit safety boundary
 All current worker components are preparatory only. The validator container accepts a JSON envelope, validates its schema and expiry, and exits. It cannot reach a network, claim a job, or execute a scan. HMAC signing protects integrity/authenticity only; it does not provide authorization or scope enforcement. Atomic receipt primitives exist but are not wired to a worker or HTTP route. No scan execution is enabled.

@@ -14,6 +14,7 @@ AI-assisted security assessment platform for **authorized** bug bounty work.
 - Database-backed dispatch validation gate that re-reads persisted ownership, linkage, authorization, and snapshot state before preparing a short-lived disabled envelope.
 - Validation-only Docker worker image: non-root, read-only runtime, dropped capabilities, no-new-privileges, bounded resources, and no network.
 - HMAC-SHA256 task-envelope signing and constant-time verification helpers. These are not yet connected to a worker transport.
+- Atomic queued-job reservation and durable one-time task receipt/consumption primitives. Internal only; not exposed over HTTP or connected to a worker.
 - GitHub Actions runs backend tests and builds the validation-only worker image.
 
 ## Local setup
@@ -33,6 +34,6 @@ For local development the example JWT secret is intentionally marked as a placeh
 ## Current boundary
 The worker container is a **validator only**. It reads one JSON envelope from stdin (maximum 64 KiB), validates the strict schema and expiry, prints a validation-only acknowledgement, and exits. It has no network, queue consumer, job-claim operation, Docker socket, or scan adapter. A valid envelope is not proof of authorization.
 
-HMAC signing protects message integrity/authenticity only. Replay prevention, atomic job claiming, authenticated transport, socket-level IP pinning, per-request scope checks, and real scanning remain unimplemented. Keep the API private; this is not production-ready.
+HMAC signing protects message integrity/authenticity only. Durable receipt primitives now prevent duplicate reservation and repeated receipt consumption at the database layer, but are not connected to authenticated transport or a worker. Socket-level IP pinning, per-request scope checks, and real scanning remain unimplemented. Keep the API private; this is not production-ready.
 
-See [architecture](docs/ARCHITECTURE.md), [roadmap](docs/ROADMAP.md), [worker runtime](docs/WORKER_RUNTIME.md), and [task authentication](docs/WORKER_TASK_AUTHENTICATION.md).
+See [architecture](docs/ARCHITECTURE.md), [roadmap](docs/ROADMAP.md), [worker runtime](docs/WORKER_RUNTIME.md), and [task authentication](docs/WORKER_TASK_AUTHENTICATION.md), and [replay protection](docs/WORKER_REPLAY_PROTECTION.md).

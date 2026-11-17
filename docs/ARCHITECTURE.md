@@ -14,6 +14,8 @@
 - Argon2 password hashing and JWT bearer authentication.
 - Project ownership checked on project, authorization, and target operations.
 - User-scoped audit event listing.
+- Admin-only authorization review queue and approve/reject endpoint; decisions are audited.
+- Admin account provisioning is an explicit local CLI operation.
 - Alembic migration for adding user and ownership data to existing local databases.
 - Hostname allowlist check; no active network scanner.
 

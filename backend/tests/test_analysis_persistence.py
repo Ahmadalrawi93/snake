@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timezone
+from uuid import uuid4, UUID
 
 import pytest
 from sqlalchemy import create_engine
@@ -27,7 +28,7 @@ def db():
 
 def setup_context():
     item = WorkerObservation(
-        kind="url", value="https://scope.example.test/api/users/1",
+        observation_id=uuid4(), kind="url", value="https://scope.example.test/api/users/1",
         evidence="password=should-not-be-persisted", source="passive",
         observed_at=datetime.now(timezone.utc),
     )
@@ -37,7 +38,7 @@ def setup_context():
     triage = ObservationTriage(
         category="authorization",
         hypothesis="The route may expose an object access surface.",
-        supporting_observation_ids=[oid],
+        supporting_observation_ids=[UUID(oid)],
         missing_evidence=["No access-control behavior has been observed."],
         validation_questions=["Can another account access this object?"],
         confidence="low",

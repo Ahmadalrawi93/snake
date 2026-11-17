@@ -105,3 +105,8 @@ Exact normalized hypothesis text within the same category is grouped under one r
 ## Cross-Hypothesis Evidence Reuse
 
 The candidate pipeline compares observation references in the current human-attested evidence bundle with sibling validation strategies from the same persisted AI analysis run. It reports shared references, overlap ratio, and references unique to the current strategy. Reused observations are explicitly not independent corroboration. This first version is deliberately run-local: it does not claim persistent investigation memory, and it does not automatically suppress, merge, or qualify hypotheses. No network activity or evidence acquisition is performed.
+
+
+## Persistent Investigation Memory
+
+The candidate pipeline records a normalized hypothesis fingerprint and its supporting observation references for each strategy. Historical matches are returned only when both project_id and target_id match; the current analysis run is excluded and history is bounded to the latest 50 records. The report distinguishes shared observations from newly referenced observations. It does not suppress review, infer a false positive, or treat historical AI output as truth. Human decision outcomes are intentionally marked as not linked until a separately verified strategy-to-candidate decision binding exists. Apply Alembic migration 0020 before deploying this schema to an existing database.

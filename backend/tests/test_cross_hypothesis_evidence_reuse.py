@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from uuid import UUID
 import pytest
 from app.core.cross_hypothesis_evidence_reuse import build_evidence_reuse_report
@@ -15,7 +15,7 @@ def bundle(sid, refs):
     return ValidationEvidenceBundle(strategy_id=sid,analysis_context_sha256="a"*64,reviewed_at=datetime.now(timezone.utc),
         items=[ValidationEvidenceItem(evidence_id=UUID(f"00000000-0000-4000-8000-{i:012d}"),
             evidence_type="observed_behavior",relationship="supports",statement=f"Authorized observed behavior evidence {i}",
-            source_label="reviewer supplied record",observation_ids=[UUID(ref)],recorded_at=datetime.now(timezone.utc),
+            source_label="reviewer supplied record",observation_ids=[UUID(ref)],recorded_at=datetime.now(timezone.utc)-timedelta(seconds=2),
             human_attested=True) for i,ref in enumerate(refs,1)])
 
 def test_reports_shared_observations_and_unique_evidence():

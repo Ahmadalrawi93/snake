@@ -2,6 +2,7 @@ import re
 from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
+from app.core.worker_signing import SignedWorkerValidationResult
 from sqlalchemy.orm import Session
 from app.api.dependencies import require_admin
 from app.db.database import get_db
@@ -274,3 +275,63 @@ def revoke_worker_endpoint_route(
     ))
     db.commit()
     return {"worker_id": row.worker_id, "status": row.status}
+
+
+
+class WorkerAcknowledgementReconciliation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    acknowledgement: SignedWorkerValidationResult
+
+
+@router.post("/workers/tasks/{task_id}/reconcile")
+def reconcile_worker_task(
+    task_id: str,
+    payload: WorkerAcknowledgementReconciliation,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    from uuid import UUID
+    from app.core.worker_acknowledgements import reconcile_unknown_worker_acknowledgement
+    from app.db.models import WorkerTaskReceipt
+
+    try:
+        canonical_task_id = str(UUID(task_id))
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid task ID")
+    signed = payload.acknowledgement
+    if str(signed.result.task_id) != canonical_task_id:
+        raise HTTPException(status_code=422, detail="Acknowledgement task ID does not match path")
+    receipt = db.query(WorkerTaskReceipt).filter_by(task_id=canonical_task_id).first()
+    if receipt is None:
+        raise HTTPException(status_code=404, detail="Worker task receipt not found")
+    if receipt.worker_id is None or receipt.key_id is None:
+        raise HTTPException(status_code=409, detail="Task receipt has no bound worker identity")
+
+    accepted = reconcile_unknown_worker_acknowledgement(
+        db, signed,
+        expected_worker_id=receipt.worker_id,
+        expected_key_id=receipt.key_id,
+    )
+    if not accepted:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Acknowledgement is invalid, task is not unknown, key is inactive, or task timing is invalid",
+        )
+    db.add(AuditEvent(
+        actor_user_id=admin.id,
+        action="worker_task.reconciled",
+        resource_type="worker_task",
+        resource_id=canonical_task_id,
+        details=(
+            f"worker_id={receipt.worker_id}; key_id={receipt.key_id}; "
+            f"outcome={signed.result.outcome}; envelope_sha256={receipt.envelope_sha256}"
+        ),
+    ))
+    db.commit()
+    return {
+        "task_id": canonical_task_id,
+        "status": "delivered",
+        "acknowledgement_outcome": signed.result.outcome,
+        "execution_enabled": False,
+    }

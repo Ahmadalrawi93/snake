@@ -60,9 +60,11 @@ def build_business_logic_profile(context: AnalysisContext, *, max_surfaces: int 
         if resource is not None:
             collection = "/" + "/".join(parts[:resource_index + 1])
             key = (host, resource, collection)
-            entry = objects.setdefault(key, {"ids": set(), "object": None})
-            entry["ids"].update(ids)
-            if len(parts) > resource_index + 1 and parts[resource_index + 1] == ":id":
+            entry = objects.setdefault(key, {"collection_ids": set(), "object_ids": set(), "object": None})
+            if len(parts) == resource_index + 1:
+                entry["collection_ids"].update(ids)
+            elif len(parts) == resource_index + 2 and parts[resource_index + 1] == ":id":
+                entry["object_ids"].update(ids)
                 entry["object"] = "/" + "/".join(parts[:resource_index + 2])
         action_name = next((_ACTIONS[p] for p in parts if p in _ACTIONS), None)
         if action_name:
@@ -75,12 +77,13 @@ def build_business_logic_profile(context: AnalysisContext, *, max_surfaces: int 
     action_records = []
     hypotheses = []
     for (host, resource, collection), entry in sorted(objects.items())[:max_surfaces]:
-        object_ids = sorted(entry["ids"])[:500]
+        object_ids = sorted(entry["collection_ids"] | entry["object_ids"])[:500]
+        has_collection_and_object = bool(entry["collection_ids"] and entry["object_ids"])
         object_records.append(BusinessObjectSurface(
             host=host, resource=resource, collection_route=collection,
-            object_route=entry["object"], observation_ids=object_ids,
+            object_route=entry["object"] if has_collection_and_object else None, observation_ids=object_ids,
         ))
-        if entry["object"]:
+        if has_collection_and_object:
             hypotheses.append(BusinessLogicHypothesis(
                 category="object_authorization",
                 statement=f"Observed collection and identifier-shaped routes for {resource} may warrant object-level authorization review.",

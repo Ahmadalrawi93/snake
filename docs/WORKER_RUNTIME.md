@@ -296,6 +296,7 @@ passive-feed.json.history.sqlite3
 passive-feed.json.priority.json
 passive-feed.json.graph.json
 passive-feed.json.api-endpoints.json
+passive-feed.json.business-logic.json
 ```
 
 
@@ -305,3 +306,27 @@ approve, cancel, export), and whether a path contains a normalized object identi
 These produce manual-review labels for object-level authorization and business-operation
 logic. They are prioritization hints only: path names do not establish supported
 methods, authorization behavior, state changes, or a vulnerability.
+
+
+## Passive business-logic correlation
+
+The scheduler additionally writes `OUTPUT.business-logic.json` (override with
+`--business-logic-report`). This report correlates already-derived, in-scope
+API path templates by hostname and resource name. It can produce two classes
+of review hypothesis:
+
+- `object_authorization`: a collection route and an identifier-shaped object
+  route were both observed for the same resource and host.
+- `sensitive_business_operation`: a route contains a recognized operation
+  name such as refund, transfer, approve, cancel, delete, or export.
+
+Each hypothesis includes bounded source/timestamp references, related route
+templates, manual validation questions, a deterministic identifier, and a
+coarse review priority. It is explicitly marked
+`requires_independent_validation`; `confirmed` is always false.
+
+This is correlation, not proof of BOLA/IDOR, privilege escalation, a supported
+HTTP method, a real state transition, or a vulnerability. It does not infer
+roles or ownership, and it never sends requests to endpoints. Validation must
+be separately authorized and use controlled test accounts and non-destructive
+procedures.

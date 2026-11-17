@@ -181,3 +181,32 @@ transferred to the worker through a trusted channel and mounted read-only.
 The scheduler does not verify authorization, provider terms, domain ownership,
 or the truth/currentness of passive records. Review scope and program rules
 before each deployment and after every scope change.
+
+
+## Passive asset history and change detection
+
+The external scheduler records each successfully published feed snapshot in a
+private SQLite history database (default: `OUTPUT.history.sqlite3`; override
+with `--history-db`). It emits append-only change events for newly observed
+records, records that reappear after being absent, and records missing from a
+later complete snapshot. An unchanged record updates its last-seen timestamp
+without generating an event. A changed DNS value is represented as the old
+record becoming missing and the new value appearing.
+
+The history database is maintained outside the isolated worker. Missing events
+are meaningful only when all selected providers completed successfully; failed
+refreshes do not publish a feed or update history. The history is a record-level
+view, not proof that a hostname is offline or an asset has been decommissioned:
+provider coverage, retention, rate limits, and query differences can make
+records disappear. Treat these events as investigation leads, not facts about
+target availability. The database contains passive metadata and should be
+protected and retained under the same access policy as the feed.
+
+Example:
+```sh
+python passive_feed_scheduler.py \\
+  --scope-file /etc/snake/approved-scope.json \\
+  --output /var/lib/snake/passive-feed.json \\
+  --history-db /var/lib/snake/asset-history.sqlite3 \\
+  --provider ct --provider dnsdb
+```

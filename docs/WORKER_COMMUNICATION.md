@@ -54,8 +54,9 @@ A future transport adapter must:
 5. Use explicit connect/read deadlines and bounded response sizes.
 6. Treat timeouts as an **unknown delivery outcome**, not proof of non-delivery.
    Persist every attempt and its outcome before implementing retries.
-7. Make retries use new task IDs and durable attempt records with idempotency rules;
-   never reuse a consumed receipt or silently reset a reserved job.
+7. Retry only after a persisted definite failure, reusing the exact signed task ID
+   and envelope. Unknown outcomes require reconciliation; never reuse a consumed
+   receipt or silently reset a reserved job.
 8. Verify the acknowledgement signature, active key status, worker identity,
    task digest, timestamp window, and one-time receipt before accepting it.
 9. Keep execution disabled until the worker sandbox, egress policy, approval gates,
@@ -63,7 +64,7 @@ A future transport adapter must:
 
 ## Next implementation gate
 
-Build the durable dispatch-attempt state machine and worker endpoint identity
-provisioning before enabling any network transport. Then add transport integration
+Build worker endpoint identity provisioning and production PostgreSQL concurrency
+tests before enabling any network transport. Then add transport integration
 tests for TLS identity mismatch, timeout/unknown outcome, duplicate delivery,
 revoked keys, malformed/oversized responses, and replayed acknowledgements.

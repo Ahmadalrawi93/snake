@@ -12,6 +12,9 @@ from app.db.models import AIAnalysisRun, Project, Target, User
 from app.core.analysis_persistence import persist_analysis_run, persist_analysis_execution
 from app.core.deepseek_analysis import AnalysisExecutionResult
 from app.core.analysis_context import build_analysis_context
+from app.core.business_logic_intelligence import build_business_logic_profile
+from app.core.cross_surface_reasoning import build_cross_surface_profile
+from app.core.validation_strategy import build_validation_strategy
 from app.core.evidence_correlation import correlate_analysis_context
 from app.schemas.observation_triage import ObservationTriage
 from app.schemas.worker_results import WorkerObservation
@@ -129,6 +132,10 @@ def test_execution_metadata_flows_into_immutable_persistence(db):
         prompt_tokens=30, completion_tokens=20, total_tokens=50,
         provider_request_id="req_example", context_sha256="a"*64,
         correlations_sha256="b"*64, response_received_at=datetime.now(timezone.utc),
+        validation_strategy=build_validation_strategy(
+            context, triage, build_business_logic_profile(context),
+            build_cross_surface_profile(context, build_business_logic_profile(context)),
+        ),
     )
     record = persist_analysis_execution(
         db, project_id=project.id, actor=user, context=context,
@@ -139,6 +146,9 @@ def test_execution_metadata_flows_into_immutable_persistence(db):
     assert record.total_tokens == 50
     assert record.provider_request_id == "req_example"
     assert record.model == "deepseek-test"
+    stored_result = json.loads(record.result_json)
+    assert stored_result["validation_strategy"]["status"] == "review_required"
+    assert stored_result["validation_strategy"]["items"][0]["execution_mode"] == "manual_human_review_only"
 
 
 

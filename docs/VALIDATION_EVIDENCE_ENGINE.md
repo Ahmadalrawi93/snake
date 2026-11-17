@@ -69,3 +69,20 @@ summary would otherwise appear ready. The qualification function validates the
 gap report's strategy binding and records each blocking gap category. This
 prevents the gap report from being merely advisory while leaving promotion
 logic unchanged.
+
+
+## Evidence Acquisition Planner
+
+The candidate pipeline returns a deterministic manual acquisition plan alongside
+the evidence-gap report. Each step maps to one validated gap and identifies an
+objective, acceptable authoritative sources, prerequisites, dependencies, and
+a strict safety boundary. The ordering prioritizes current written program
+authorization, expected behavior, and designated test context before reviewing
+technical behavior or impact records.
+
+The planner does not generate HTTP requests, payloads, shell commands, test
+cases, credentials, or state-changing actions. It only directs a human reviewer
+to existing immutable records, official documentation, program-owner
+clarification, or explicitly designated test context. It rejects gap references
+that do not belong to the supplied evidence bundle. Its output is a collection
+workflow, not proof of vulnerability, authorization, or exploitability.

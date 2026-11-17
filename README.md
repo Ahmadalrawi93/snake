@@ -14,7 +14,7 @@ AI-assisted security assessment platform for **authorized** bug bounty work.
 - Database-backed dispatch validation gate that re-reads persisted ownership, linkage, authorization, and snapshot state before preparing a short-lived disabled envelope.
 - Validation-only Docker worker image: non-root, read-only runtime, dropped capabilities, no-new-privileges, bounded resources, and no network.
 - HMAC-SHA256 task signing and signed validation acknowledgements; the isolated validator verifies signed stdin messages and returns signed stdout acknowledgements.
-- Atomic queued-job reservation and durable one-time task receipt/consumption primitives. Internal only; not exposed over HTTP or connected to a worker.
+- Internal signed-task issuance pipeline revalidates scope and atomically reserves a queued job before signing; signed acknowledgements are bound to the task receipt and consumed once. No HTTP transport or network delivery.
 - GitHub Actions runs backend tests and builds the validation-only worker image.
 
 ## Local setup
@@ -34,6 +34,6 @@ For local development the example JWT secret is intentionally marked as a placeh
 ## Current boundary
 The worker container is a **validator only**. It reads one signed task message from stdin (maximum 64 KiB), verifies HMAC and expiry, returns a signed validation acknowledgement, and exits. It has no network, queue consumer, database receipt access, Docker socket, or scan adapter. A valid signature is not proof of authorization.
 
-HMAC signing protects message integrity/authenticity only. Durable receipt primitives prevent duplicate reservation and repeated receipt consumption in the backend database, but are not yet connected to the isolated validator. Socket-level IP pinning, per-request scope checks, and real scanning remain unimplemented. Keep the API private; this is not production-ready.
+The backend now has an internal pipeline to revalidate and reserve a job before signing a task, plus an acknowledgement verifier that checks the HMAC, expected worker label, task ID, envelope digest, and time window before atomically consuming the receipt. This is not connected to a network transport or the isolated validator's stdin/stdout process. Worker labels are not strong identities when workers share a secret. Socket-level IP pinning, per-request scope checks, and real scanning remain unimplemented. Keep the API private; this is not production-ready.
 
 See [architecture](docs/ARCHITECTURE.md), [roadmap](docs/ROADMAP.md), [worker runtime](docs/WORKER_RUNTIME.md), [task authentication](docs/WORKER_TASK_AUTHENTICATION.md), and [replay protection](docs/WORKER_REPLAY_PROTECTION.md).

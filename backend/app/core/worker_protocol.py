@@ -4,7 +4,7 @@ This module defines data that may be dispatched after a real worker exists.
 It deliberately contains no shell command, script, executable path, or argv field.
 All execution remains disabled until independent dispatch and network controls exist.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Literal
 from uuid import UUID
 
@@ -40,7 +40,14 @@ def ensure_not_expired(task: WorkerTaskEnvelope, now: datetime | None = None) ->
     current = now or datetime.now(timezone.utc)
     if current.tzinfo is None:
         raise ValueError("current time must be timezone-aware")
-    if current.astimezone(timezone.utc) >= task.expires_at.astimezone(timezone.utc):
+    current_utc = current.astimezone(timezone.utc)
+    issued_utc = task.issued_at.astimezone(timezone.utc)
+    expires_utc = task.expires_at.astimezone(timezone.utc)
+    if issued_utc > current_utc + timedelta(seconds=30):
+        raise ValueError("worker task issue time is in the future")
+    if expires_utc - issued_utc > timedelta(seconds=300):
+        raise ValueError("worker task lifetime exceeds 300 seconds")
+    if current_utc >= expires_utc:
         raise ValueError("worker task expired")
     if task.execution_enabled is not False:
         raise ValueError("worker execution is disabled")

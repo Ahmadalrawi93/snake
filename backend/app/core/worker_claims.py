@@ -79,6 +79,9 @@ def consume_task_receipt(
     expected_envelope_sha256: str,
     *,
     now: datetime | None = None,
+    acknowledgement_outcome: str | None = None,
+    acknowledgement_worker_id: str | None = None,
+    acknowledgement_validated_at: datetime | None = None,
 ) -> bool:
     """Consume a matching unexpired receipt exactly once with a conditional UPDATE."""
     current = now or datetime.now(timezone.utc)
@@ -97,7 +100,12 @@ def consume_task_receipt(
             WorkerTaskReceipt.consumed_at.is_(None),
             WorkerTaskReceipt.expires_at > current.astimezone(timezone.utc),
         )
-        .values(consumed_at=current.astimezone(timezone.utc))
+        .values(
+            consumed_at=current.astimezone(timezone.utc),
+            acknowledgement_outcome=acknowledgement_outcome,
+            acknowledgement_worker_id=acknowledgement_worker_id,
+            acknowledgement_validated_at=acknowledgement_validated_at,
+        )
     )
     if result.rowcount != 1:
         db.rollback()

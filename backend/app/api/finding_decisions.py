@@ -34,7 +34,7 @@ def create_finding_decision(
         return record
     except LookupError:
         db.rollback()
-        raise HTTPException(status_code=404, detail="Analysis run not found")
+        raise HTTPException(status_code=404, detail="Analysis run or persisted candidate not found")
     except ValueError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Reviewer has already decided on this candidate")

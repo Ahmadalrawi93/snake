@@ -9,7 +9,8 @@ class PriorInvestigationMatch(BaseModel):
     shared_observation_count: int = Field(ge=0, le=500)
     new_observation_count: int = Field(ge=0, le=500)
     disposition: Literal["new_observations_available", "previously_seen_no_new_observations"]
-    human_outcome: Literal["confirmed", "false_positive", "inconclusive", "duplicate", "not_reviewed"]
+    human_outcomes: list[Literal["confirmed", "false_positive", "inconclusive", "duplicate"]] = Field(max_length=20)
+    review_state: Literal["human_reviewed", "not_reviewed"]
 
 class InvestigationMemoryReport(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)

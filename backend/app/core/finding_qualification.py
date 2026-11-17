@@ -28,8 +28,29 @@ def qualify_finding_candidate(
     """
     if bundle.strategy_id != strategy.strategy_id or assessment.strategy_id != strategy.strategy_id:
         raise ValueError("strategy, evidence bundle, and assessment must match")
-    if bundle.analysis_context_sha256 == "":
-        raise ValueError("missing analysis context digest")
+    if not re.fullmatch(r"[a-f0-9]{64}", bundle.analysis_context_sha256):
+        raise ValueError("invalid analysis context digest")
+
+    # Do not trust detached assessment summaries: bind their counts and IDs
+    # back to the exact evidence bundle supplied to this function.
+    bundle_evidence_ids = {item.evidence_id for item in bundle.items}
+    assessed_evidence_ids = set(assessment.evidence_ids)
+    bundle_observation_ids = {
+        observation_id for item in bundle.items for observation_id in item.observation_ids
+    }
+    assessed_observation_ids = set(assessment.observation_ids)
+    if assessed_evidence_ids != bundle_evidence_ids:
+        raise ValueError("assessment evidence IDs do not match evidence bundle")
+    if assessed_observation_ids != bundle_observation_ids:
+        raise ValueError("assessment observation IDs do not match evidence bundle")
+    expected_counts = {
+        "supporting_evidence_count": sum(item.relationship == "supports" for item in bundle.items),
+        "contradicting_evidence_count": sum(item.relationship == "contradicts" for item in bundle.items),
+        "context_evidence_count": sum(item.relationship == "context_only" for item in bundle.items),
+    }
+    for field, expected in expected_counts.items():
+        if getattr(assessment, field) != expected:
+            raise ValueError(f"assessment {field} does not match evidence bundle")
 
     fingerprint = _fingerprint(strategy.category, strategy.hypothesis)
     prior = set(prior_candidate_fingerprints or [])

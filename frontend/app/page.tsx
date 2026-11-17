@@ -10,6 +10,10 @@ type ScopeSnapshot = { id: number; target_id: number; authorization_id: number; 
 type PendingAuthorization = { id: number; project_id: number; reference: string; starts_at: string | null; expires_at: string | null; notes: string; created_at: string };
 type AnalysisRun = { id: number; provider: string; model: string; source_observation_count: number; status: string; disposition: string; execution_enabled: false; created_at: string };
 type FindingCandidate = { id: number; analysis_run_id: number; candidate_fingerprint: string; qualification: string; finding_status: string; evidence_bundle_sha256: string; execution_enabled: boolean; created_at: string };
+type CandidateDetail = { id: number; analysis_run_id: number; project_id: number; candidate_fingerprint: string; qualification: { title: string; category: string; qualification: string; evidence_quality: string; impact_quality: string; blockers: string[] }; evidence_bundle: { strategy_id: string; reviewer_note: string; items: { evidence_id: string; evidence_type: string; relationship: string; statement: string; source_label: string; observation_ids: string[]; recorded_at: string }[] }; evidence_bundle_sha256: string; finding_status: string; execution_enabled: boolean; created_at: string };
+type LifecycleEvent = { id: number; from_status: string; to_status: string; rationale: string; created_at: string };
+type EvidenceArtifact = { id: number; filename: string; media_type: string; content_sha256: string; size_bytes: number; description: string; created_at: string };
+type HumanDecision = { id: number; candidate_fingerprint: string; outcome: string; evidence_sha256: string | null; validation_method: string; notes: string; created_at: string };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
@@ -25,6 +29,14 @@ export default function Home() {
   const [analysisRuns, setAnalysisRuns] = useState<AnalysisRun[]>([]);
   const [selectedAnalysisRunId, setSelectedAnalysisRunId] = useState<number | null>(null);
   const [candidates, setCandidates] = useState<FindingCandidate[]>([]);
+  const [selectedCandidate, setSelectedCandidate] = useState<CandidateDetail | null>(null);
+  const [lifecycleEvents, setLifecycleEvents] = useState<LifecycleEvent[]>([]);
+  const [evidenceArtifacts, setEvidenceArtifacts] = useState<EvidenceArtifact[]>([]);
+  const [humanDecisions, setHumanDecisions] = useState<HumanDecision[]>([]);
+  const [decisionOutcome, setDecisionOutcome] = useState("inconclusive");
+  const [decisionMethod, setDecisionMethod] = useState("manual_reproduction");
+  const [decisionNotes, setDecisionNotes] = useState("");
+  const [evidenceDescription, setEvidenceDescription] = useState("");
   const [pendingAuthorizations, setPendingAuthorizations] = useState<PendingAuthorization[]>([]);
   const [reviewNotes, setReviewNotes] = useState<Record<number, string>>({});
   const [reviewScopes, setReviewScopes] = useState<Record<number, string>>({});
@@ -115,6 +127,112 @@ export default function Home() {
       setCandidates(rows);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load finding candidates");
+    }
+  }
+
+  async function openCandidate(candidateId: number) {
+    setBusy(true); setError(""); setSelectedCandidate(null);
+    try {
+      const detail = await api(`/api/v1/finding-candidates/${candidateId}`);
+      const [lifecycle, artifacts] = await Promise.all([
+        api(`/api/v1/finding-candidates/${candidateId}/lifecycle`),
+        api(`/api/v1/finding-candidates/${candidateId}/evidence`)
+      ]);
+      const decisions = await api(`/api/v1/analysis-runs/${detail.analysis_run_id}/finding-decisions?candidate_fingerprint=${detail.candidate_fingerprint}`);
+      setSelectedCandidate(detail);
+      setLifecycleEvents(lifecycle.events || []);
+      setEvidenceArtifacts(artifacts);
+      setHumanDecisions(decisions);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load candidate detail");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function uploadCandidateEvidence(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedCandidate) return;
+    const form = event.currentTarget;
+    const fileInput = form.elements.namedItem("evidenceFile") as HTMLInputElement | null;
+    const file = fileInput?.files?.[0];
+    if (!file) { setError("Choose an evidence file first."); return; }
+    if (file.size < 1 || file.size > 1024 * 1024) { setError("Evidence file must be between 1 byte and 1 MiB."); return; }
+    const allowed = ["text/plain", "application/json", "image/png", "image/jpeg", "application/pdf", "application/octet-stream"];
+    const mediaType = allowed.includes(file.type) ? file.type : "application/octet-stream";
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Could not read evidence file"));
+        reader.onerror = () => reject(new Error("Could not read evidence file"));
+        reader.readAsDataURL(file);
+      });
+      const contentBase64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+      await api(`/api/v1/finding-candidates/${selectedCandidate.id}/evidence`, {
+        method: "POST",
+        body: JSON.stringify({ filename: file.name, media_type: mediaType, content_base64: contentBase64, description: evidenceDescription })
+      });
+      setEvidenceDescription("");
+      form.reset();
+      const rows = await api(`/api/v1/finding-candidates/${selectedCandidate.id}/evidence`);
+      setEvidenceArtifacts(rows);
+      setMessage("Evidence encrypted and stored. Its SHA-256 digest is now available for a human decision.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Evidence upload failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function recordCandidateDecision(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedCandidate) return;
+    const evidenceRequired = decisionOutcome === "confirmed" || decisionOutcome === "false_positive";
+    if (evidenceRequired && !evidenceArtifacts.some(item => item.content_sha256)) {
+      setError("Upload evidence before recording this decision.");
+      return;
+    }
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const payload: Record<string, unknown> = {
+        candidate_fingerprint: selectedCandidate.candidate_fingerprint,
+        outcome: decisionOutcome,
+        validation_method: decisionMethod,
+        notes: decisionNotes,
+        reviewer_attested: true
+      };
+      if (evidenceRequired) payload.evidence_sha256 = evidenceArtifacts[0].content_sha256;
+      await api(`/api/v1/analysis-runs/${selectedCandidate.analysis_run_id}/finding-decisions`, {
+        method: "POST", body: JSON.stringify(payload)
+      });
+      setDecisionNotes("");
+      const decisions = await api(`/api/v1/analysis-runs/${selectedCandidate.analysis_run_id}/finding-decisions?candidate_fingerprint=${selectedCandidate.candidate_fingerprint}`);
+      setHumanDecisions(decisions);
+      setMessage("Human review decision recorded in the append-only review log.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not record human decision");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function transitionCandidate(newStatus: string, rationale: string) {
+    if (!selectedCandidate) return;
+    const currentStatus = lifecycleEvents.length ? lifecycleEvents[lifecycleEvents.length - 1].to_status : "new";
+    setBusy(true); setError(""); setMessage("");
+    try {
+      await api(`/api/v1/finding-candidates/${selectedCandidate.id}/lifecycle`, {
+        method: "POST",
+        body: JSON.stringify({ expected_status: currentStatus, new_status: newStatus, rationale })
+      });
+      const lifecycle = await api(`/api/v1/finding-candidates/${selectedCandidate.id}/lifecycle`);
+      setLifecycleEvents(lifecycle.events || []);
+      setMessage(`Candidate lifecycle updated: ${currentStatus} → ${newStatus}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Lifecycle transition rejected");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -404,12 +522,50 @@ export default function Home() {
                     <h3>Finding candidates from analysis #{selectedAnalysisRunId} <span>{candidates.length}</span></h3>
                     {candidates.length === 0 ? <p className="muted">No persisted candidates in this analysis run.</p> : candidates.map(candidate => (
                       <div className="record-row" key={candidate.id}>
-                        <div><b>Candidate #{candidate.id} · {candidate.qualification.replaceAll("_", " ").toUpperCase()}</b><small>{candidate.finding_status.toUpperCase()} · FINGERPRINT {candidate.candidate_fingerprint.slice(0, 16)}… · EXECUTION DISABLED</small><small>EVIDENCE SHA-256 {candidate.evidence_bundle_sha256.slice(0, 16)}…</small></div>
+                        <div><b>Candidate #{candidate.id} · {candidate.qualification.replaceAll("_", " ").toUpperCase()}</b><small>{candidate.finding_status.toUpperCase()} · FINGERPRINT {candidate.candidate_fingerprint.slice(0, 16)}… · EXECUTION DISABLED</small><small>EVIDENCE SHA-256 {candidate.evidence_bundle_sha256.slice(0, 16)}…</small><button className="text-button" disabled={busy} onClick={() => openCandidate(candidate.id)}>OPEN REVIEW WORKSPACE</button></div>
                         <time>{new Date(candidate.created_at).toLocaleDateString()}</time>
                       </div>
                     ))}
                   </div>
                 )}
+                {selectedCandidate && (
+                  <div className="candidate-review-workspace">
+                    <div className="section-heading"><div><p className="eyebrow">HUMAN REVIEW</p><h2>{selectedCandidate.qualification.title}</h2><p className="muted">Candidate #{selectedCandidate.id} · {selectedCandidate.qualification.category}</p></div><button className="text-button" onClick={() => setSelectedCandidate(null)}>CLOSE REVIEW</button></div>
+                    <div className="review-facts">
+                      <span>STATUS: {lifecycleEvents.length ? lifecycleEvents[lifecycleEvents.length - 1].to_status.toUpperCase() : "NEW"}</span>
+                      <span>QUALIFICATION: {selectedCandidate.qualification.qualification.toUpperCase()}</span>
+                      <span>EXECUTION: DISABLED</span>
+                    </div>
+                    {selectedCandidate.qualification.blockers.length > 0 && <div className="review-card"><b>Qualification blockers</b><ul>{selectedCandidate.qualification.blockers.map((item, index) => <li key={index}>{item}</li>)}</ul></div>}
+                    <div className="review-card"><h3>Evidence bundle · {selectedCandidate.evidence_bundle.items.length} records</h3>{selectedCandidate.evidence_bundle.items.map(item => <div className="record-row" key={item.evidence_id}><div><b>{item.evidence_type.replaceAll("_", " ").toUpperCase()} · {item.relationship.toUpperCase()}</b><p>{item.statement}</p><small>{item.source_label} · {item.observation_ids.length} observation links</small><small>Evidence ID: {item.evidence_id}</small></div></div>)}<small>Bundle SHA-256: {selectedCandidate.evidence_bundle_sha256}</small></div>
+                    <div className="records-grid">
+                      <form className="review-card" onSubmit={uploadCandidateEvidence}>
+                        <h3>Encrypted evidence vault</h3>
+                        <label>Evidence file (max 1 MiB)<input name="evidenceFile" type="file" required /></label>
+                        <label>Description<input value={evidenceDescription} onChange={e => setEvidenceDescription(e.target.value)} maxLength={1000} /></label>
+                        <button className="primary-button" disabled={busy}>ENCRYPT & STORE EVIDENCE</button>
+                        {evidenceArtifacts.map(item => <div className="record-row" key={item.id}><div><b>{item.filename}</b><small>{item.size_bytes} bytes · {item.media_type}</small><small>SHA-256: {item.content_sha256}</small></div><time>#{item.id}</time></div>)}
+                      </form>
+                      <form className="review-card" onSubmit={recordCandidateDecision}>
+                        <h3>Append human decision</h3>
+                        <label>Outcome<select value={decisionOutcome} onChange={e => setDecisionOutcome(e.target.value)}><option value="inconclusive">Inconclusive</option><option value="confirmed">Confirmed</option><option value="false_positive">False positive</option><option value="duplicate">Duplicate</option></select></label>
+                        <label>Validation method<input value={decisionMethod} onChange={e => setDecisionMethod(e.target.value)} required minLength={3} maxLength={80} pattern="[a-z][a-z0-9_]{2,79}" /></label>
+                        <label>Review notes<textarea value={decisionNotes} onChange={e => setDecisionNotes(e.target.value)} rows={3} maxLength={2000} /></label>
+                        {(decisionOutcome === "confirmed" || decisionOutcome === "false_positive") && <p className="hint">This decision will bind to the first uploaded evidence SHA-256 digest.</p>}
+                        <button className="primary-button" disabled={busy}>RECORD HUMAN DECISION</button>
+                        {humanDecisions.map(item => <div className="record-row" key={item.id}><div><b>{item.outcome.toUpperCase()}</b><small>{item.validation_method} · {item.created_at}</small><small>{item.evidence_sha256 || "No evidence digest"}</small></div><time>#{item.id}</time></div>)}
+                      </form>
+                    </div>
+                    <div className="review-card">
+                      <h3>Append-only lifecycle</h3>
+                      <div className="review-actions">
+                        {(!lifecycleEvents.length || lifecycleEvents[lifecycleEvents.length - 1].to_status === "new") && <button className="primary-button" disabled={busy} onClick={() => transitionCandidate("under_review", "Human review started.")}>START REVIEW</button>}
+                        {lifecycleEvents.length > 0 && lifecycleEvents[lifecycleEvents.length - 1].to_status === "under_review" && <button className="primary-button" disabled={busy} onClick={() => transitionCandidate("needs_more_evidence", "Additional evidence is required.")}>REQUEST MORE EVIDENCE</button>}
+                        {lifecycleEvents.length > 0 && lifecycleEvents[lifecycleEvents.length - 1].to_status === "needs_more_evidence" && <button className="primary-button" disabled={busy} onClick={() => transitionCandidate("under_review", "Additional evidence review resumed.")}>RESUME REVIEW</button>}
+                      </div>
+                      {lifecycleEvents.map(item => <div className="record-row" key={item.id}><div><b>{item.from_status.toUpperCase()} → {item.to_status.toUpperCase()}</b><p>{item.rationale}</p></div><time>{new Date(item.created_at).toLocaleString()}</time></div>)}
+                    </div>
+                  </div>
               </section>
             )}
           </>

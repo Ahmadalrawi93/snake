@@ -15,10 +15,10 @@ from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 from app.core.worker_protocol import WorkerTaskEnvelope
 from app.core.worker_signing import (
-    SignedWorkerValidationResult,
     sign_worker_task,
     verify_worker_validation_result,
 )
+from app.schemas.worker_transport import WorkerTaskResponse
 from worker_https_server import TASK_PATH, _ThreadingHTTPServer, build_handler
 
 
@@ -177,7 +177,9 @@ def test_real_https_mtls_task_and_signed_ack(live_mtls_worker):
         response = connection.getresponse()
         payload = response.read(64 * 1024 + 1)
         assert response.status == 200
-        ack = SignedWorkerValidationResult.model_validate_json(payload)
+        worker_response = WorkerTaskResponse.model_validate_json(payload)
+        ack = worker_response.acknowledgement
+        assert worker_response.observation_batch is None
         assert ack.result.execution_enabled is False
         assert verify_worker_validation_result(
             ack, cfg["worker_public"],

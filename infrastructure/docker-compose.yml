@@ -34,6 +34,9 @@ services:
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=8m
     network_mode: none
+    environment:
+      SNAKE_WORKER_SIGNING_SECRET: ${SNAKE_WORKER_SIGNING_SECRET:-}
+      SNAKE_WORKER_ID: ${SNAKE_WORKER_ID:-local-validator}
     stdin_open: true
     restart: "no"
 

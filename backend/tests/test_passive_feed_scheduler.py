@@ -167,3 +167,31 @@ def test_scheduler_writes_separate_api_endpoint_report(tmp_path):
     assert report["endpoints"][0]["path_template"] == "/v2/accounts/{id}"
     assert report["execution_enabled"] is False
     assert endpoint_path.stat().st_mode & 0o777 == 0o600
+
+
+def test_scheduler_writes_separate_business_logic_hypotheses(tmp_path):
+    scope = tmp_path / "scope.json"
+    scope.write_text(json.dumps({"approved_scope_rules": ["*.example.org"]}))
+    scope.chmod(0o600)
+    output = tmp_path / "feed.json"
+    report_path = tmp_path / "business-logic.json"
+    records = [
+        {"hostname": "api.example.org", "kind": "url",
+         "value": "https://api.example.org/v1/orders", "source": "ct",
+         "evidence": "passive", "observed_at": "2026-11-17T10:00:00+00:00"},
+        {"hostname": "api.example.org", "kind": "url",
+         "value": "https://api.example.org/v1/orders/123", "source": "dnsdb",
+         "evidence": "passive", "observed_at": "2026-11-17T10:01:00+00:00"},
+        {"hostname": "api.example.org", "kind": "url",
+         "value": "https://api.example.org/v1/orders/123/refund", "source": "ct",
+         "evidence": "passive", "observed_at": "2026-11-17T10:02:00+00:00"},
+    ]
+    run_cycle(str(scope), str(output), ["ct"], "ticket",
+              ct_collector=lambda _rules: records,
+              business_logic_report=str(report_path))
+    report = json.loads(report_path.read_text())
+    assert report["classification"] == "passive_unconfirmed_business_logic_hypotheses"
+    assert report["summary"]["object_authorization"] == 1
+    assert report["summary"]["sensitive_business_operation"] == 1
+    assert report["summary"]["confirmed"] == 0
+    assert report_path.stat().st_mode & 0o777 == 0o600

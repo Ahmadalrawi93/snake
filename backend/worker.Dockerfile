@@ -16,6 +16,7 @@ COPY app/core/worker_protocol.py /opt/snake/app/core/worker_protocol.py
 COPY app/core/worker_observation_signing.py /opt/snake/app/core/worker_observation_signing.py
 COPY app/schemas/__init__.py /opt/snake/app/schemas/__init__.py
 COPY app/schemas/worker_results.py /opt/snake/app/schemas/worker_results.py
+COPY app/schemas/worker_transport.py /opt/snake/app/schemas/worker_transport.py
 COPY app/core/worker_signing.py /opt/snake/app/core/worker_signing.py
 COPY worker_entrypoint.py /opt/snake/worker_entrypoint.py
 COPY worker_https_server.py /opt/snake/worker_https_server.py

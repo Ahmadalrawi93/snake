@@ -45,3 +45,13 @@ def test_graph_rejects_oversized_input():
     import pytest
     with pytest.raises(ValueError):
         build_attack_surface_graph([{}] * 501, ["example.org"])
+
+
+def test_exact_scope_rule_does_not_expand_to_subdomains():
+    record = {"hostname": "sub.example.org", "kind": "hostname",
+              "value": "sub.example.org", "source": "ct",
+              "observed_at": "2026-11-17T00:00:00+00:00"}
+    exact = build_attack_surface_graph([record], ["example.org"])
+    wildcard = build_attack_surface_graph([record], ["*.example.org"])
+    assert exact["summary"]["nodes"] == 0
+    assert wildcard["summary"]["nodes"] == 2

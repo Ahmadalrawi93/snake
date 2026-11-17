@@ -2,7 +2,7 @@
 from sqlalchemy.orm import Session
 
 from app.core.analysis_redaction import redact_text
-from app.db.models import AIAnalysisRun, AuditEvent, HumanFindingDecision, Project, User
+from app.db.models import AIAnalysisRun, AuditEvent, FindingCandidateRecord, HumanFindingDecision, Project, User
 from app.schemas.finding_decisions import HumanFindingDecisionCreate
 
 
@@ -18,6 +18,17 @@ def record_human_finding_decision(
     ).first()
     if run is None:
         raise LookupError("analysis run not found")
+
+    candidate = db.query(FindingCandidateRecord).filter_by(
+        analysis_run_id=run.id,
+        project_id=run.project_id,
+        candidate_fingerprint=payload.candidate_fingerprint,
+        qualification="human_review_candidate",
+        finding_status="unconfirmed",
+        execution_enabled=False,
+    ).first()
+    if candidate is None:
+        raise LookupError("persisted candidate not found")
 
     prior = db.query(HumanFindingDecision.id).filter_by(
         analysis_run_id=run.id,

@@ -10,6 +10,8 @@ and validation-only worker acknowledgements.
 - A dedicated secret of at least 32 characters is required; never reuse the
   user JWT secret.
 - Verification uses constant-time comparison.
+- Worker validation rejects issue timestamps more than 30 seconds in the future,
+  expired tasks, and task lifetimes longer than 300 seconds.
 - Any signed payload field modification invalidates its signature.
 
 The result contract is deliberately limited to `accepted` or `rejected`, includes

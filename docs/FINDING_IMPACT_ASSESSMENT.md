@@ -40,7 +40,7 @@ impact engine.
 
 - `POST /api/v1/finding-candidates/{candidate_id}/impact-assessments`
   - Requires an authenticated user who owns the candidate's project.
-  - Body: `{"claims": [...]}`, with at most 100 claims.
+  - Body: `{"claims": [...]}`, with 1–100 claims; empty submissions are rejected.
   - Each claim must be explicitly human-attested.
   - Repeated identical submissions are idempotent.
   - Distinct assessments append new immutable records.

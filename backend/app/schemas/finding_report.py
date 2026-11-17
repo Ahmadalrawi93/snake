@@ -23,3 +23,9 @@ class FindingReportDraft(BaseModel):
     execution_enabled: Literal[False] = False
     generated_from_human_attested_evidence: Literal[True] = True
     requires_human_edit_and_independent_validation: Literal[True] = True
+
+
+class FindingReportPreview(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    report: FindingReportDraft
+    markdown: str = Field(min_length=1, max_length=20000)

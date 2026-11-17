@@ -17,13 +17,16 @@ class ScopeDecision:
 
 def normalize_host(host: str) -> str:
     value = host.strip().lower().rstrip(".")
-    if not value or any(ch in value for ch in "/\\@:#"):
+    if not value:
         raise ValueError("Invalid hostname")
+    # Parse IP literals before hostname delimiter checks so bracket-stripped IPv6
+    # URL hosts are supported and normalized by ipaddress.
     try:
-        ipaddress.ip_address(value)
-        return value
+        return str(ipaddress.ip_address(value))
     except ValueError:
         pass
+    if any(ch in value for ch in "/\\@:#"):
+        raise ValueError("Invalid hostname")
     if not _HOST_RE.fullmatch(value):
         raise ValueError("Invalid hostname")
     return value

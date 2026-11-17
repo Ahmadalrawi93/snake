@@ -56,3 +56,22 @@ def test_ignores_unrecognized_and_malformed_routes():
 def test_rejects_invalid_surface_limit():
     with pytest.raises(ValueError):
         build_business_logic_profile(build_analysis_context([]), max_surfaces=0)
+
+
+def test_object_route_without_observed_collection_does_not_claim_collection_relationship():
+    profile = build_business_logic_profile(build_analysis_context([
+        obs("https://app.example.test/api/users/123"),
+    ]))
+    assert len(profile.object_surfaces) == 1
+    assert profile.object_surfaces[0].object_route is None
+    assert not any(x.category == "object_authorization" for x in profile.hypotheses)
+
+
+def test_nested_action_route_does_not_pollute_object_surface_evidence():
+    items = [
+        obs("https://app.example.test/api/users"),
+        obs("https://app.example.test/api/users/123"),
+        obs("https://app.example.test/api/users/123/delete"),
+    ]
+    profile = build_business_logic_profile(build_analysis_context(items))
+    assert set(profile.object_surfaces[0].observation_ids) == {str(x.observation_id) for x in items[:2]}

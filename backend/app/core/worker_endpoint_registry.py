@@ -31,7 +31,7 @@ def validate_worker_endpoint(base_url: str, tls_server_name: str, certificate_sh
         pass
     else:
         raise ValueError("worker endpoint must use a DNS hostname, not an IP literal")
-    if host in {"localhost"} or host.endswith((".localhost", ".local", ".internal")):
+    if "." not in host or host in {"localhost"} or host.endswith((".localhost", ".local", ".internal")):
         raise ValueError("local or internal endpoint hostname is forbidden")
     server_name = normalize_host(tls_server_name)
     if server_name != host:
@@ -50,7 +50,7 @@ def register_worker_endpoint(
     canonical, server_name, fingerprint = validate_worker_endpoint(
         base_url, tls_server_name, certificate_sha256
     )
-    if not db.query(WorkerEndpoint).filter_by(worker_id=worker_id).first() is None:
+    if db.query(WorkerEndpoint).filter_by(worker_id=worker_id).first() is not None:
         raise ValueError("worker endpoint already exists; revoke it before replacement")
     row = WorkerEndpoint(
         worker_id=worker_id, base_url=canonical, tls_server_name=server_name,

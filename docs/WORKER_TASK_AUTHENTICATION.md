@@ -6,7 +6,7 @@ SNAKE uses Ed25519 asymmetric signatures rather than a shared HMAC secret.
 - Each worker receives only the backend public key, so a compromised worker
   cannot mint backend-authorized tasks.
 - Each worker signs validation acknowledgements with its own Ed25519 private
-  key. The backend verifies using that worker's public key.
+  key. The backend verifies using that worker's registered public key.
 - Task signatures bind the envelope, intended worker ID, and key ID.
   Acknowledgement signatures bind the result and key ID; verification also
   enforces the expected worker ID.
@@ -14,10 +14,30 @@ SNAKE uses Ed25519 asymmetric signatures rather than a shared HMAC secret.
 - Keys are DER encoded then base64 encoded for environment injection.
 
 The backend private key must remain backend-only. A worker must never receive it.
-The worker private key stays in that worker's secret store; only its public key
-is configured on the backend. Every worker needs a distinct keypair and key ID.
-Key provisioning, secure storage, revocation, and automated rotation are not
-implemented yet; callers must select trusted key material out of band.
+The worker private key stays in that worker's secret store. The worker public key
+is registered in the backend database by an administrator; it is public material.
+Every worker needs a distinct keypair and key ID.
+
+## Worker key administration
+
+Admin-only endpoints:
+- POST /api/v1/admin/workers/{worker_id}/keys — register a public key.
+- GET /api/v1/admin/workers/keys — list registered key metadata and fingerprints.
+- POST /api/v1/admin/workers/{worker_id}/keys/{key_id}/revoke — revoke a key.
+
+The registry validates Ed25519 public-key type, computes a canonical SHA-256
+fingerprint, rejects duplicate worker/key IDs and duplicate public keys, and
+allows only one-way revocation. A revoked key cannot authenticate acknowledgements.
+Registering a replacement requires a fresh keypair and a new key ID. All
+registration and revocation actions are written to the audit log.
+
+KMS-backed private-key storage, secure automated provisioning, rotation
+orchestration, and automated revocation are not implemented. The backend task
+private key and each worker private key must be injected through trusted secret
+storage. Private keys must never be stored in the worker-key database table,
+source control, task payloads, logs, or container images.
+
+## Key generation
 
 Generate DER keys with OpenSSL. Keep the files outside the repository and restrict
 permissions:
@@ -37,15 +57,10 @@ openssl pkey -in worker-01-private.pem -outform DER | base64 -w0
 openssl pkey -pubin -in worker-01-public.pem -outform DER | base64 -w0
 ```
 
-The backend receives its own private key and each worker's public key through
-trusted secret/configuration injection. A worker receives only the backend public
-key and its own private key. Do not put private keys in source control, database
-rows, task payloads, logs, or container images.
-
-The worker requires SNAKE_BACKEND_ED25519_PUBLIC_KEY_B64,
-SNAKE_WORKER_ED25519_PRIVATE_KEY_B64, SNAKE_WORKER_ID, and
-SNAKE_WORKER_KEY_ID. The backend task issuer requires the backend private key;
-acknowledgement acceptance requires the expected worker's public key.
+The backend receives its own private key. A worker receives only the backend
+public key and its own private key. The worker requires
+SNAKE_BACKEND_ED25519_PUBLIC_KEY_B64, SNAKE_WORKER_ED25519_PRIVATE_KEY_B64,
+SNAKE_WORKER_ID, and SNAKE_WORKER_KEY_ID.
 
 The validation result is limited to accepted/rejected and fixes
 execution_enabled=false. Task expiry, scope revalidation, durable receipt binding,

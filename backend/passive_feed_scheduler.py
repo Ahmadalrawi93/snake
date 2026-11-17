@@ -11,7 +11,6 @@ import json
 import logging
 import os
 import signal
-import sys
 import time
 from pathlib import Path
 from typing import Callable
@@ -40,6 +39,8 @@ def run_cycle(
     environ: dict[str, str] | None = None,
 ) -> int:
     """Build a fresh feed and atomically publish it only after all sources succeed."""
+    if not providers or len(set(providers)) != len(providers) or any(p not in {"ct", "dnsdb"} for p in providers):
+        raise ValueError("providers must be a non-empty unique list of supported sources")
     env = os.environ if environ is None else environ
     scope_rules = load_scope(scope_file)  # reload every cycle; scope changes take effect
     records: list[dict[str, str]] = []

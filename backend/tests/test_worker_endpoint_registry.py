@@ -33,6 +33,7 @@ def test_register_canonical_https_endpoint_with_certificate_pin(db):
     "http://worker.example.org",
     "https://user:pass@worker.example.org",
     "https://127.0.0.1",
+    "https://worker.example.org:0",
     "https://localhost",
     "https://worker.example.org/private",
     "https://worker.example.org?next=example",

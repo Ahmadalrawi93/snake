@@ -9,7 +9,6 @@ import json
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime, timezone
-from socketserver import ThreadingMixIn
 from threading import BoundedSemaphore
 import ssl
 

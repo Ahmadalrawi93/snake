@@ -8,6 +8,7 @@ from app.core.analysis_redaction import redact_text
 from app.schemas.analysis_context import AnalysisContext
 from app.schemas.evidence_correlation import CorrelationReport
 from app.schemas.observation_triage import ObservationTriage
+from app.schemas.validation_strategy import ValidationStrategyPlan
 from app.core.deepseek_analysis import AnalysisExecutionResult
 
 
@@ -31,6 +32,7 @@ def persist_analysis_run(
     cost_usd: str | None = None,
     provider_request_id: str | None = None,
     target_id: int | None = None,
+    validation_strategy: ValidationStrategyPlan | None = None,
 ) -> AIAnalysisRun:
     """Store only validated triage and digests, not raw prompts, evidence, or credentials."""
     project = db.query(Project).filter_by(id=project_id, owner_id=actor.id).first()
@@ -54,6 +56,23 @@ def persist_analysis_run(
     result_data["hypothesis"] = redact_text(result_data["hypothesis"])
     result_data["missing_evidence"] = [redact_text(value) for value in result_data["missing_evidence"]]
     result_data["validation_questions"] = [redact_text(value) for value in result_data["validation_questions"]]
+    if validation_strategy is not None:
+        available_ids = {
+            value
+            for group in context.groups for item in group.observations
+            for value in item.observation_ids
+        } | {
+            value for item in context.ungrouped for value in item.observation_ids
+        }
+        strategy_data = validation_strategy.model_dump(mode="json")
+        for strategy_item in strategy_data["items"]:
+            if not set(strategy_item["supporting_observation_ids"]).issubset(available_ids):
+                raise ValueError("validation strategy references observations outside analysis context")
+            for field in ("priority_basis", "hypothesis"):
+                strategy_item[field] = redact_text(strategy_item[field])
+            for field in ("missing_evidence", "validation_questions", "manual_review_actions", "prerequisites"):
+                strategy_item[field] = [redact_text(value) for value in strategy_item[field]]
+        result_data["validation_strategy"] = strategy_data
     record = AIAnalysisRun(
         project_id=project.id,
         target_id=target_id,
@@ -99,6 +118,7 @@ def persist_analysis_execution(
         context=context,
         correlations=correlations,
         triage=execution.triage,
+        validation_strategy=execution.validation_strategy,
         model=execution.model,
         prompt_tokens=execution.prompt_tokens,
         completion_tokens=execution.completion_tokens,

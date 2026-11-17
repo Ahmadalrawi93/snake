@@ -65,3 +65,18 @@ def test_extracts_object_reference_and_business_operation_review_hints():
     assert "object_reference_authorization_review" in endpoint["business_logic_review_hints"]
     assert "named_business_operation_manual_review" in endpoint["business_logic_review_hints"]
     assert endpoint["method"] == "unknown"
+
+
+def test_rejects_malformed_ports_and_naive_timestamps():
+    malformed = rec("api.example.org", "https://api.example.org:99999/v1")
+    naive = rec("api.example.org", "https://api.example.org/v1")
+    naive["observed_at"] = "2026-11-17T10:00:00"
+    result = build_api_endpoint_intelligence([malformed, naive], ["*.example.org"])
+    assert result["endpoints"] == []
+
+
+def test_rejects_control_characters_and_oversized_urls():
+    control = rec("api.example.org", "https://api.example.org/v1\n")
+    oversized = rec("api.example.org", "https://api.example.org/" + "a" * 5000)
+    result = build_api_endpoint_intelligence([control, oversized], ["*.example.org"])
+    assert result["endpoints"] == []

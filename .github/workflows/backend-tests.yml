@@ -29,7 +29,7 @@ jobs:
       - run: PYTHONPATH=. pytest -q
       - name: Verify database migrations
         env:
-          DATABASE_URL: sqlite:///./migration-ci.db
+          SNAKE_DATABASE_URL: sqlite:///./migration-ci.db
         run: alembic upgrade head
       - name: Build validation-only worker image
         run: docker build -f worker.Dockerfile -t snake-worker-validator:test .

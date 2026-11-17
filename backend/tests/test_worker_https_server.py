@@ -203,3 +203,24 @@ def test_expired_task_is_not_written_to_replay_ledger(tmp_path):
     with sqlite3.connect(ledger_path) as db:
         count = db.execute("SELECT COUNT(*) FROM worker_task_ledger").fetchone()[0]
     assert count == 0
+
+
+
+def test_worker_listener_defaults_to_loopback():
+    from worker_https_server import worker_bind_config
+    assert worker_bind_config({}) == ("127.0.0.1", 8443)
+
+
+@pytest.mark.parametrize("host", ["0.0.0.0", "::", "worker.internal", ""])
+def test_worker_listener_rejects_wildcard_or_non_ip_bind_hosts(host):
+    from worker_https_server import worker_bind_config
+    with pytest.raises(ValueError):
+        worker_bind_config({"SNAKE_WORKER_BIND_HOST": host})
+
+
+def test_worker_listener_accepts_explicit_private_interface():
+    from worker_https_server import worker_bind_config
+    assert worker_bind_config({
+        "SNAKE_WORKER_BIND_HOST": "10.20.30.40",
+        "SNAKE_WORKER_BIND_PORT": "9443",
+    }) == ("10.20.30.40", 9443)

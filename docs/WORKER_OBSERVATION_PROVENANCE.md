@@ -39,3 +39,6 @@ Authenticated project owners can inspect the source chain at `GET /api/v1/analys
 - A worker signature proves which registered key signed the submitted batch, not that each observation is factually correct.
 - The current scope policy is hostname allowlist based. DNS pinning and outbound enforcement do not make this an active scanner.
 - No scan execution, exploit validation, or automatic vulnerability confirmation is enabled.
+
+
+The backend also independently revalidates each observation's hostname against the immutable approved snapshot before including it in AI analysis. Hostname and URL observations are checked directly; DNS, technology, and HTTP-header observations must carry an explicit `hostname=<host>;` evidence binding. IP-only observations without a hostname binding are excluded from analysis. Worker-side filtering is not treated as a trust boundary.

@@ -11,7 +11,8 @@ from app.api.dependencies import get_current_user
 from app.core.scope_policy import ScopePolicy, normalize_host
 from app.db.database import get_db
 from app.db.models import (
-    AuditEvent, Authorization, Project, ScanJob, ScopeSnapshot, Target, User,\n    WorkerObservationRecord, WorkerTaskReceipt,
+    AuditEvent, Authorization, Project, ScanJob, ScopeSnapshot, Target, User,
+    WorkerObservationRecord, WorkerTaskReceipt,
 )
 
 router = APIRouter(prefix="/api/v1", tags=["scan jobs"])

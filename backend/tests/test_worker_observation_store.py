@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.worker_key_registry import revoke_worker_public_key
 from app.core.worker_observation_signing import sign_worker_observation_batch
 from app.core.worker_observation_store import store_worker_observation_batch
-from app.db.models import WorkerKey, WorkerObservationRecord, WorkerTaskReceipt
+from app.db.models import WorkerKey, WorkerObservationBatchReceipt, WorkerObservationRecord, WorkerTaskReceipt
 from app.core.worker_signing import ed25519_public_key_fingerprint
 from app.schemas.worker_results import WorkerObservation, WorkerObservationBatch
 
@@ -41,6 +41,7 @@ def db():
     WorkerTaskReceipt.__table__.create(engine)
     WorkerKey.__table__.create(engine)
     WorkerObservationRecord.__table__.create(engine)
+    WorkerObservationBatchReceipt.__table__.create(engine)
     with Session(engine) as session:
         session.add(WorkerKey(
             worker_id=WORKER_ID, key_id=KEY_ID, public_key_b64=PUBLIC,
@@ -197,3 +198,40 @@ def test_observation_rows_are_append_only_at_database_level(db):
         db.flush()
     db.rollback()
     assert db.scalar(select(WorkerObservationRecord)).value == "api.example.test"
+
+
+def test_identical_batch_retry_is_idempotent(db):
+    signed = sign_worker_observation_batch(make_batch(), PRIVATE)
+    assert store_worker_observation_batch(db, signed, now=NOW) == 1
+    db.commit()
+    assert store_worker_observation_batch(db, signed, now=NOW + timedelta(seconds=1)) == 1
+    db.commit()
+    assert len(db.scalars(select(WorkerObservationRecord)).all()) == 1
+    assert len(db.scalars(select(WorkerObservationBatchReceipt)).all()) == 1
+
+
+def test_different_batch_for_same_task_is_rejected_without_partial_rows(db):
+    first = sign_worker_observation_batch(make_batch(), PRIVATE)
+    assert store_worker_observation_batch(db, first, now=NOW) == 1
+    db.commit()
+    second = sign_worker_observation_batch(make_batch(observations=[WorkerObservation(
+        observation_id=uuid4(), kind="hostname", value="other.example.test",
+        evidence="passive source", source="passive_dns", observed_at=NOW,
+    )]), PRIVATE)
+    with pytest.raises(ValueError, match="different immutable"):
+        store_worker_observation_batch(db, second, now=NOW + timedelta(seconds=1))
+    assert len(db.scalars(select(WorkerObservationRecord)).all()) == 1
+
+
+def test_duplicate_observation_does_not_rollback_outer_transaction(db):
+    observation_id = uuid4()
+    item = WorkerObservation(observation_id=observation_id, kind="hostname", value="one.example.test",
+        source="passive_dns", observed_at=NOW)
+    first = sign_worker_observation_batch(make_batch(observations=[item]), PRIVATE)
+    assert store_worker_observation_batch(db, first, now=NOW) == 1
+    db.commit()
+    second_item = item.model_copy(update={"value": "two.example.test"})
+    second = sign_worker_observation_batch(make_batch(observations=[second_item]), PRIVATE)
+    with pytest.raises(ValueError, match="duplicate batch"):
+        store_worker_observation_batch(db, second, now=NOW)
+    assert len(db.scalars(select(WorkerObservationRecord)).all()) == 1

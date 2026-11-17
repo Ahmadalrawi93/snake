@@ -458,3 +458,57 @@ def test_persisted_impact_rejects_verified_context_digest_mismatch(impact_contex
     assert db.query(FindingImpactAssessmentRecord).filter_by(
         candidate_id=candidate.id
     ).count() == 0
+
+
+
+def test_read_rejects_tampered_persisted_assessment_digest(impact_context):
+    from sqlalchemy import text
+
+    db, owner, _other, candidate, _foreign, claim = impact_context
+    record = service.create_persisted_finding_impact(
+        db, candidate_id=candidate.id, actor=owner, claims=[claim],
+    )
+    db.commit()
+
+    payload = record["assessment"]
+    payload["rationale"].append("Tampered after persistence.")
+    db.execute(text("DROP TRIGGER finding_impact_assessments_no_update"))
+    db.execute(
+        text("UPDATE finding_impact_assessments SET assessment_json = :value WHERE id = :id"),
+        {"value": canonical(payload), "id": record["id"]},
+    )
+    db.commit()
+
+    with pytest.raises(ValueError, match="assessment digest mismatch"):
+        service.list_persisted_finding_impacts(
+            db, candidate_id=candidate.id, actor=owner,
+        )
+
+
+def test_read_rejects_claim_digest_mismatch_even_if_assessment_digest_matches(impact_context):
+    from sqlalchemy import text
+
+    db, owner, _other, candidate, _foreign, claim = impact_context
+    record = service.create_persisted_finding_impact(
+        db, candidate_id=candidate.id, actor=owner, claims=[claim],
+    )
+    db.commit()
+
+    payload = record["assessment"]
+    payload["claims"][0]["statement"] = "Modified human attestation statement."
+    assessment_json = canonical(payload)
+    assessment_digest = hashlib.sha256(assessment_json.encode()).hexdigest()
+    db.execute(text("DROP TRIGGER finding_impact_assessments_no_update"))
+    db.execute(
+        text(
+            "UPDATE finding_impact_assessments "
+            "SET assessment_json = :value, assessment_sha256 = :digest WHERE id = :id"
+        ),
+        {"value": assessment_json, "digest": assessment_digest, "id": record["id"]},
+    )
+    db.commit()
+
+    with pytest.raises(ValueError, match="claims digest mismatch"):
+        service.list_persisted_finding_impacts(
+            db, candidate_id=candidate.id, actor=owner,
+        )

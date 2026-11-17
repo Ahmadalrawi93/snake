@@ -153,6 +153,7 @@ def live_mtls_worker(tmp_path):
             "backend_private": backend_private,
             "worker_public": worker_public,
             "ca_cert": ca_cert,
+            "server": server,
         }
     finally:
         server.shutdown()
@@ -189,6 +190,24 @@ def test_real_https_mtls_task_and_signed_ack(live_mtls_worker):
 def test_real_https_rejects_client_without_certificate(live_mtls_worker):
     cfg = live_mtls_worker
     context = ssl.create_default_context(cafile=str(cfg["ca"]))
+    connection = http.client.HTTPSConnection(
+        cfg["host"], cfg["port"], context=context, timeout=3
+    )
+    try:
+        with pytest.raises((ssl.SSLError, OSError, http.client.RemoteDisconnected)):
+            connection.request("POST", TASK_PATH, body=b"{}", headers={
+                "Content-Type": "application/json",
+            })
+            connection.getresponse()
+    finally:
+        connection.close()
+
+
+def test_real_https_rejects_unpinned_backend_client_certificate(live_mtls_worker):
+    cfg = live_mtls_worker
+    cfg["server"].expected_client_certificate_sha256 = "0" * 64
+    context = ssl.create_default_context(cafile=str(cfg["ca"]))
+    context.load_cert_chain(str(cfg["client_cert"]), str(cfg["client_key"]))
     connection = http.client.HTTPSConnection(
         cfg["host"], cfg["port"], context=context, timeout=3
     )

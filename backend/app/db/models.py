@@ -213,7 +213,7 @@ class AIAnalysisRun(Base):
         CheckConstraint("status IN ('completed')", name="ck_ai_analysis_run_status"),
         CheckConstraint("disposition = 'requires_independent_validation'",
                         name="ck_ai_analysis_requires_validation"),
-        CheckConstraint("execution_enabled = 0", name="ck_ai_analysis_execution_disabled"),
+        CheckConstraint("execution_enabled = false", name="ck_ai_analysis_execution_disabled"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

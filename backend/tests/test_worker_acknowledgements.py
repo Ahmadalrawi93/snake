@@ -1,7 +1,10 @@
+import base64
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -10,9 +13,24 @@ from app.core.worker_protocol import WorkerValidationResult
 from app.core.worker_signing import sign_worker_validation_result
 from app.db.models import WorkerTaskReceipt
 
-SECRET = "worker-ack-test-secret-with-more-than-32-characters"
 WORKER_ID = "validator-east-01"
 KEY_ID = "validator-east-01-v1"
+
+
+def keypair():
+    key = Ed25519PrivateKey.generate()
+    private = base64.b64encode(key.private_bytes(
+        serialization.Encoding.DER, serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    )).decode()
+    public = base64.b64encode(key.public_key().public_bytes(
+        serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo,
+    )).decode()
+    return private, public
+
+
+WORKER_PRIVATE, WORKER_PUBLIC = keypair()
+OTHER_PRIVATE, _ = keypair()
 
 
 @pytest.fixture
@@ -37,19 +55,19 @@ def make_receipt(db):
     return receipt, task_id
 
 
-def make_ack(task_id, *, digest="a" * 64, worker_id=WORKER_ID, key_id=KEY_ID, outcome="accepted"):
+def make_ack(task_id, *, digest="a" * 64, worker_id=WORKER_ID, key_id=KEY_ID, private=WORKER_PRIVATE):
     result = WorkerValidationResult(
         task_id=task_id, envelope_sha256=digest, worker_id=worker_id,
-        outcome=outcome, validated_at=datetime.now(timezone.utc),
+        outcome="accepted", validated_at=datetime.now(timezone.utc),
         execution_enabled=False,
     )
-    return sign_worker_validation_result(result, SECRET, key_id=key_id)
+    return sign_worker_validation_result(result, private, key_id=key_id)
 
 
 def accept(db, signed, **kwargs):
     return accept_worker_acknowledgement(
-        db, signed, secret=SECRET, expected_worker_id=WORKER_ID,
-        expected_key_id=KEY_ID, **kwargs
+        db, signed, worker_public_key_b64=WORKER_PUBLIC,
+        expected_worker_id=WORKER_ID, expected_key_id=KEY_ID, **kwargs
     )
 
 
@@ -77,6 +95,11 @@ def test_ack_rejects_unknown_key_id(db):
 def test_ack_rejects_digest_mismatch(db):
     _, task_id = make_receipt(db)
     assert not accept(db, make_ack(task_id, digest="b" * 64))
+
+
+def test_ack_rejects_signature_from_another_private_key(db):
+    _, task_id = make_receipt(db)
+    assert not accept(db, make_ack(task_id, private=OTHER_PRIVATE))
 
 
 def test_ack_rejects_tampered_signature(db):

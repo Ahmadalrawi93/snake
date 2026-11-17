@@ -4,6 +4,7 @@ from uuid import uuid4
 import pytest
 
 from app.core.finding_qualification import qualify_finding_candidate
+from app.core.evidence_gap_intelligence import build_evidence_gap_report
 from app.schemas.validation_strategy import ValidationStrategyItem
 from app.schemas.validation_evidence import (
     ValidationEvidenceAssessment, ValidationEvidenceBundle, ValidationEvidenceItem,
@@ -123,3 +124,22 @@ def test_forged_assessment_counts_are_rejected():
     detached = ValidationEvidenceAssessment.model_validate(data)
     with pytest.raises(ValueError, match="supporting_evidence_count"):
         qualify_finding_candidate(strategy, bundle, detached)
+
+
+
+def test_hard_evidence_gap_blocks_candidate_even_when_legacy_assessment_is_ready():
+    strategy, bundle, assessment = fixtures()
+    gaps = build_evidence_gap_report(strategy, bundle, assessment)
+    assert any(g.category == "authorized_test_account" and g.hard_blocker for g in gaps.gaps)
+    result = qualify_finding_candidate(strategy, bundle, assessment, evidence_gaps=gaps)
+    assert result.qualification == "insufficient_evidence"
+    assert "evidence_gap:authorized_test_account" in result.blockers
+
+
+def test_evidence_gap_report_strategy_mismatch_is_rejected():
+    strategy, bundle, assessment = fixtures()
+    gaps = build_evidence_gap_report(strategy, bundle, assessment).model_copy(
+        update={"strategy_id": "another_strategy"}
+    )
+    with pytest.raises(ValueError, match="does not match"):
+        qualify_finding_candidate(strategy, bundle, assessment, evidence_gaps=gaps)

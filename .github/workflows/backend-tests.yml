@@ -4,10 +4,12 @@ on:
   push:
     paths:
       - "backend/**"
+      - "infrastructure/docker-compose.yml"
       - ".github/workflows/backend-tests.yml"
   pull_request:
     paths:
       - "backend/**"
+      - "infrastructure/docker-compose.yml"
       - ".github/workflows/backend-tests.yml"
 
 jobs:
@@ -25,3 +27,5 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r requirements.txt
       - run: PYTHONPATH=. pytest -q
+      - name: Build validation-only worker image
+        run: docker build -f worker.Dockerfile -t snake-worker-validator:test .

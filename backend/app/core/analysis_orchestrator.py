@@ -21,6 +21,7 @@ from app.core.cross_endpoint_authorization import build_cross_endpoint_authoriza
 from app.core.authorization_test_cases import build_authorization_test_case_report
 from app.core.finding_qualification import qualify_finding_candidate
 from app.core.finding_report import build_finding_report_draft
+from app.core.finding_impact import assess_finding_impact
 from app.core.finding_candidates import persist_finding_candidate
 from app.db.models import AIAnalysisRun, FindingCandidateRecord, Project, User
 from app.schemas.analysis_context import AnalysisContext
@@ -42,6 +43,7 @@ from app.schemas.validation_strategy import ValidationStrategyPlan
 from app.schemas.finding_candidates import FindingCandidateCreate
 from app.schemas.finding_qualification import FindingQualification
 from app.schemas.finding_report import FindingReportDraft
+from app.schemas.finding_impact import FindingImpactAssessment, FindingImpactClaim
 
 
 @dataclass(frozen=True)
@@ -67,6 +69,7 @@ class CandidatePipelineResult:
     authorization_test_cases: AuthorizationTestCaseReport
     qualification: FindingQualification
     report_draft: FindingReportDraft | None
+    impact_assessment: FindingImpactAssessment
     candidate: FindingCandidateRecord | None
 
 
@@ -104,6 +107,7 @@ def execute_analysis_pipeline(
 def qualify_and_persist_candidate(
     db: Session, *, analysis_run_id: int, strategy_id: str, actor: User,
     context: AnalysisContext, bundle: ValidationEvidenceBundle,
+    impact_claims: list[FindingImpactClaim] | None = None,
 ) -> CandidatePipelineResult:
     """Recompute assessment and qualification; never trust client summaries."""
     run = db.query(AIAnalysisRun).join(Project, Project.id == AIAnalysisRun.project_id).filter(
@@ -157,6 +161,11 @@ def qualify_and_persist_candidate(
         build_finding_report_draft(qualification, bundle, assessment)
         if qualification.qualification == "human_review_candidate" else None
     )
+    impact_assessment = (
+        assess_finding_impact(qualification, bundle, assessment, impact_claims)
+        if qualification.qualification == "human_review_candidate"
+        else None
+    )
     candidate = None
     if qualification.qualification == "human_review_candidate":
         candidate = persist_finding_candidate(
@@ -168,7 +177,7 @@ def qualify_and_persist_candidate(
         candidate_fingerprint=candidate.candidate_fingerprint if candidate else None,
     )
     hypothesis_ranking = apply_investigation_learning(hypothesis_ranking, investigation_memory)
-    return CandidatePipelineResult(assessment, evidence_coverage, evidence_gaps, acquisition_plan, evidence_quality, hypothesis_ranking, evidence_reuse, investigation_memory, workflow_reasoning, authorization_boundaries, tenant_isolation, cross_endpoint_authorization, authorization_test_cases, qualification, report_draft, candidate)
+    return CandidatePipelineResult(assessment, evidence_coverage, evidence_gaps, acquisition_plan, evidence_quality, hypothesis_ranking, evidence_reuse, investigation_memory, workflow_reasoning, authorization_boundaries, tenant_isolation, cross_endpoint_authorization, authorization_test_cases, qualification, report_draft, impact_assessment, candidate)
 
 
 

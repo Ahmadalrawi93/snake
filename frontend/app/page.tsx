@@ -272,6 +272,7 @@ export default function Home() {
               </section>
             )}
           </>
+        )}
 
         <footer>SNAKE SECURITY PLATFORM <span>BUILT FOR AUTHORIZED TESTING ONLY</span></footer>
       </section>

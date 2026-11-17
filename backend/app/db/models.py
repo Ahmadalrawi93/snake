@@ -96,4 +96,7 @@ class WorkerTaskReceipt(Base):
     envelope_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    acknowledgement_outcome: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    acknowledgement_worker_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    acknowledgement_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

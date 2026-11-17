@@ -74,6 +74,13 @@ def create_persisted_finding_impact(
     if _sha256(_canonical(bundle_data)) != candidate.evidence_bundle_sha256:
         raise ValueError("persisted evidence bundle digest mismatch")
     qualification = FindingQualification.model_validate_json(candidate.qualification_json)
+    if (
+        qualification.candidate_fingerprint != candidate.candidate_fingerprint
+        or qualification.qualification != candidate.qualification
+        or qualification.finding_status != candidate.finding_status
+        or qualification.execution_enabled != candidate.execution_enabled
+    ):
+        raise ValueError("persisted candidate qualification binding mismatch")
     context, _correlations = load_verified_analysis_run_context(db, run=run)
     context_data = context.model_dump(mode="json")
     if _sha256(_canonical(context_data)) != run.context_sha256:

@@ -11,18 +11,15 @@ from typing import Annotated
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.ed25519 import (
-    Ed25519PrivateKey,
-    Ed25519PublicKey,
-)
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.worker_protocol import WorkerTaskEnvelope, WorkerValidationResult
 
 _ID_RE = r"^[a-zA-Z0-9._-]{1,128}$"
 _SIG_RE = r"^ed25519:v1:[A-Za-z0-9_-]{86}$"
-_TASK_DOMAIN = b"SNAKE-WORKER-TASK-ED25519-v1\\x00"
-_RESULT_DOMAIN = b"SNAKE-WORKER-RESULT-ED25519-v1\\x00"
+_TASK_DOMAIN = b"SNAKE-WORKER-TASK-ED25519-v1\x00"
+_RESULT_DOMAIN = b"SNAKE-WORKER-RESULT-ED25519-v1\x00"
 
 
 class SignedWorkerTask(BaseModel):
@@ -105,9 +102,7 @@ def sign_worker_task(
         "key_id": key_id,
     })
     signature = _signature(private_key_b64, _TASK_DOMAIN, payload)
-    return SignedWorkerTask(
-        envelope=envelope, worker_id=worker_id, key_id=key_id, signature=signature
-    )
+    return SignedWorkerTask(envelope=envelope, worker_id=worker_id, key_id=key_id, signature=signature)
 
 
 def verify_worker_task(

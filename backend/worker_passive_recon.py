@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 from app.core.scope_policy import ScopePolicy, normalize_host
 from app.core.worker_observation_signing import sign_worker_observation_batch
 from app.core.worker_protocol import WorkerTaskEnvelope, ensure_not_expired
+from app.core.worker_signing import worker_task_digest
 from app.schemas.worker_results import WorkerObservation, WorkerObservationBatch, SignedWorkerObservationBatch
 
 MAX_FEED_BYTES = 1024 * 1024
@@ -139,7 +140,7 @@ def build_signed_passive_batch(
         return None
     batch = WorkerObservationBatch(
         task_id=task.task_id,
-        envelope_sha256=__import__("app.core.worker_signing", fromlist=["worker_task_digest"]).worker_task_digest(task),
+        envelope_sha256=worker_task_digest(task),
         worker_id=worker_id,
         key_id=key_id,
         collected_at=current,

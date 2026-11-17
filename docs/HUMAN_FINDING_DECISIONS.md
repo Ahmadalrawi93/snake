@@ -7,7 +7,7 @@ This workflow stores an authenticated reviewer's decision against an analysis ru
 - `POST /api/v1/analysis-runs/{analysis_run_id}/finding-decisions`
 - `GET /api/v1/analysis-runs/{analysis_run_id}/finding-decisions?candidate_fingerprint={sha256}`
 
-The access token supplies the evaluator identity. The API verifies that the analysis run belongs to a project owned by that user. Each reviewer can submit one decision for a given analysis run + candidate fingerprint. Decisions are append-only and database-enforced against update/delete.
+The access token supplies the evaluator identity. The API verifies that the analysis run belongs to a project owned by that user. Each reviewer can submit one decision for a given analysis run + candidate fingerprint. Decisions and their audit events are committed atomically. Decisions are append-only and database-enforced against update/delete.
 
 ## Decisions
 

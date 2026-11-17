@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from datetime import datetime
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -93,12 +94,17 @@ def build_api_endpoint_intelligence(
         )
         if not all(isinstance(x, str) and x for x in (host, value, source, observed)):
             continue
+        if len(value) > 4096 or len(source) > 100 or any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+            continue
         try:
+            timestamp = datetime.fromisoformat(observed.replace("Z", "+00:00"))
+            if timestamp.tzinfo is None or timestamp.utcoffset() is None:
+                continue
             canonical_host = normalize_host(host)
             parsed = urlsplit(value)
             if (parsed.scheme not in {"http", "https"} or not parsed.hostname
                     or parsed.username is not None or parsed.password is not None
-                    or parsed.query or parsed.fragment
+                    or parsed.query or parsed.fragment or parsed.port is not None and not 1 <= parsed.port <= 65535
                     or normalize_host(parsed.hostname) != canonical_host):
                 continue
         except ValueError:

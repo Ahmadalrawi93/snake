@@ -81,3 +81,27 @@ def test_worker_task_accepts_lifetime_at_five_minute_boundary():
     payload["expires_at"] = payload["issued_at"] + timedelta(seconds=300)
     task = WorkerTaskEnvelope.model_validate(payload)
     ensure_not_expired(task, now=payload["issued_at"])
+
+
+def test_worker_envelope_binds_approved_scope_manifest():
+    payload = valid_payload()
+    payload["approved_scope_rules"] = ["example.org", "*.example.org"]
+    task = WorkerTaskEnvelope.model_validate(payload)
+    assert task.approved_scope_rules == ["example.org", "*.example.org"]
+
+
+def test_worker_envelope_rejects_target_outside_signed_scope_manifest():
+    payload = valid_payload()
+    payload["approved_scope_rules"] = ["other.example"]
+    with pytest.raises(ValidationError, match="not covered"):
+        WorkerTaskEnvelope.model_validate(payload)
+
+
+def test_worker_envelope_rejects_malformed_or_duplicate_scope_rules():
+    payload = valid_payload()
+    payload["approved_scope_rules"] = ["*.com"]
+    with pytest.raises(ValidationError):
+        WorkerTaskEnvelope.model_validate(payload)
+    payload["approved_scope_rules"] = ["example.org", "example.org"]
+    with pytest.raises(ValidationError, match="duplicate"):
+        WorkerTaskEnvelope.model_validate(payload)

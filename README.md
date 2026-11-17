@@ -73,3 +73,11 @@ Authorization records remain `pending`. Registering a target does not perform ne
 This is not production-ready. Registration is open and has no email verification or rate limiting. JWT revocation/refresh, team roles, strict tenant-level audit retention, socket-level IP pinning, dispatch-time and request-time revalidation, worker isolation, and scanning are not implemented. The worker protocol is only a validated data contract; it is not a dispatcher or execution engine. Authorization approval is a manual record review only. The DNS helper is not a firewall and does not itself pin sockets. Jobs are database records only: there is no queue consumer, worker, or scanner, and no outbound scan traffic is generated. Keep the API private until these controls are completed.
 
 See [architecture](docs/ARCHITECTURE.md) and [roadmap](docs/ROADMAP.md).
+
+
+### Dispatch gate (non-executing)
+The backend now has a database-backed dispatch validation gate that re-reads job,
+project, target, authorization, and scope snapshot state before preparing a short-lived
+worker envelope. It enforces a maximum five-minute TTL and caps expiry at the
+authorization/snapshot expiry. The envelope remains hard-disabled; this does not
+claim jobs, start a worker, resolve DNS, or make network requests.

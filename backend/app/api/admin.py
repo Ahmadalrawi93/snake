@@ -1,3 +1,4 @@
+import re
 from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -122,11 +123,10 @@ def register_worker_key(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    from fastapi import Path
     from app.core.worker_key_registry import register_worker_public_key
     from app.core.worker_signing import ed25519_public_key_fingerprint
 
-    if not __import__("re").fullmatch(r"[a-zA-Z0-9._-]{1,128}", worker_id):
+    if not re.fullmatch(r"[a-zA-Z0-9._-]{1,128}", worker_id):
         raise HTTPException(status_code=422, detail="Invalid worker ID")
     try:
         fingerprint = ed25519_public_key_fingerprint(payload.public_key_b64)

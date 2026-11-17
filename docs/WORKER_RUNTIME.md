@@ -71,6 +71,6 @@ authorized. Scan execution remains disabled.
 
 ## Offline passive feed
 
-The optional feed file is a JSON array, maximum 1 MiB / 500 records. Each record contains `hostname`, `kind` (`hostname` or `url`), `value`, `evidence`, `source`, and an ISO-8601 timezone-aware `observed_at`. It must be a regular non-symlink file and not group/world writable. Provision it through a trusted external feed preparation process and mount it read-only. The worker does not fetch or refresh the feed.
+The optional feed file is a JSON array, maximum 1 MiB / 500 records. Each record contains `hostname`, `kind` (`hostname`, `url`, `dns_record`, `technology`, or `http_header`), `value`, `evidence`, `source`, and an ISO-8601 timezone-aware `observed_at`. It must be a regular non-symlink file and not group/world writable. Provision it through a trusted external feed preparation process and mount it read-only. The worker does not fetch or refresh the feed.
 
 The producer matches every record to the exact scope manifest carried inside the signed task. Out-of-scope records are dropped; URL records with credentials, query strings, fragments, or mismatched hosts are rejected. The worker signs the remaining records with its registered Ed25519 key. The replay ledger stores the exact complete response, not just the acknowledgement, so retries cannot silently substitute a newer feed. This component does not establish the truth or collection legality of the input feed.

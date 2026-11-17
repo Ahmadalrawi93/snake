@@ -1,6 +1,7 @@
 """Database-backed public-key registry for worker acknowledgement verification."""
 from datetime import datetime, timezone
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.worker_signing import ed25519_public_key_fingerprint
@@ -37,8 +38,11 @@ def register_worker_public_key(
         created_by=created_by,
     )
     db.add(record)
-    db.commit()
-    db.refresh(record)
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        raise ValueError("worker key identity or fingerprint already exists") from exc
     return record
 
 
@@ -55,8 +59,7 @@ def revoke_worker_public_key(
         raise ValueError("worker key is already revoked")
     record.status = "revoked"
     record.revoked_at = now or datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(record)
+    db.flush()
     return record
 
 

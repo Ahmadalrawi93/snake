@@ -142,3 +142,27 @@ def test_feed_reader_rejects_oversized_input(tmp_path):
     path.chmod(0o600)
     with pytest.raises(ValueError, match="size"):
         read_passive_feed(path)
+
+
+def test_passive_producer_preserves_host_binding_for_dns_and_technology():
+    now = datetime.now(timezone.utc)
+    private, _ = keypair()
+    records = [
+        PassiveFeedRecord(
+            hostname="api.example.org", kind="technology", value="nginx",
+            evidence="server banner", source="offline_inventory",
+            observed_at=now - timedelta(seconds=1),
+        ),
+        PassiveFeedRecord(
+            hostname="api.example.org", kind="dns_record", value="A 203.0.113.10",
+            evidence="passive DNS feed", source="passive_dns",
+            observed_at=now - timedelta(seconds=1),
+        ),
+    ]
+    signed = build_signed_passive_batch(
+        make_task(now), records, worker_id="worker-1", key_id="key-1",
+        worker_private_key_b64=private, now=now,
+    )
+    assert signed is not None
+    assert {item.kind for item in signed.batch.observations} == {"technology", "dns_record"}
+    assert all(item.evidence.startswith("hostname=api.example.org;") for item in signed.batch.observations)

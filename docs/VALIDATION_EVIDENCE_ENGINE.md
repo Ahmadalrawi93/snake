@@ -115,3 +115,8 @@ The candidate pipeline records a normalized hypothesis fingerprint and its suppo
 ### Human Review Memory Linkage
 
 Investigation memory now stores the candidate fingerprint produced by the same strategy pipeline. When a later run finds the same normalized hypothesis on the same project and target, it retrieves append-only human finding decisions only through that exact candidate fingerprint and analysis-run identity. Multiple reviewer outcomes are surfaced without collapsing disagreement. Decisions are historical context only: false-positive, duplicate, inconclusive, and confirmed outcomes never automatically suppress a new review. Strategies that did not produce a persisted human-review candidate remain explicitly unlinked to finding decisions.
+
+
+## Investigation Learning Engine
+
+The persistent investigation-memory report aggregates only reviewer-attested decisions linked to the exact prior candidate fingerprint and analysis run, within the same project and target. Each historical run is counted once; conflicting reviewer outcomes are handled conservatively, with a confirmed outcome taking precedence over false-positive for that run. At least three distinct prior reviewed runs with false-positive outcomes and no confirmed outcomes produce a bounded -10 review-priority adjustment. Mixed outcomes, insufficient history, confirmed history, inconclusive and duplicate-only history do not reduce priority. The adjustment affects ordering only: no strategy is removed, no testing is skipped, and no vulnerability likelihood or confidence is inferred. The model's existing AI-generated hypotheses remain untrusted until human review.

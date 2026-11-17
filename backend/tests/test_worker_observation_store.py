@@ -161,3 +161,36 @@ def test_duplicate_persisted_observation_id_rejects_second_batch(db):
     records = db.scalars(select(WorkerObservationRecord)).all()
     assert len(records) == 1
     assert records[0].value == "one.example.test"
+
+
+
+def test_observation_rows_are_append_only_at_database_level(db):
+    db.execute(__import__("sqlalchemy").text("""
+        CREATE TRIGGER worker_observations_no_update
+        BEFORE UPDATE ON worker_observations
+        BEGIN
+            SELECT RAISE(ABORT, 'worker observations are append-only');
+        END
+    """))
+    db.execute(__import__("sqlalchemy").text("""
+        CREATE TRIGGER worker_observations_no_delete
+        BEFORE DELETE ON worker_observations
+        BEGIN
+            SELECT RAISE(ABORT, 'worker observations are append-only');
+        END
+    """))
+    signed = sign_worker_observation_batch(make_batch(), PRIVATE)
+    store_worker_observation_batch(db, signed, now=NOW)
+    db.commit()
+    record = db.scalar(select(WorkerObservationRecord))
+    with pytest.raises(Exception, match="append-only"):
+        record.value = "tampered.example.test"
+        db.flush()
+    db.rollback()
+    record = db.scalar(select(WorkerObservationRecord))
+    assert record.value == "api.example.test"
+    with pytest.raises(Exception, match="append-only"):
+        db.delete(record)
+        db.flush()
+    db.rollback()
+    assert db.scalar(select(WorkerObservationRecord)).value == "api.example.test"

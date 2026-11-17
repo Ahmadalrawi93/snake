@@ -117,7 +117,7 @@ def deliver_signed_worker_task(
     if key is None:
         raise ValueError("worker key is not registered and active")
     receipt = db.query(WorkerTaskReceipt).filter_by(
-        task_id=signed_task.envelope.task_id
+        task_id=str(signed_task.envelope.task_id)
     ).first()
     if receipt is None:
         raise ValueError("signed task receipt not found")

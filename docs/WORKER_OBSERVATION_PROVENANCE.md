@@ -29,6 +29,10 @@ Candidate qualification now requires a provenance-bound analysis run. It rebuild
 
 Historical verification keys remain in the registry after revocation; revocation blocks new ingestion but does not erase the ability to audit old signatures.
 
+## Provenance inspection API
+
+Authenticated project owners can inspect the source chain at `GET /api/v1/analysis-runs/{analysis_run_id}/provenance`. It returns observation identifiers and values, worker/task identity, signed-batch digests, scope snapshot digest, and authorization ID. It does not return private keys or raw batch signatures.
+
 ## Limits
 
 - The worker HTTPS listener currently returns a validation-only acknowledgement; it does not itself run reconnaissance or produce observation batches. The observation ingestion store is a backend service boundary, not yet a production HTTPS ingestion endpoint.

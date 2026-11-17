@@ -54,8 +54,12 @@ def store_worker_observation_batch(
     collected_at = batch.collected_at.astimezone(timezone.utc)
     if collected_at > current.astimezone(timezone.utc):
         raise ValueError("observation batch timestamp is in the future")
-    if collected_at < receipt.created_at.replace(tzinfo=timezone.utc) if receipt.created_at.tzinfo is None else collected_at < receipt.created_at.astimezone(timezone.utc):
+    issued_at = receipt.created_at.replace(tzinfo=timezone.utc) if receipt.created_at.tzinfo is None else receipt.created_at.astimezone(timezone.utc)
+    expires_at = receipt.expires_at.replace(tzinfo=timezone.utc) if receipt.expires_at.tzinfo is None else receipt.expires_at.astimezone(timezone.utc)
+    if collected_at < issued_at:
         raise ValueError("observation batch predates task issuance")
+    if collected_at >= expires_at:
+        raise ValueError("observation batch was collected after task expiry")
 
     digest = observation_batch_digest(batch)
     records = [

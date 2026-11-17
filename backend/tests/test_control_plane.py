@@ -185,3 +185,84 @@ def test_domain_target_rejects_path_suffix():
         headers=headers,
     )
     assert response.status_code == 422
+
+
+def test_scan_job_requires_valid_snapshot_and_never_enables_execution():
+    from app.db.models import User
+
+    owner_headers = register_and_auth("job-owner@example.org")
+    project = client.post("/api/v1/projects", json={"name": "Job Project"}, headers=owner_headers).json()
+    target = client.post(
+        f"/api/v1/projects/{project['id']}/targets",
+        json={"value": "https://app.example.org", "target_type": "url"},
+        headers=owner_headers,
+    ).json()
+    auth = client.post(
+        f"/api/v1/projects/{project['id']}/authorizations",
+        json={"reference": "https://program.example.org"},
+        headers=owner_headers,
+    ).json()
+
+    admin_headers = register_and_auth("job-admin@example.org")
+    db = TestingSession()
+    try:
+        db.query(User).filter_by(email="job-admin@example.org").one().role = "admin"
+        db.commit()
+    finally:
+        db.close()
+
+    reviewed = client.post(
+        f"/api/v1/admin/authorizations/{auth['id']}/review",
+        json={"decision": "approved", "review_notes": "Verified",
+              "scope_rules": ["app.example.org"]},
+        headers=admin_headers,
+    )
+    assert reviewed.status_code == 200
+
+    snapshot_response = client.post(
+        f"/api/v1/projects/{project['id']}/targets/{target['id']}/scope-snapshots",
+        headers=owner_headers,
+    )
+    assert snapshot_response.status_code == 201
+    snapshot_id = snapshot_response.json()["id"]
+
+    created = client.post(
+        f"/api/v1/scope-snapshots/{snapshot_id}/scan-jobs",
+        json={"profile": "passive_recon"},
+        headers=owner_headers,
+    )
+    assert created.status_code == 201
+    job = created.json()
+    assert job["status"] == "queued"
+    assert job["execution_enabled"] is False
+
+    listed = client.get(f"/api/v1/projects/{project['id']}/scan-jobs", headers=owner_headers)
+    assert listed.status_code == 200
+    assert any(item["id"] == job["id"] for item in listed.json())
+
+    cancelled = client.post(f"/api/v1/scan-jobs/{job['id']}/cancel", headers=owner_headers)
+    assert cancelled.status_code == 200
+    assert cancelled.json()["status"] == "cancelled"
+    assert cancelled.json()["execution_enabled"] is False
+
+    revoked = client.post(
+        f"/api/v1/admin/scope-snapshots/{snapshot_id}/revoke",
+        headers=admin_headers,
+    )
+    assert revoked.status_code == 200
+    denied = client.post(
+        f"/api/v1/scope-snapshots/{snapshot_id}/scan-jobs",
+        json={"profile": "passive_recon"},
+        headers=owner_headers,
+    )
+    assert denied.status_code == 409
+
+
+def test_scan_job_rejects_unsupported_profile():
+    headers = register_and_auth("job-profile@example.org")
+    response = client.post(
+        "/api/v1/scope-snapshots/1/scan-jobs",
+        json={"profile": "active_exploit"},
+        headers=headers,
+    )
+    assert response.status_code == 422

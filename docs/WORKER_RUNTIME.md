@@ -11,8 +11,8 @@ non-executing protocol prototype:
 - `network_mode: none` disables container networking entirely. It has no
   published ports, Docker socket, host mounts, or application data volume.
 - It accepts one signed JSON task message on stdin (maximum 64 KiB), verifies
-  the HMAC using the dedicated `SNAKE_WORKER_SIGNING_SECRET`, checks expiry,
-  and emits a signed validation-only acknowledgement on stdout.
+  the HMAC using the dedicated `SNAKE_WORKER_SIGNING_SECRET`, checks expiry, rejects issue times more than 30 seconds in the future and lifetimes
+  over 300 seconds, then emits a signed validation-only acknowledgement on stdout.
 - The acknowledgement binds the task ID and canonical envelope digest, identifies
   the validator, and fixes `execution_enabled=false`. It cannot claim scan completion.
 

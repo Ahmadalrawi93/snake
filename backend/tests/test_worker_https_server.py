@@ -1,6 +1,7 @@
 import base64
 import json
 from datetime import datetime, timedelta, timezone
+from email.message import Message
 from uuid import uuid4
 
 import pytest
@@ -13,7 +14,11 @@ from app.core.worker_signing import (
     sign_worker_task,
     verify_worker_validation_result,
 )
-from worker_https_server import MAX_BODY_BYTES, validate_task_request
+from worker_https_server import (
+    MAX_BODY_BYTES,
+    validate_http_task_headers,
+    validate_task_request,
+)
 
 
 def keypair():
@@ -106,3 +111,39 @@ def test_https_worker_rejects_oversized_body():
             worker_id="worker-1",
             key_id="key-1",
         )
+
+
+
+def _headers(**values):
+    message = Message()
+    for name, value in values.items():
+        items = value if isinstance(value, list) else [value]
+        for item in items:
+            message.add_header(name.replace("_", "-"), item)
+    return message
+
+
+@pytest.mark.parametrize(
+    "headers,expected",
+    [
+        (_headers(Host="worker.example", Content_Type="application/json",
+                  Content_Length="2"), (200, 2)),
+        (_headers(Content_Type="application/json", Content_Length="2"), (400, None)),
+        (_headers(Host=["worker.example", "attacker.example"],
+                  Content_Type="application/json", Content_Length="2"), (400, None)),
+        (_headers(Host="worker.example", Content_Type="application/json",
+                  Content_Length=["2", "3"]), (400, None)),
+        (_headers(Host="worker.example", Content_Type="application/json",
+                  Content_Length="2", Transfer_Encoding="chunked"), (400, None)),
+        (_headers(Host="worker.example", Content_Type="application/json",
+                  Content_Length="2", Content_Encoding="gzip"), (400, None)),
+        (_headers(Host="worker.example", Content_Type="application/json",
+                  Content_Length="2", Expect="100-continue"), (417, None)),
+        (_headers(Host="worker.example", Content_Type="application/json",
+                  Content_Length="+2"), (400, None)),
+        (_headers(Host="worker.example", Content_Type="application/json",
+                  Content_Length="0"), (413, None)),
+    ],
+)
+def test_http_task_header_framing_is_strict(headers, expected):
+    assert validate_http_task_headers(headers) == expected

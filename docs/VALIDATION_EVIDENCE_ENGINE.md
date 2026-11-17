@@ -100,3 +100,8 @@ A source label is **not an authenticated source identity**. Multiple labels are 
 The orchestrator now emits a deterministic ranking report for the persisted validation-strategy plan. Scores are review-queue heuristics based on declared strategy priority, distinct supporting observation references, prerequisites, and security-boundary/business-logic category. They are not exploitability, likelihood, confidence, impact, or severity scores.
 
 Exact normalized hypothesis text within the same category is grouped under one representative strategy; materially different hypotheses remain separate even when they concern the same route or category. The report preserves duplicate counts and the representative strategy reference. Ranking never executes tests, confirms vulnerabilities, or independently changes finding qualification. Human review and the existing evidence gates remain mandatory.
+
+
+## Cross-Hypothesis Evidence Reuse
+
+The candidate pipeline compares observation references in the current human-attested evidence bundle with sibling validation strategies from the same persisted AI analysis run. It reports shared references, overlap ratio, and references unique to the current strategy. Reused observations are explicitly not independent corroboration. This first version is deliberately run-local: it does not claim persistent investigation memory, and it does not automatically suppress, merge, or qualify hypotheses. No network activity or evidence acquisition is performed.

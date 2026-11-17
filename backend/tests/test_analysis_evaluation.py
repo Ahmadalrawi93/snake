@@ -48,14 +48,19 @@ def test_human_outcomes_and_metrics_exclude_unresolved_from_precision(db):
         AnalysisEvaluationCreate(outcome="inconclusive", validation_method="manual_review"),
         AnalysisEvaluationCreate(outcome="duplicate", validation_method="triage_review"),
     ]
-    reviewers = [owner]
-    for index in range(1, len(payloads)):
-        reviewer = User(email=f"reviewer{index}@example.test", password_hash="hash")
-        db.add(reviewer)
+    runs = [run]
+    for _ in range(1, len(payloads)):
+        extra_run = AIAnalysisRun(
+            project_id=project.id, created_by=owner.id, context_sha256="a"*64,
+            correlations_sha256="b"*64, provider="deepseek", model="test-model",
+            status="completed", disposition="requires_independent_validation",
+            result_json="{}", execution_enabled=False,
+        )
+        db.add(extra_run)
         db.flush()
-        reviewers.append(reviewer)
-    for reviewer, payload in zip(reviewers, payloads):
-        record_human_evaluation(db, analysis_run_id=run.id, actor=reviewer, payload=payload)
+        runs.append(extra_run)
+    for analysis_run, payload in zip(runs, payloads):
+        record_human_evaluation(db, analysis_run_id=analysis_run.id, actor=owner, payload=payload)
     db.commit()
     metrics = get_project_evaluation_metrics(db, project_id=project.id, actor=owner)
     assert metrics == {

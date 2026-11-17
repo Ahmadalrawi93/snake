@@ -221,6 +221,8 @@ class AIAnalysisRun(Base):
     target_id: Mapped[int | None] = mapped_column(ForeignKey("targets.id"), nullable=True, index=True)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     context_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    provenance_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    source_observation_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     correlations_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     provider: Mapped[str] = mapped_column(String(40), nullable=False, default="deepseek")
     model: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -236,6 +238,30 @@ class AIAnalysisRun(Base):
     provider_request_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
     execution_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+
+class AnalysisRunObservationLink(Base):
+    """Immutable provenance edge from an analysis run to a worker-signed observation."""
+    __tablename__ = "analysis_run_observation_links"
+    __table_args__ = (
+        UniqueConstraint("analysis_run_id", "observation_record_id", name="uq_analysis_run_observation_link"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    analysis_run_id: Mapped[int] = mapped_column(ForeignKey("ai_analysis_runs.id"), nullable=False, index=True)
+    observation_record_id: Mapped[int] = mapped_column(ForeignKey("worker_observations.id"), nullable=False, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    target_id: Mapped[int] = mapped_column(ForeignKey("targets.id"), nullable=False, index=True)
+    task_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    worker_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    key_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    envelope_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    batch_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    scope_snapshot_id: Mapped[int] = mapped_column(ForeignKey("scope_snapshots.id"), nullable=False)
+    scope_snapshot_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    authorization_id: Mapped[int] = mapped_column(ForeignKey("authorizations.id"), nullable=False)
+    linked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
 class AIAnalysisEvaluation(Base):

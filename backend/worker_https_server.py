@@ -19,6 +19,7 @@ from pydantic import ValidationError
 from worker_replay_ledger import WorkerReplayLedger
 
 from app.core.worker_protocol import WorkerValidationResult, ensure_not_expired
+from worker_passive_recon import build_signed_passive_batch, read_passive_feed
 from app.schemas.worker_transport import WorkerTaskResponse
 from app.core.worker_signing import (
     SignedWorkerTask,
@@ -92,7 +93,8 @@ def validate_http_task_headers(headers) -> tuple[int, int | None]:
 
 def validate_task_request(raw: bytes, *, backend_public_key: str,
                           worker_private_key: str, worker_id: str,
-                          key_id: str, replay_ledger: WorkerReplayLedger | None = None) -> bytes:
+                          key_id: str, replay_ledger: WorkerReplayLedger | None = None,
+                          passive_feed_path: str | None = None) -> bytes:
     """Return a durable, signed validation-only acknowledgement."""
     if not raw or len(raw) > MAX_BODY_BYTES:
         raise ValueError("invalid task body size")
@@ -116,7 +118,17 @@ def validate_task_request(raw: bytes, *, backend_public_key: str,
         acknowledgement = sign_worker_validation_result(
             result, worker_private_key, key_id=key_id
         )
-        return WorkerTaskResponse(acknowledgement=acknowledgement, observation_batch=None).model_dump_json().encode("utf-8")
+        observation_batch = None
+        if passive_feed_path:
+            records = read_passive_feed(passive_feed_path)
+            observation_batch = build_signed_passive_batch(
+                signed.envelope, records, worker_id=worker_id, key_id=key_id,
+                worker_private_key_b64=worker_private_key,
+            )
+        return WorkerTaskResponse(
+            acknowledgement=acknowledgement,
+            observation_batch=observation_batch,
+        ).model_dump_json().encode("utf-8")
 
     if replay_ledger is None:
         ensure_not_expired(signed.envelope)
@@ -173,7 +185,8 @@ class _ThreadingHTTPServer(ThreadingHTTPServer):
 
 def build_handler(*, backend_public_key: str, worker_private_key: str,
                   worker_id: str, key_id: str,
-                  replay_ledger: WorkerReplayLedger | None = None):
+                  replay_ledger: WorkerReplayLedger | None = None,
+                  passive_feed_path: str | None = None):
     class Handler(BaseHTTPRequestHandler):
         server_version = "SNAKE-Worker"
         sys_version = ""
@@ -234,6 +247,7 @@ def build_handler(*, backend_public_key: str, worker_private_key: str,
                     worker_id=worker_id,
                     key_id=key_id,
                     replay_ledger=replay_ledger,
+                    passive_feed_path=passive_feed_path,
                 )
             except (ValidationError, ValueError):
                 self._send(400, b'{"error":"task_rejected"}')
@@ -259,6 +273,7 @@ def serve() -> None:
     key_id = os.environ["SNAKE_WORKER_KEY_ID"]
     ledger_path = os.environ["SNAKE_WORKER_REPLAY_DB_PATH"]
     replay_ledger = WorkerReplayLedger(ledger_path)
+    passive_feed_path = os.environ.get("SNAKE_WORKER_PASSIVE_FEED_FILE") or None
     host, port = worker_bind_config()
 
     server = _ThreadingHTTPServer((host, port), build_handler(
@@ -267,6 +282,7 @@ def serve() -> None:
         worker_id=worker_id,
         key_id=key_id,
         replay_ledger=replay_ledger,
+        passive_feed_path=passive_feed_path,
     ))
     context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
     context.minimum_version = ssl.TLSVersion.TLSv1_2

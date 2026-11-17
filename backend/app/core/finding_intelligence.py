@@ -1,6 +1,16 @@
 """Deterministic, non-destructive candidate similarity analysis."""
 import re
+from urllib.parse import urlsplit
+
 from app.schemas.finding_intelligence import CandidateSimilarityInput, CandidateSimilarityResult
+
+
+_CATEGORY_FAMILIES = {
+    "authorization": {"object_authorization", "authorization", "access_control", "idor", "broken_access_control"},
+    "information_exposure": {"information_exposure", "information_disclosure", "data_exposure"},
+    "injection": {"injection", "sql_injection", "xss", "command_injection"},
+    "authentication": {"authentication", "authn", "account_takeover"},
+}
 
 
 def _tokens(value: str) -> set[str]:
@@ -14,47 +24,95 @@ def _jaccard(left: set[str], right: set[str]) -> float:
     return len(left & right) / len(union) if union else 0.0
 
 
+def _category_family(category: str) -> str:
+    normalized = category.casefold().strip()
+    for family, members in _CATEGORY_FAMILIES.items():
+        if normalized in members:
+            return family
+    return normalized
+
+
+def _route_signatures(texts: list[str]) -> set[str]:
+    routes: set[str] = set()
+    for text in texts:
+        for match in re.findall(r"(?:(?:https?://[^\s\"'<>]+)?/(?:api|v[0-9]+|graphql)[^\s\"'<>]*)", text, re.I):
+            raw = match if match.startswith("http") else "https://placeholder.invalid" + match
+            path = urlsplit(raw).path.rstrip("/") or "/"
+            path = re.sub(r"/[0-9]+(?=/|$)", "/:id", path)
+            path = re.sub(
+                r"/[0-9a-f]{8}-[0-9a-f-]{27,}(?=/|$)", "/:id", path, flags=re.I
+            )
+            routes.add(path.casefold())
+    return routes
+
+
+def _evidence_tokens(candidate: CandidateSimilarityInput) -> set[str]:
+    return _tokens(" ".join(candidate.evidence_texts))
+
+
 def compare_candidates(
     candidate: CandidateSimilarityInput,
     prior: CandidateSimilarityInput,
 ) -> CandidateSimilarityResult:
-    """Compare candidates without merging, suppressing, or confirming either one."""
+    """Compare root-cause clues without merging, suppressing, or confirming either one."""
+    shared = len(set(candidate.observation_ids) & set(prior.observation_ids))
+    title_similarity = _jaccard(_tokens(candidate.title), _tokens(prior.title))
+    evidence_similarity = _jaccard(_evidence_tokens(candidate), _evidence_tokens(prior))
+    left_routes, right_routes = _route_signatures(candidate.evidence_texts), _route_signatures(prior.evidence_texts)
+    shared_routes = len(left_routes & right_routes)
+    category_match = candidate.category.casefold().strip() == prior.category.casefold().strip()
+    family_match = _category_family(candidate.category) == _category_family(prior.category)
+
     if candidate.candidate_fingerprint == prior.candidate_fingerprint:
         return CandidateSimilarityResult(
             candidate_fingerprint=candidate.candidate_fingerprint,
             compared_fingerprint=prior.candidate_fingerprint,
-            disposition="exact_duplicate", category_match=candidate.category == prior.category,
-            title_similarity=1.0, shared_observation_count=len(
-                set(candidate.observation_ids) & set(prior.observation_ids)
-            ), rationale=["identical_category_and_hypothesis_fingerprint"],
+            disposition="exact_duplicate", category_match=category_match,
+            category_family_match=family_match, title_similarity=1.0,
+            evidence_similarity=1.0, shared_observation_count=shared,
+            shared_route_count=shared_routes,
+            rationale=["identical_category_and_hypothesis_fingerprint"],
         )
 
-    category_match = candidate.category.casefold().strip() == prior.category.casefold().strip()
-    title_similarity = _jaccard(_tokens(candidate.title), _tokens(prior.title))
-    shared = len(set(candidate.observation_ids) & set(prior.observation_ids))
-    rationale = []
-    if not category_match:
-        rationale.append("different_categories_are_not_auto_grouped")
+    rationale: list[str] = []
+    if not family_match:
+        rationale.append("different_root_cause_families")
         disposition = "distinct"
     else:
+        if not category_match:
+            rationale.append("same_broad_root_cause_family")
         if title_similarity >= 0.80:
             rationale.append("high_title_token_similarity")
+        if evidence_similarity >= 0.72:
+            rationale.append("high_evidence_token_similarity")
         if shared:
             rationale.append("shared_source_observations")
-        # Similarity alone never triggers merging. Shared observations strengthen
-        # a title match; unrelated observations need a very high title match.
-        if title_similarity >= 0.80 or (title_similarity >= 0.55 and shared >= 2):
-            disposition = "possible_duplicate"
-        else:
-            disposition = "distinct"
+        if shared_routes:
+            rationale.append("shared_normalized_routes")
+        # Cross-category comparisons require strong evidence overlap and a shared route.
+        cross_family_candidate = (
+            not category_match and evidence_similarity >= 0.72 and shared_routes >= 1
+        )
+        same_category_candidate = (
+            category_match and (
+                title_similarity >= 0.80
+                or evidence_similarity >= 0.72
+                or (title_similarity >= 0.55 and (shared >= 2 or (evidence_similarity >= 0.50 and shared_routes >= 1)))
+            )
+        )
+        disposition = "possible_duplicate" if cross_family_candidate or same_category_candidate else "distinct"
+
     if not rationale:
         rationale.append("insufficient_independent_similarity_signals")
     return CandidateSimilarityResult(
         candidate_fingerprint=candidate.candidate_fingerprint,
         compared_fingerprint=prior.candidate_fingerprint,
         disposition=disposition, category_match=category_match,
+        category_family_match=family_match,
         title_similarity=round(title_similarity, 4),
-        shared_observation_count=shared, rationale=rationale,
+        evidence_similarity=round(evidence_similarity, 4),
+        shared_observation_count=shared, shared_route_count=shared_routes,
+        rationale=rationale,
     )
 
 

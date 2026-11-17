@@ -11,6 +11,7 @@ from app.core.deepseek_analysis import (
     API_URL, AnalysisAdapterError, SYSTEM_PROMPT, analyze_observations, analyze_observations_with_metadata,
 )
 from app.schemas.worker_results import WorkerObservation
+from app.schemas.intelligence_feedback import FeedbackPattern, IntelligenceFeedbackProfile
 
 
 def make_context():
@@ -131,3 +132,56 @@ def test_metadata_api_returns_validated_usage_and_context_digests():
     assert len(result.context_sha256) == 64
     assert len(result.correlations_sha256) == 64
     assert result.provider == "deepseek"
+
+
+
+def test_human_feedback_is_optional_non_binding_prioritization_context():
+    context, correlations, oid = make_context()
+    profile = IntelligenceFeedbackProfile(
+        project_id=7,
+        evaluated_runs=3,
+        patterns=[FeedbackPattern(
+            fingerprint="a"*64,
+            category="authorization",
+            reviewed=3,
+            confirmed=0,
+            false_positive=3,
+            inconclusive=0,
+            duplicate=0,
+            resolved_precision=0.0,
+            recommendation="deprioritize",
+        )],
+    )
+    seen = {}
+    content = json.dumps(response_for(oid))
+
+    def handler(request):
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+
+    result = analyze_observations(
+        context, correlations, api_key="key", model="model",
+        transport=httpx.MockTransport(handler), feedback_profile=profile,
+    )
+    user_payload = json.loads(seen["body"]["messages"][1]["content"])
+    assert user_payload["historical_human_feedback"]["project_id"] == 7
+    assert user_payload["historical_human_feedback"]["patterns"][0]["recommendation"] == "deprioritize"
+    assert result.disposition == "requires_independent_validation"
+    assert "must not suppress a reasonable hypothesis" in seen["body"]["messages"][0]["content"]
+
+
+def test_analysis_without_feedback_keeps_existing_payload_contract():
+    context, correlations, oid = make_context()
+    content = json.dumps(response_for(oid))
+    seen = {}
+
+    def handler(request):
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+
+    analyze_observations(
+        context, correlations, api_key="key", model="model",
+        transport=httpx.MockTransport(handler),
+    )
+    payload = json.loads(seen["body"]["messages"][1]["content"])
+    assert "historical_human_feedback" not in payload

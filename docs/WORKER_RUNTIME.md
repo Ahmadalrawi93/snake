@@ -297,3 +297,11 @@ passive-feed.json.priority.json
 passive-feed.json.graph.json
 passive-feed.json.api-endpoints.json
 ```
+
+
+Endpoint intelligence also extracts passive path-shape hints: recognized resource segments
+(e.g. users, orders, payments, roles), named operation segments (e.g. refund,
+approve, cancel, export), and whether a path contains a normalized object identifier.
+These produce manual-review labels for object-level authorization and business-operation
+logic. They are prioritization hints only: path names do not establish supported
+methods, authorization behavior, state changes, or a vulnerability.

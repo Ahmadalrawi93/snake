@@ -34,8 +34,8 @@ class PassiveFeedRecord(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     hostname: str = Field(min_length=1, max_length=253)
-    kind: Literal["hostname", "url"]
-    value: str = Field(min_length=1, max_length=2048)
+    kind: Literal["hostname", "url", "dns_record", "technology", "http_header"]
+    value: str = Field(min_length=1, max_length=2048, pattern=r"^[^\\x00-\\x1f\\x7f]+$")
     evidence: str = Field(default="", max_length=8192)
     source: str = Field(min_length=1, max_length=80, pattern=r"^[a-zA-Z0-9._-]+$")
     observed_at: datetime
@@ -50,7 +50,7 @@ class PassiveFeedRecord(BaseModel):
         if self.kind == "hostname":
             if normalize_host(self.value) != host:
                 raise ValueError("hostname observation value must match its hostname")
-        else:
+        elif self.kind == "url":
             parsed = urlsplit(self.value)
             if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
                 raise ValueError("URL observation must be an absolute HTTP(S) URL")
@@ -131,7 +131,8 @@ def build_signed_passive_batch(
             observation_id=stable_id,
             kind=record.kind,
             value=record.value,
-            evidence=record.evidence,
+            evidence=(record.evidence if record.kind in {"hostname", "url"}
+                      else f"hostname={host}; {record.evidence}"),
             source=record.source,
             observed_at=observed_at,
         ))

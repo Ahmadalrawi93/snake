@@ -4,7 +4,7 @@ SNAKE now exposes a deterministic, read-only project feedback profile:
 
 `GET /api/v1/projects/{project_id}/intelligence-feedback`
 
-The endpoint is restricted to the authenticated project owner. It groups human evaluations by a SHA-256 fingerprint derived from the triage category and a normalized hypothesis string. Numeric and UUID-like path identifiers are normalized to reduce trivial route-ID variations. Output ordering is deterministic.
+The endpoint is restricted to the authenticated project owner. It groups human evaluations by a SHA-256 fingerprint derived from the triage category and a normalized hypothesis string. Multiple reviewers of the same analysis run count as one sample; a confirmed review wins conflicting labels, and a false-positive label counts only when no reviewer confirmed that run. Numeric and UUID-like path identifiers are normalized to reduce trivial route-ID variations. Output ordering is deterministic.
 
 ## Label semantics
 

@@ -25,7 +25,8 @@ def record_and_compare_investigation_memory(
     if owned is None or run.target_id is None:
         raise LookupError("owned target analysis run not found")
     fp = hypothesis_fingerprint(strategy)
-    current_obs = sorted(set(strategy.supporting_observation_ids))
+    current_obs_set = set(strategy.supporting_observation_ids)
+    current_obs = sorted(current_obs_set)
     prior_rows = db.query(InvestigationMemoryRecord).filter(
         InvestigationMemoryRecord.project_id == run.project_id,
         InvestigationMemoryRecord.target_id == run.target_id,
@@ -35,8 +36,8 @@ def record_and_compare_investigation_memory(
     matches = []
     for row in prior_rows:
         old_obs = set(json.loads(row.observation_ids_json))
-        shared = old_obs.intersection(current_obs)
-        new = current_obs.difference(old_obs)
+        shared = old_obs.intersection(current_obs_set)
+        new = current_obs_set.difference(old_obs)
         outcomes = []
         if row.candidate_fingerprint:
             outcomes = [item[0] for item in db.query(HumanFindingDecision.outcome).filter(

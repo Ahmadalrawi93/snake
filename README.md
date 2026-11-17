@@ -25,7 +25,7 @@ AI-assisted security assessment platform for **authorized** bug bounty work.
 - Evidence-bound validation strategy ranks manual review questions, records missing evidence and prerequisites, and remains non-executable; no requests, commands, or payloads are generated.
 - Validation evidence assessment checks human-attested supporting/contradictory evidence, source provenance, expected/observed behavior, and impact context; readiness never means a confirmed vulnerability.
 - Finding qualification converts complete, consistent evidence into an unconfirmed human-review candidate, binds assessment counts and provenance IDs to the supplied bundle, and flags repeated category/hypothesis fingerprints; it cannot confirm findings or authorize tests.
-- Authenticated human finding decisions are owner-scoped to analysis runs, bind reviewer identity from the access token to a candidate fingerprint, require evidence digests for confirmed/false-positive outcomes, and are append-only; qualification artifact persistence and cryptographic reviewer attestation remain future work.
+- Finding qualification candidates are persisted immutably with exact evidence-bundle JSON and SHA-256, bound to the analysis run context digest; human decisions now require an existing persisted candidate. Candidate persistence structurally checks IDs/digests but does not independently prove evidence truth.
 - Immutable AI triage history with context/correlation digests, optional provider usage metadata, and owner-scoped read access.
 - Human-only hypothesis evaluation with append-only outcomes and conservative precision/coverage metrics.
 - Target-aware AI analysis history and strictly isolated human-feedback profiles; target associations are explicit and never inferred.
@@ -83,3 +83,6 @@ See [finding qualification engine](docs/FINDING_QUALIFICATION_ENGINE.md) for can
 
 
 See [human finding decisions](docs/HUMAN_FINDING_DECISIONS.md) for API behavior, reviewer attestation limits, and remaining hardening.
+
+
+See [persisted finding candidates](docs/FINDING_CANDIDATE_PERSISTENCE.md) for candidate storage and trust boundaries.

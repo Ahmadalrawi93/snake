@@ -595,15 +595,19 @@ export default function Home() {
                         <button className="primary-button" disabled={busy}>ENCRYPT & STORE EVIDENCE</button>
                         {evidenceArtifacts.map(item => <div className="record-row" key={item.id}><div><b>{item.filename}</b><small>{item.size_bytes} bytes · {item.media_type}</small><small>SHA-256: {item.content_sha256}</small></div><time>#{item.id}</time></div>)}
                       </form>
-                      <form className="review-card" onSubmit={recordCandidateDecision}>
-                        <h3>Append human decision</h3>
+                      <section className="review-card">
+                        <h3>Human decision log</h3>
+                        {humanDecisions.map(item => <div className="record-row" key={item.id}><div><b>{item.outcome.toUpperCase()}</b><small>{item.validation_method} · {item.created_at}</small><small>{item.evidence_sha256 || "No evidence digest"}</small></div><time>#{item.id}</time></div>)}
+                        {humanDecisions.length > 0 ? <p className="hint">A reviewer can record only one immutable decision for this candidate. This account has already submitted its decision; the API will reject a second one.</p> : (
+                      <form onSubmit={recordCandidateDecision}>
                         <label>Outcome<select value={decisionOutcome} onChange={e => setDecisionOutcome(e.target.value)}><option value="inconclusive">Inconclusive</option><option value="confirmed">Confirmed</option><option value="false_positive">False positive</option><option value="duplicate">Duplicate</option></select></label>
                         <label>Validation method<input value={decisionMethod} onChange={e => setDecisionMethod(e.target.value)} required minLength={3} maxLength={80} pattern="[a-z][a-z0-9_]{2,79}" /></label>
                         <label>Review notes<textarea value={decisionNotes} onChange={e => setDecisionNotes(e.target.value)} rows={3} maxLength={2000} /></label>
                         {(decisionOutcome === "confirmed" || decisionOutcome === "false_positive") && <><label>Evidence artifact<select required value={decisionEvidenceSha} onChange={e => setDecisionEvidenceSha(e.target.value)}><option value="">Select evidence</option>{evidenceArtifacts.map(item => <option key={item.id} value={item.content_sha256}>{item.filename} · {item.content_sha256.slice(0, 12)}…</option>)}</select></label><p className="hint">The decision will bind to the selected encrypted-vault artifact digest.</p></>}
                         <button className="primary-button" disabled={busy}>RECORD HUMAN DECISION</button>
-                        {humanDecisions.map(item => <div className="record-row" key={item.id}><div><b>{item.outcome.toUpperCase()}</b><small>{item.validation_method} · {item.created_at}</small><small>{item.evidence_sha256 || "No evidence digest"}</small></div><time>#{item.id}</time></div>)}
                       </form>
+                        )}
+                      </section>
                     </div>
                     <form className="review-card" onSubmit={recordImpactAssessment}>
                       <h3>Evidence-bound impact annotation</h3>

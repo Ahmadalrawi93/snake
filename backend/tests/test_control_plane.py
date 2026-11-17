@@ -1,3 +1,4 @@
+import json
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -730,3 +731,63 @@ def test_finding_candidate_persistence_binds_run_context_and_exact_evidence_bund
             )
     finally:
         db.close()
+
+
+def test_persisted_candidate_similarity_is_project_scoped_and_non_destructive():
+    from app.db.models import AIAnalysisRun, FindingCandidateRecord, Project, User
+
+    headers = register_and_auth("similarity-owner@example.org")
+    project_data = client.post(
+        "/api/v1/projects", json={"name": "Similarity Project"}, headers=headers
+    ).json()
+    db = TestingSession()
+    try:
+        project = db.query(Project).filter_by(id=project_data["id"]).one()
+        actor = db.query(User).filter_by(id=project.owner_id).one()
+        run = AIAnalysisRun(
+            project_id=project.id, created_by=actor.id, context_sha256="a" * 64,
+            correlations_sha256="b" * 64, provider="deepseek", model="test",
+            status="completed", disposition="requires_independent_validation",
+            result_json="{}", execution_enabled=False,
+        )
+        db.add(run)
+        db.flush()
+        first = FindingCandidateRecord(
+            analysis_run_id=run.id, project_id=project.id, created_by=actor.id,
+            candidate_fingerprint="1" * 64, qualification="human_review_candidate",
+            finding_status="unconfirmed", evidence_bundle_sha256="c" * 64,
+            evidence_bundle_json="{}", qualification_json=json.dumps({
+                "category": "object_authorization",
+                "title": "User can access another account invoice",
+                "observation_ids": ["obs-1", "obs-2"],
+            }), execution_enabled=False,
+        )
+        second = FindingCandidateRecord(
+            analysis_run_id=run.id, project_id=project.id, created_by=actor.id,
+            candidate_fingerprint="2" * 64, qualification="human_review_candidate",
+            finding_status="unconfirmed", evidence_bundle_sha256="d" * 64,
+            evidence_bundle_json="{}", qualification_json=json.dumps({
+                "category": "object_authorization",
+                "title": "User can access another account invoice record",
+                "observation_ids": ["obs-9"],
+            }), execution_enabled=False,
+        )
+        db.add_all([first, second])
+        db.commit()
+        project_id, candidate_id = project.id, first.id
+    finally:
+        db.close()
+
+    response = client.get(
+        f"/api/v1/projects/{project_id}/finding-candidates/{candidate_id}/similarity",
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()[0]["disposition"] == "possible_duplicate"
+    assert response.json()[0]["auto_merge"] is False
+    assert response.json()[0]["requires_human_review"] is True
+    denied = client.get(
+        f"/api/v1/projects/{project_id + 999}/finding-candidates/{candidate_id}/similarity",
+        headers=headers,
+    )
+    assert denied.status_code == 404

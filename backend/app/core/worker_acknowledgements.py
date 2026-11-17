@@ -1,8 +1,4 @@
-"""Verify and atomically consume signed worker validation acknowledgements.
-
-This module records metadata validation only. It never marks a scan complete and
-never enables execution.
-"""
+"""Verify and atomically consume Ed25519-authenticated worker acknowledgements."""
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
@@ -28,25 +24,21 @@ def accept_worker_acknowledgement(
     db: Session,
     signed: SignedWorkerValidationResult,
     *,
-    secret: str,
+    worker_public_key_b64: str,
     expected_worker_id: str,
     expected_key_id: str,
     now: datetime | None = None,
 ) -> bool:
-    """Authenticate, bind, and consume a validation acknowledgement exactly once."""
     current = _as_utc(now or datetime.now(timezone.utc))
     result: WorkerValidationResult = signed.result
-
     if not expected_worker_id or result.worker_id != expected_worker_id:
         return False
     if result.execution_enabled is not False:
         return False
-    try:
-        if not verify_worker_validation_result(
-            signed, secret, expected_key_id=expected_key_id
-        ):
-            return False
-    except ValueError:
+    if not verify_worker_validation_result(
+        signed, worker_public_key_b64,
+        expected_worker_id=expected_worker_id, expected_key_id=expected_key_id,
+    ):
         return False
 
     receipt = (

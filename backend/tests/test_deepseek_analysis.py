@@ -166,6 +166,7 @@ def test_human_feedback_is_optional_non_binding_prioritization_context():
     result = analyze_observations(
         context, correlations, api_key="key", model="model",
         transport=httpx.MockTransport(handler), feedback_profile=profile,
+        feedback_project_id=7, feedback_target_id=None,
     )
     user_payload = json.loads(seen["body"]["messages"][1]["content"])
     assert user_payload["historical_human_feedback"]["project_id"] == 7
@@ -189,3 +190,20 @@ def test_analysis_without_feedback_keeps_existing_payload_contract():
     )
     payload = json.loads(seen["body"]["messages"][1]["content"])
     assert "historical_human_feedback" not in payload
+
+
+def test_rejects_feedback_from_another_project_or_target_before_network():
+    context, correlations, _ = make_context()
+    profile = IntelligenceFeedbackProfile(project_id=7, target_id=11, evaluated_runs=0, patterns=[])
+    with pytest.raises(ValueError, match="scope"):
+        analyze_observations(
+            context, correlations, api_key="key", model="model",
+            feedback_profile=profile, feedback_project_id=7, feedback_target_id=12,
+        )
+    with pytest.raises(ValueError, match="scope"):
+        analyze_observations(
+            context, correlations, api_key="key", model="model",
+            feedback_profile=profile, feedback_project_id=8, feedback_target_id=11,
+        )
+    with pytest.raises(ValueError, match="expected project scope"):
+        analyze_observations(context, correlations, api_key="key", model="model", feedback_profile=profile)

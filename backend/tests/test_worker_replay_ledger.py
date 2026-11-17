@@ -56,9 +56,10 @@ def test_same_task_id_with_different_digest_or_identity_is_rejected(tmp_path):
 def test_concurrent_duplicate_delivery_creates_one_ack(tmp_path):
     ledger_path = tmp_path / "ledger.sqlite3"
     barrier = Barrier(8)
+    ledgers = [WorkerReplayLedger(ledger_path) for _ in range(8)]
 
-    def deliver(_):
-        ledger = WorkerReplayLedger(ledger_path)
+    def deliver(index):
+        ledger = ledgers[index]
         barrier.wait()
         return ledger.get_or_create(
             task_id="task-concurrent", envelope_sha256="c" * 64,

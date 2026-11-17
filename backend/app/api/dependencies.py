@@ -22,3 +22,8 @@ def get_current_user(
     if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="User is unavailable")
     return user
+
+def require_admin(user: User = Depends(get_current_user)) -> User:
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Administrator role required")
+    return user

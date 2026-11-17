@@ -60,3 +60,12 @@ clarification, designated test identities, and records already obtained inside
 written authorization. The engine creates no network requests, test commands,
 payloads, or state changes. Evidence gaps are not a vulnerability verdict and
 do not independently qualify a finding.
+
+
+Hard evidence gaps are also passed into candidate qualification. Any unresolved
+hard blocker (including missing designated test-account evidence or unresolved
+contradictions) forces `insufficient_evidence`, even if an older assessment
+summary would otherwise appear ready. The qualification function validates the
+gap report's strategy binding and records each blocking gap category. This
+prevents the gap report from being merely advisory while leaving promotion
+logic unchanged.

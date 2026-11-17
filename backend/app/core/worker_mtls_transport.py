@@ -203,7 +203,13 @@ def deliver_signed_worker_task(
             )
             raise WorkerTransportError(f"worker_http_status_{response.status}")
         try:
-            worker_response = WorkerTaskResponse.model_validate_json(payload)
+            decoded_response = json.loads(payload)
+            if isinstance(decoded_response, dict) and "acknowledgement" in decoded_response:
+                worker_response = WorkerTaskResponse.model_validate(decoded_response)
+            else:
+                # Backward-compatible parsing for already deployed validation-only workers.
+                legacy_ack = SignedWorkerValidationResult.model_validate(decoded_response)
+                worker_response = WorkerTaskResponse(acknowledgement=legacy_ack, observation_batch=None)
             signed_ack = worker_response.acknowledgement
         except Exception as exc:
             finish_dispatch_attempt(

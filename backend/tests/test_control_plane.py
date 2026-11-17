@@ -568,7 +568,7 @@ def test_analysis_evaluation_api_is_owner_scoped_and_human_only():
     assert created.json()["outcome"] == "confirmed"
     repeated = client.post(
         f"/api/v1/analysis-runs/{run_id}/evaluations",
-        json={"outcome": "inconclusive", "validation_method": "second review"},
+        json={"outcome": "inconclusive", "validation_method": "second_review"},
         headers=owner_headers,
     )
     assert repeated.status_code == 409

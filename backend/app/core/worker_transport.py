@@ -31,5 +31,7 @@ def issue_signed_worker_task(
     signed = sign_worker_task(
         envelope, backend_private_key_b64, worker_id=worker_id, key_id=key_id
     )
-    reserve_task_receipt(\n        db, envelope, worker_id=worker_id, key_id=key_id, now=now\n    )
+    reserve_task_receipt(
+        db, envelope, worker_id=worker_id, key_id=key_id, now=now
+    )
     return signed

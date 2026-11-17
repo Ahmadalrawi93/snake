@@ -110,3 +110,8 @@ The candidate pipeline compares observation references in the current human-atte
 ## Persistent Investigation Memory
 
 The candidate pipeline records a normalized hypothesis fingerprint and its supporting observation references for each strategy. Historical matches are returned only when both project_id and target_id match; the current analysis run is excluded and history is bounded to the latest 50 records. The report distinguishes shared observations from newly referenced observations. It does not suppress review, infer a false positive, or treat historical AI output as truth. Human decision outcomes are intentionally marked as not linked until a separately verified strategy-to-candidate decision binding exists. Apply Alembic migration 0020 before deploying this schema to an existing database.
+
+
+### Human Review Memory Linkage
+
+Investigation memory now stores the candidate fingerprint produced by the same strategy pipeline. When a later run finds the same normalized hypothesis on the same project and target, it retrieves append-only human finding decisions only through that exact candidate fingerprint and analysis-run identity. Multiple reviewer outcomes are surfaced without collapsing disagreement. Decisions are historical context only: false-positive, duplicate, inconclusive, and confirmed outcomes never automatically suppress a new review. Strategies that did not produce a persisted human-review candidate remain explicitly unlinked to finding decisions.

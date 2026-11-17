@@ -23,6 +23,10 @@ class SignedWorkerTask(BaseModel):
     signature: Annotated[str, Field(pattern=_SIGNATURE_RE)]
 
 
+def worker_task_digest(envelope: WorkerTaskEnvelope) -> str:
+    return hashlib.sha256(_canonical_payload(envelope)).hexdigest()
+
+
 def _canonical_payload(envelope: WorkerTaskEnvelope) -> bytes:
     data = envelope.model_dump(mode="json")
     return json.dumps(

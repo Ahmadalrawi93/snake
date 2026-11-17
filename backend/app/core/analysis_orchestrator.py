@@ -8,6 +8,7 @@ from app.core.analysis_provenance import (build_persisted_analysis_input, bind_a
 from app.core.analysis_persistence import persist_analysis_execution
 from app.core.validation_evidence import assess_validation_evidence
 from app.core.evidence_coverage import assess_evidence_coverage
+from app.core.evidence_gap_intelligence import build_evidence_gap_report
 from app.core.finding_qualification import qualify_finding_candidate
 from app.core.finding_candidates import persist_finding_candidate
 from app.db.models import AIAnalysisRun, FindingCandidateRecord, Project, User
@@ -15,6 +16,7 @@ from app.schemas.analysis_context import AnalysisContext
 from app.schemas.evidence_correlation import CorrelationReport
 from app.schemas.validation_evidence import ValidationEvidenceAssessment, ValidationEvidenceBundle
 from app.schemas.evidence_coverage import EvidenceCoverageAssessment
+from app.schemas.evidence_gap_intelligence import EvidenceGapReport
 from app.schemas.validation_strategy import ValidationStrategyPlan
 from app.schemas.finding_candidates import FindingCandidateCreate
 from app.schemas.finding_qualification import FindingQualification
@@ -30,6 +32,7 @@ class AnalysisPipelineResult:
 class CandidatePipelineResult:
     assessment: ValidationEvidenceAssessment
     evidence_coverage: EvidenceCoverageAssessment
+    evidence_gaps: EvidenceGapReport
     qualification: FindingQualification
     candidate: FindingCandidateRecord | None
 
@@ -103,13 +106,14 @@ def qualify_and_persist_candidate(
         strategy, bundle, assessment, prior_candidate_fingerprints=prior,
     )
     evidence_coverage = assess_evidence_coverage(bundle, assessment)
+    evidence_gaps = build_evidence_gap_report(strategy, bundle, assessment)
     candidate = None
     if qualification.qualification == "human_review_candidate":
         candidate = persist_finding_candidate(
             db, analysis_run_id=run.id, actor=actor,
             payload=FindingCandidateCreate(qualification=qualification, evidence_bundle=bundle),
         )
-    return CandidatePipelineResult(assessment, evidence_coverage, qualification, candidate)
+    return CandidatePipelineResult(assessment, evidence_coverage, evidence_gaps, qualification, candidate)
 
 
 

@@ -93,3 +93,10 @@ workflow, not proof of vulnerability, authorization, or exploitability.
 The pipeline reports documentary quality separately from evidence coverage, confidence, severity, and finding qualification. It counts supporting, contradictory, and contextual records; detects exact duplicate record signatures and shared observation-reference sets; and groups supporting records by their caller-supplied source labels.
 
 A source label is **not an authenticated source identity**. Multiple labels are therefore reported as `multiple_labeled_sources_unverified`, never as verified independent sources. Repeated records and reused observation references generate warnings. Contradictions remain explicit and lower the quality band; they are never discarded or averaged away. These metrics do not establish truth, causality, exploitability, or impact, and do not independently promote or reject a candidate.
+
+
+## Hypothesis Ranking & Deduplication
+
+The orchestrator now emits a deterministic ranking report for the persisted validation-strategy plan. Scores are review-queue heuristics based on declared strategy priority, distinct supporting observation references, prerequisites, and security-boundary/business-logic category. They are not exploitability, likelihood, confidence, impact, or severity scores.
+
+Exact normalized hypothesis text within the same category is grouped under one representative strategy; materially different hypotheses remain separate even when they concern the same route or category. The report preserves duplicate counts and the representative strategy reference. Ranking never executes tests, confirms vulnerabilities, or independently changes finding qualification. Human review and the existing evidence gates remain mandatory.

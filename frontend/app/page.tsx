@@ -62,6 +62,11 @@ export default function Home() {
     ]);
     setUser(currentUser);
     setProjects(projectList);
+    if (currentUser.role === "admin") {
+      setPendingAuthorizations(await api("/api/v1/admin/authorizations/pending", {}, accessToken));
+    } else {
+      setPendingAuthorizations([]);
+    }
   }, [api]);
 
   const loadProjectResources = useCallback(async (projectId: number) => {

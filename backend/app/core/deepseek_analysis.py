@@ -7,6 +7,7 @@ from typing import Any
 
 import httpx
 
+from app.core.analysis_redaction import redact_analysis_context
 from app.core.observation_triage import validate_triage_references
 from app.schemas.analysis_context import AnalysisContext
 from app.schemas.evidence_correlation import CorrelationReport
@@ -31,7 +32,7 @@ class AnalysisAdapterError(RuntimeError):
 
 def _request_payload(context: AnalysisContext, correlations: CorrelationReport, model: str) -> dict[str, Any]:
     evidence = {
-        "analysis_context": context.model_dump(mode="json"),
+        "analysis_context": redact_analysis_context(context).model_dump(mode="json"),
         "correlations": correlations.model_dump(mode="json"),
     }
     return {

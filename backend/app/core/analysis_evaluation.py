@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import AIAnalysisEvaluation, AIAnalysisRun, Project, User
 from app.schemas.analysis_evaluations import AnalysisEvaluationCreate
+from app.core.analysis_redaction import redact_text
 
 
 def record_human_evaluation(
@@ -29,7 +30,7 @@ def record_human_evaluation(
         outcome=payload.outcome,
         evidence_sha256=payload.evidence_sha256,
         validation_method=payload.validation_method,
-        notes=payload.notes,
+        notes=redact_text(payload.notes),
     )
     db.add(record)
     db.flush()

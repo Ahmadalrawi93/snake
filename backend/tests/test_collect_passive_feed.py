@@ -254,3 +254,7 @@ def test_dnsdb_collector_skips_non_object_provider_rows():
         [None, dns_row()], "succeeded"
     ))
     assert len(records) == 1
+
+def test_dnsdb_fetch_rejects_control_characters_in_api_key():
+    with pytest.raises(ValueError, match="API key"):
+        fetch_dnsdb_rows("example.org", "key\\nInjected: yes")

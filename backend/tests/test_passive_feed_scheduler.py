@@ -8,7 +8,7 @@ from passive_feed_scheduler import run_cycle, _acquire_lock
 
 def test_cycle_combines_providers_and_writes_private_feed(tmp_path):
     scope = tmp_path / "scope.json"
-    scope.write_text(json.dumps({"approved_scope_rules": ["example.org"]}))
+    scope.write_text(json.dumps({"approved_scope_rules": ["*.example.org"]}))
     scope.chmod(0o600)
     output = tmp_path / "feed.json"
     calls = []
@@ -32,7 +32,7 @@ def test_cycle_combines_providers_and_writes_private_feed(tmp_path):
 
 def test_cycle_reloads_scope_each_time(tmp_path):
     scope = tmp_path / "scope.json"
-    scope.write_text(json.dumps({"approved_scope_rules": ["example.org"]}))
+    scope.write_text(json.dumps({"approved_scope_rules": ["*.example.org"]}))
     scope.chmod(0o600)
     observed = []
     def collector(rules):
@@ -48,7 +48,7 @@ def test_cycle_reloads_scope_each_time(tmp_path):
 
 def test_failed_source_does_not_replace_previous_feed(tmp_path):
     scope = tmp_path / "scope.json"
-    scope.write_text(json.dumps({"approved_scope_rules": ["example.org"]}))
+    scope.write_text(json.dumps({"approved_scope_rules": ["*.example.org"]}))
     scope.chmod(0o600)
     output = tmp_path / "feed.json"
     output.write_text('[{"known_good":true}]')
@@ -60,7 +60,7 @@ def test_failed_source_does_not_replace_previous_feed(tmp_path):
 
 def test_dnsdb_cycle_requires_key_without_exposing_it(tmp_path):
     scope = tmp_path / "scope.json"
-    scope.write_text(json.dumps({"approved_scope_rules": ["example.org"]}))
+    scope.write_text(json.dumps({"approved_scope_rules": ["*.example.org"]}))
     scope.chmod(0o600)
     with pytest.raises(ValueError, match="DNSDB_API_KEY"):
         run_cycle(str(scope), str(tmp_path / "feed.json"), ["dnsdb"], "ticket",
@@ -85,7 +85,7 @@ def test_lock_rejects_second_process_and_symlink(tmp_path):
 
 def test_scheduler_records_asset_changes_after_successful_feed_publish(tmp_path):
     scope = tmp_path / "scope.json"
-    scope.write_text(json.dumps({"approved_scope_rules": ["example.org"]}))
+    scope.write_text(json.dumps({"approved_scope_rules": ["*.example.org"]}))
     scope.chmod(0o600)
     output = tmp_path / "feed.json"
     history = tmp_path / "history.sqlite3"
@@ -107,7 +107,7 @@ def test_scheduler_records_asset_changes_after_successful_feed_publish(tmp_path)
 
 def test_scheduler_writes_separate_priority_report(tmp_path):
     scope = tmp_path / "scope.json"
-    scope.write_text(json.dumps({"approved_scope_rules": ["example.org"]}))
+    scope.write_text(json.dumps({"approved_scope_rules": ["*.example.org"]}))
     scope.chmod(0o600)
     output = tmp_path / "feed.json"
     priority = tmp_path / "priority.json"
@@ -127,7 +127,7 @@ def test_scheduler_writes_separate_priority_report(tmp_path):
 
 def test_scheduler_writes_separate_passive_graph(tmp_path):
     scope = tmp_path / "scope.json"
-    scope.write_text(json.dumps({"approved_scope_rules": ["example.org"]}))
+    scope.write_text(json.dumps({"approved_scope_rules": ["*.example.org"]}))
     scope.chmod(0o600)
     output = tmp_path / "feed.json"
     graph_path = tmp_path / "graph.json"

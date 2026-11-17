@@ -8,6 +8,7 @@ from app.core.analysis_redaction import redact_text
 from app.schemas.analysis_context import AnalysisContext
 from app.schemas.evidence_correlation import CorrelationReport
 from app.schemas.observation_triage import ObservationTriage
+from app.core.deepseek_analysis import AnalysisExecutionResult
 
 
 def _canonical_digest(value) -> str:
@@ -70,3 +71,33 @@ def persist_analysis_run(
     db.add(record)
     db.flush()
     return record
+
+
+
+def persist_analysis_execution(
+    db: Session,
+    *,
+    project_id: int,
+    actor: User,
+    context: AnalysisContext,
+    correlations: CorrelationReport,
+    execution: AnalysisExecutionResult,
+    cost_usd: str | None = None,
+) -> AIAnalysisRun:
+    """Persist an explicit provider execution using its validated output and usage metadata."""
+    if execution.provider != "deepseek":
+        raise ValueError("unsupported analysis provider")
+    return persist_analysis_run(
+        db,
+        project_id=project_id,
+        actor=actor,
+        context=context,
+        correlations=correlations,
+        triage=execution.triage,
+        model=execution.model,
+        prompt_tokens=execution.prompt_tokens,
+        completion_tokens=execution.completion_tokens,
+        total_tokens=execution.total_tokens,
+        cost_usd=cost_usd,
+        provider_request_id=execution.provider_request_id,
+    )

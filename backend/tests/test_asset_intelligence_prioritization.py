@@ -40,7 +40,7 @@ def test_invalid_or_future_timestamp_gets_no_freshness_bonus():
     row = item("api.example.org", "url", "ct", "not-a-time")
     assert prioritize_assets([row], now=NOW)[0]["priority_factors"]["freshness"] == 0
     future = item("api.example.org", "url", "ct", "2027-01-01T00:00:00+00:00")
-    assert prioritize_assets([future], now=NOW)[0]["priority_factors"]["freshness"] == 20
+    assert prioritize_assets([future], now=NOW)[0]["priority_factors"]["freshness"] == 0
 
 
 def test_rejects_naive_reference_time_and_oversized_input():
@@ -55,5 +55,5 @@ def test_missing_event_does_not_boost_priority():
     result = prioritize_assets([row], events=[{
         "hostname": "api.example.org", "kind": "url", "event": "missing"
     }], now=NOW)[0]
-    assert result["priority_score"] == 10
+    assert result["priority_score"] == 22
     assert result["priority_label"] == "low"

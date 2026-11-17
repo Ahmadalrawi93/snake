@@ -280,6 +280,7 @@ class HumanFindingDecision(Base):
             "outcome IN ('confirmed', 'false_positive', 'inconclusive', 'duplicate')",
             name="ck_human_finding_decision_outcome",
         ),
+        CheckConstraint("reviewer_attested = true", name="ck_human_finding_reviewer_attested"),
         CheckConstraint(
             "(outcome IN ('confirmed', 'false_positive') AND evidence_sha256 IS NOT NULL) OR "
             "(outcome IN ('inconclusive', 'duplicate'))",

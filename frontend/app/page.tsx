@@ -150,6 +150,9 @@ export default function Home() {
       setSelectedCandidate(detail);
       setLifecycleEvents(lifecycle.events || []);
       setEvidenceArtifacts(artifacts);
+      setImpactAssessments(impacts);
+      setDecisionEvidenceSha(artifacts[0]?.content_sha256 || "");
+      setImpactEvidenceId(detail.evidence_bundle.items.find((item: { evidence_type: string }) => item.evidence_type === "impact_context")?.evidence_id || "");
       setHumanDecisions(decisions);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load candidate detail");
@@ -631,6 +634,7 @@ export default function Home() {
                       {lifecycleEvents.map(item => <div className="record-row" key={item.id}><div><b>{item.from_status.toUpperCase()} → {item.to_status.toUpperCase()}</b><p>{item.rationale}</p></div><time>{new Date(item.created_at).toLocaleString()}</time></div>)}
                     </div>
                   </div>
+                )}
               </section>
             )}
           </>

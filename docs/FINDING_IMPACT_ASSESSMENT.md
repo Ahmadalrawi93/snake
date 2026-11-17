@@ -1,36 +1,83 @@
 # Finding Impact & Severity Assessment
 
-SNAKE's impact assessment is deterministic and evidence-bound. It does not ask an LLM to invent impact, infer confidentiality or privilege impact from a title, or convert a potential scenario into a demonstrated one.
+SNAKE's impact assessment is deterministic and evidence-bound. It does not ask
+an LLM to invent impact, infer confidentiality or privilege impact from a title,
+or convert a potential scenario into a demonstrated one.
 
-## Inputs
+## Inputs and evidence binding
 
 A structured `FindingImpactClaim` is a human-attested annotation tied to:
 - an existing evidence item of type `impact_context` with relationship `supports`;
 - one or more observation IDs already referenced by that exact evidence item;
-- an explicit impact dimension, level, verification state, affected scope, and data sensitivity.
+- an explicit impact dimension, level, verification state, affected scope, and
+  data sensitivity.
 
-Free-text statements are not parsed to infer dimensions, scope, sensitivity, or severity.
+Free-text statements are not parsed to infer dimensions, scope, sensitivity,
+or severity. Duplicate claims for the same evidence item and dimension are
+rejected.
 
-## Output
+## Output and decision boundary
 
-The engine reports demonstrated and potential dimensions separately. A severity suggestion is produced only when the evidence assessment is consistent, no blockers remain, and the claim is observed with known scope and sensitivity. Potential claims never contribute to severity. Unknown scope or sensitivity blocks a suggestion.
+The engine reports demonstrated and potential dimensions separately. A
+severity suggestion is produced only when the evidence assessment is
+consistent, no blockers remain, and the claim is observed with known scope and
+sensitivity. Potential claims never contribute to severity. Unknown scope or
+sensitivity blocks a suggestion.
 
-The severity suggestion is a triage aid, not a final rating. `final_severity` remains `not_assessed`; CVSS is never generated. Every result requires independent human validation. The engine does not confirm a vulnerability, authorize testing, or execute requests.
+The severity suggestion is a triage aid, not a final rating.
+`final_severity` remains `not_assessed`; CVSS is never generated. Every result
+requires independent human validation. The engine does not confirm a
+vulnerability, authorize testing, or execute requests.
 
 ## Authenticated persistence API
 
-Impact assessments are submitted against an existing persisted candidate. The API does not accept a client-supplied assessment result or severity. It reloads the candidate's immutable qualification and evidence bundle, verifies their digest, rebuilds the analysis context from signed worker-observation provenance, re-evaluates the evidence, and then runs the deterministic impact engine.
+Impact assessments are submitted against an existing persisted candidate. The
+API does not accept a client-supplied assessment result or severity. It reloads
+the candidate's immutable qualification and evidence bundle, verifies their
+digest and qualification binding, rebuilds the analysis context from verified
+run provenance, re-evaluates the evidence, and then runs the deterministic
+impact engine.
 
 - `POST /api/v1/finding-candidates/{candidate_id}/impact-assessments`
-  - Requires a bearer-authenticated project owner.
-  - Body: `{"claims": [...]}`, where every claim must be explicitly human-attested.
+  - Requires an authenticated user who owns the candidate's project.
+  - Body: `{"claims": [...]}`, with at most 100 claims.
+  - Each claim must be explicitly human-attested.
   - Repeated identical submissions are idempotent.
   - Distinct assessments append new immutable records.
 - `GET /api/v1/finding-candidates/{candidate_id}/impact-assessments`
   - Returns the candidate's append-only assessment history to its project owner.
+  - A candidate outside the caller's ownership boundary is reported as not found.
 
-Each record binds the candidate, analysis run, project, reviewer, evidence-bundle digest, claims digest, and assessment digest. Audit events are recorded. Database triggers reject update and delete operations. The stored final severity remains `not_assessed`, CVSS remains null, and execution remains disabled.
+Each record binds the candidate, analysis run, project, reviewer,
+evidence-bundle digest, claims digest, and assessment digest. Audit events are
+recorded.
 
-## Operational status
+## Database invariants
 
-The API and migration are implemented in revision `0022_finding_impact_assessments`. Apply the migration only after pulling the change and testing it against a separate disposable database. Do not point migration tests at an existing production or personal database.
+Migration `0022_finding_impact_assessments` creates database-level mutation
+guards for SQLite and PostgreSQL. Updates and deletes are rejected by triggers.
+Database constraints also enforce:
+
+- `final_severity = not_assessed`
+- `cvss_vector IS NULL`
+- `execution_enabled = false`
+
+The SQLite trigger installer is shared by the migration and unit-test fixture;
+a migration integration test exercises both upgrade and downgrade.
+
+## Trust boundaries and limitations
+
+- Human attestation is recorded as an assertion; SNAKE does not independently
+  reproduce or prove the claimed impact.
+- A severity suggestion is not a CVSS score and must not be copied as a final
+  rating without independent validation.
+- The API does not run HTTP requests, payloads, commands, or vulnerability
+  tests.
+- Database triggers protect against ordinary SQL update/delete operations.
+  Database administrators able to alter schema or drop triggers remain
+  outside this application-level immutability boundary.
+- SQLite and PostgreSQL are the only supported dialects for this migration.
+
+Apply the migration only after testing it against a separate disposable
+database. Do not point migration tests at an existing personal or production
+database.

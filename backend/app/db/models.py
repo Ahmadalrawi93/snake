@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.database import Base
 
@@ -100,3 +100,23 @@ class WorkerTaskReceipt(Base):
     acknowledgement_worker_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     acknowledgement_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class WorkerKey(Base):
+    """Public verification key registered for one worker identity/version."""
+    __tablename__ = "worker_keys"
+    __table_args__ = (
+        UniqueConstraint("worker_id", "key_id", name="uq_worker_keys_worker_key"),
+        UniqueConstraint("fingerprint_sha256", name="uq_worker_keys_fingerprint"),
+        CheckConstraint("status IN ('active', 'revoked')", name="ck_worker_keys_status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    worker_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    key_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    public_key_b64: Mapped[str] = mapped_column(String(2048), nullable=False)
+    fingerprint_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False, index=True)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

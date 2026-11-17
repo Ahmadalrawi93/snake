@@ -8,7 +8,7 @@ import pytest
 from app.core.analysis_context import build_analysis_context
 from app.core.evidence_correlation import correlate_analysis_context
 from app.core.deepseek_analysis import (
-    API_URL, AnalysisAdapterError, SYSTEM_PROMPT, analyze_observations,
+    API_URL, AnalysisAdapterError, SYSTEM_PROMPT, analyze_observations, analyze_observations_with_metadata,
 )
 from app.schemas.worker_results import WorkerObservation
 
@@ -109,3 +109,25 @@ def test_rejects_invalid_configuration_before_network():
     context, correlations, _ = make_context()
     with pytest.raises(ValueError):
         analyze_observations(context, correlations, api_key="", model="model")
+
+
+def test_metadata_api_returns_validated_usage_and_context_digests():
+    context, correlations, oid = make_context()
+    content = json.dumps(response_for(oid))
+
+    def handler(request):
+        return httpx.Response(200, headers={"x-request-id": "req_test_123"}, json={
+            "choices": [{"message": {"content": content}}],
+            "usage": {"prompt_tokens": 101, "completion_tokens": 55, "total_tokens": 156},
+        })
+
+    result = analyze_observations_with_metadata(
+        context, correlations, api_key="key", model="deepseek-test",
+        transport=httpx.MockTransport(handler),
+    )
+    assert result.triage.supporting_observation_ids == [oid]
+    assert (result.prompt_tokens, result.completion_tokens, result.total_tokens) == (101, 55, 156)
+    assert result.provider_request_id == "req_test_123"
+    assert len(result.context_sha256) == 64
+    assert len(result.correlations_sha256) == 64
+    assert result.provider == "deepseek"

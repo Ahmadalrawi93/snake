@@ -12,6 +12,8 @@ def upgrade():
     with op.batch_alter_table("ai_analysis_runs") as batch:
         batch.add_column(sa.Column("provenance_sha256", sa.String(length=64), nullable=True))
         batch.add_column(sa.Column("source_observation_count", sa.Integer(), nullable=False, server_default="0"))
+    with op.batch_alter_table("worker_observations") as batch:
+        batch.add_column(sa.Column("batch_signature", sa.String(length=128), nullable=False, server_default=""))
     op.create_index("ix_ai_analysis_runs_provenance_sha256", "ai_analysis_runs", ["provenance_sha256"])
     op.create_table(
         "analysis_run_observation_links",
@@ -25,6 +27,7 @@ def upgrade():
         sa.Column("key_id", sa.String(length=128), nullable=False),
         sa.Column("envelope_sha256", sa.String(length=64), nullable=False),
         sa.Column("batch_sha256", sa.String(length=64), nullable=False),
+        sa.Column("batch_signature", sa.String(length=128), nullable=False),
         sa.Column("scope_snapshot_id", sa.Integer(), sa.ForeignKey("scope_snapshots.id"), nullable=False),
         sa.Column("scope_snapshot_sha256", sa.String(length=64), nullable=False),
         sa.Column("authorization_id", sa.Integer(), sa.ForeignKey("authorizations.id"), nullable=False),
@@ -55,6 +58,8 @@ def downgrade():
     for col in ("task_id", "target_id", "project_id", "observation_record_id", "analysis_run_id"):
         op.drop_index(f"ix_analysis_run_observation_links_{col}", table_name="analysis_run_observation_links")
     op.drop_table("analysis_run_observation_links")
+    with op.batch_alter_table("worker_observations") as batch:
+        batch.drop_column("batch_signature")
     op.drop_index("ix_ai_analysis_runs_provenance_sha256", table_name="ai_analysis_runs")
     with op.batch_alter_table("ai_analysis_runs") as batch:
         batch.drop_column("source_observation_count")

@@ -23,6 +23,8 @@ from app.core.worker_signing import (
     SignedWorkerTask, SignedWorkerValidationResult, worker_task_digest,
 )
 from app.db.models import WorkerEndpoint, WorkerKey, WorkerTaskReceipt
+from app.schemas.worker_transport import WorkerTaskResponse
+from app.core.worker_observation_store import store_worker_observation_batch
 
 
 TASK_PATH = "/internal/v1/tasks"

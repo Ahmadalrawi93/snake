@@ -86,3 +86,5 @@ See [human finding decisions](docs/HUMAN_FINDING_DECISIONS.md) for API behavior,
 
 
 See [persisted finding candidates](docs/FINDING_CANDIDATE_PERSISTENCE.md) for candidate storage and trust boundaries.
+
+Finding Intelligence compares persisted candidates using category, normalized title tokens, and shared source-observation IDs. It labels possible duplicates for human review only; it never merges, suppresses, deletes, or confirms candidates. See [Finding Intelligence](docs/FINDING_INTELLIGENCE.md).

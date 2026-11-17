@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -25,7 +25,7 @@ def make_inputs(urls, category="business_logic", confidence="medium"):
     ids += [oid for item in context.ungrouped for oid in item.observation_ids]
     triage = ObservationTriage(
         category=category, hypothesis="Review the observed application behavior.",
-        supporting_observation_ids=[uuid4() if False else __import__("uuid").UUID(ids[0])],
+        supporting_observation_ids=[UUID(ids[0])],
         missing_evidence=["Documented expected behavior"],
         validation_questions=["What is the expected behavior for an authorized test account?"],
         confidence=confidence,

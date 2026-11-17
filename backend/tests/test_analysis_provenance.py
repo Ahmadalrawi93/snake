@@ -147,6 +147,7 @@ def test_provenance_links_rebuild_exact_context_and_signature(provenance_db):
     bind_analysis_run_provenance(db, run=run, project_id=project.id, target_id=target.id, source=source)
     db.query(ScopeSnapshot).filter_by(id=1).one().status = "revoked"
     db.query(Authorization).filter_by(id=1).one().status = "revoked"
+    db.query(WorkerKey).filter_by(worker_id="worker-01", key_id="key-01").one().status = "revoked"
     db.commit()
     rebuilt, _ = load_verified_analysis_run_context(db, run=run)
     assert _digest(rebuilt.model_dump(mode="json")) == run.context_sha256

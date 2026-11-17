@@ -41,3 +41,18 @@ No observation may become a confirmed vulnerability solely because a worker or
 LLM labels it that way.
 
 `execution_enabled=false` remains mandatory.
+
+
+## Owner-scoped evidence API
+
+Authenticated project owners can read evidence for a scan job:
+
+`GET /api/v1/scan-jobs/{job_id}/observations?limit=50&offset=0`
+
+- The route checks job ownership through the owning project before querying evidence.
+- Pagination is bounded to 1–200 rows per request.
+- Results are ordered newest-first and retain worker/key, task digest, batch digest,
+  source, timestamps, and the fixed `unconfirmed_observation` classification.
+- A job outside the caller's project returns 404; the endpoint does not expose
+  cross-project existence.
+- This is read-only. No finding promotion or scan execution endpoint is provided.

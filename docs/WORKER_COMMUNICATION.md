@@ -11,7 +11,8 @@ rejected before scope preparation or job reservation.
 The one-shot worker validator accepts signed JSON on stdin. A separate minimal
 HTTPS listener now accepts the same signed task at the fixed
 `POST /internal/v1/tasks` path, requires a client certificate issued by the
-configured backend CA, validates the backend Ed25519 signature, worker/key binding,
+configured backend CA and matching an exact SHA-256 client-certificate pin,
+validates the backend Ed25519 signature, worker/key binding,
 and expiry, then returns a signed validation-only acknowledgement. It caps
 request bodies at 64 KiB, applies a five-second socket read timeout, and bounds
 concurrent handler threads. The backend mTLS adapter now requires the worker's
@@ -44,7 +45,7 @@ stores the canonical origin, exact TLS server name, and SHA-256 certificate
 fingerprint. Registration rejects plain HTTP, IP-literal hosts, localhost/internal
 suffixes, embedded credentials, non-root paths, query strings, fragments, and
 mismatched TLS names. Endpoint revocation is one-way and audited. These records
-are configuration only: no code connects to them yet. The backend resolves registered hostnames through the existing network destination
+are consumed by the internal mTLS transport adapter; registration itself never initiates a connection. The backend resolves registered hostnames through the existing network destination
 policy. It rejects the entire DNS answer if any address is private, loopback,
 link-local, reserved, or otherwise non-global, and returns validated public
 addresses for pinning. Revoked or missing endpoint records cannot be resolved.
@@ -90,10 +91,22 @@ Before enabling delivery in a deployment, the operator must:
 9. Keep execution disabled until the worker sandbox, egress policy, approval gates,
    and result-validation pipeline are independently implemented and tested.
 
-## Next implementation gate
+## Verified integration boundary
 
-Next, add end-to-end TLS integration tests for certificate mismatch, client
-identity rejection, timeouts/unknown outcomes, duplicate delivery, revoked
-endpoints/keys, malformed/oversized responses, and replayed acknowledgements.
-The current HTTPS listener is a validation-only prototype, not an enabled
-production worker. Production PostgreSQL concurrency tests remain required.
+A local end-to-end integration test now exercises the backend adapter against
+the HTTPS listener over real TLS. Public-DNS policy resolution is stubbed to a
+test-only public address while the test connection dials loopback, preserving
+the registered TLS hostname, CA validation, and exact certificate pin. The test
+covers task signing, mTLS client authentication, worker signature verification,
+signed acknowledgement verification, durable attempt closure, and one-time
+receipt consumption. A separate listener test rejects an unpinned backend
+client certificate.
+
+This proves the local transport protocol path, not production deployment
+readiness. Remaining gates include timeout/unknown-outcome integration tests,
+revoked endpoint/key races under PostgreSQL, duplicate/replayed HTTP delivery,
+malformed and oversized responses, production PostgreSQL concurrency tests,
+network firewall/egress enforcement, certificate lifecycle/rotation, and
+operator-controlled deployment. The HTTPS listener remains validation-only;
+no API route, scheduler, or background dispatcher invokes it, and scan execution
+remains disabled.

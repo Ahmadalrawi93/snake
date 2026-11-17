@@ -14,7 +14,11 @@ API_PREFIXES = {"api", "graphql", "v1", "v2", "v3", "rest", "swagger", "openapi"
 
 
 def _id(kind: str, value: str) -> str:
-    digest = hashlib.sha256((kind + "\\0" + value).endef _scope_for(host: str, rules: list[str]) -> str | None:
+    digest = hashlib.sha256((kind + "\0" + value).encode("utf-8")).hexdigest()[:24]
+    return f"{kind}:{digest}"
+
+
+def _scope_for(host: str, rules: list[str]) -> str | None:
     """Use the same exact/wildcard semantics as the authorization scope policy."""
     matches = []
     for rule in rules:
@@ -25,8 +29,6 @@ def _id(kind: str, value: str) -> str:
                 matches.append(rule)
         except ValueError:
             continue
-    return min(matches, key=len) if matches else None
-end(rule)
     return min(matches, key=len) if matches else None
 
 
@@ -89,7 +91,8 @@ def build_attack_surface_graph(
                 parsed = urlsplit(value)
                 if (parsed.scheme not in {"http", "https"} or not parsed.hostname
                         or parsed.username is not None or parsed.password is not None
-                        or parsed.query or parsed.fragment or parsed.hostname.lower().rstrip(".") != host.lower().rstrip(".")):
+                        or parsed.query or parsed.fragment
+                        or normalize_host(parsed.hostname) != canonical_host):
                     continue
                 normalized_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path or '/'}"
                 url_id = add_node("url", normalized_url)

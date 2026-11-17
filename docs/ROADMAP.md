@@ -23,8 +23,8 @@ Repository structure, FastAPI service, hostname allowlist primitive, dashboard s
 - [x] Validation-only container image: non-root user, read-only root filesystem at runtime, all capabilities dropped, no-new-privileges, bounded CPU/memory/PIDs/tmpfs, and no network.
 - [x] HMAC-SHA256 task-envelope and validation-acknowledgement signing with constant-time verification.
 - [x] Isolated stdin/stdout validator verifies signed tasks and returns signed validation-only acknowledgements (not connected to backend receipt ledger).
-- [x] Atomic queued-job reservation and durable one-time receipt/consumption primitives (internal only; not connected to a worker).
-- [ ] Authenticated backend-to-worker transport with receipt consumption integrated into dispatch.
+- [x] Atomic queued-job reservation, signed task issuance, and one-time signed acknowledgement verification/receipt consumption (internal backend functions; no network transport).
+- [ ] Authenticated backend-to-worker transport; current task issuance and acknowledgement processing remain internal and are not connected to a process or network channel.
 - [ ] DNS/IP pinning and redirect-hop enforcement at the actual socket/request layer.
 - [ ] Passive recon adapters and isolated worker execution. No scanner is executable yet.
 
@@ -41,4 +41,4 @@ Safe validation library, reproducible evidence, severity rationale, exportable r
 Threat modeling, security testing of SNAKE itself, secrets management, backups, observability, deployment automation, and operational procedures.
 
 ## Explicit safety boundary
-All current worker components are preparatory only. The validator container accepts a signed JSON task, verifies its signature and expiry, returns a signed validation acknowledgement, and exits. It cannot reach a network, consume a backend receipt, claim a job, or execute a scan. HMAC signing protects integrity/authenticity only; it does not provide authorization or scope enforcement. Atomic receipt primitives exist but are not wired to a worker or HTTP route. No scan execution is enabled.
+All current worker components are preparatory only. The validator container accepts a signed JSON task, verifies its signature and expiry, returns a signed validation acknowledgement, and exits. It cannot reach a network, consume a backend receipt, claim a job, or execute a scan. HMAC signing protects integrity/authenticity only; it does not provide authorization or scope enforcement. Internal task issuance and acknowledgement verification now bind signed messages to durable receipts, but are not wired to a worker process, network transport, or HTTP route. No scan execution is enabled.

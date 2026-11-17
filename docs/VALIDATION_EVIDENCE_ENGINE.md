@@ -86,3 +86,10 @@ to existing immutable records, official documentation, program-owner
 clarification, or explicitly designated test context. It rejects gap references
 that do not belong to the supplied evidence bundle. Its output is a collection
 workflow, not proof of vulnerability, authorization, or exploitability.
+
+
+## Evidence Quality & Source Diversity
+
+The pipeline reports documentary quality separately from evidence coverage, confidence, severity, and finding qualification. It counts supporting, contradictory, and contextual records; detects exact duplicate record signatures and shared observation-reference sets; and groups supporting records by their caller-supplied source labels.
+
+A source label is **not an authenticated source identity**. Multiple labels are therefore reported as `multiple_labeled_sources_unverified`, never as verified independent sources. Repeated records and reused observation references generate warnings. Contradictions remain explicit and lower the quality band; they are never discarded or averaged away. These metrics do not establish truth, causality, exploitability, or impact, and do not independently promote or reject a candidate.

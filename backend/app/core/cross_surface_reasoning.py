@@ -45,7 +45,8 @@ def build_cross_surface_profile(
     objects: dict[str, set[str]] = defaultdict(set)
     actions: dict[str, set[str]] = defaultdict(set)
     for surface in business.object_surfaces:
-        objects[surface.host].update(surface.observation_ids)
+        if surface.object_route is not None:
+            objects[surface.host].update(surface.observation_ids)
     for surface in business.action_surfaces:
         if surface.action in _SENSITIVE:
             actions[surface.host].update(surface.observation_ids)

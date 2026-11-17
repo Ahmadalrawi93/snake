@@ -149,3 +149,35 @@ must be checked by the operator.
 DNSDB records are historical observations, not proof of current DNS state,
 asset ownership, authorization, reachability, or vulnerability. The API key
 is used only in the outbound provider request and is never persisted by SNAKE.
+
+
+## Periodic passive-feed scheduler
+
+`backend/passive_feed_scheduler.py` runs as a separate operator-controlled
+process. It refreshes the configured CT and/or DNSDB providers on a bounded
+interval (15 minutes to 7 days; default 6 hours), reloads the scope manifest
+before every cycle, and publishes a feed only after every selected provider
+completes successfully. A failed refresh leaves the previous feed untouched.
+A process lock prevents two scheduler instances from writing the same feed
+concurrently. SIGTERM and SIGINT stop the loop cleanly.
+
+Example:
+```sh
+python passive_feed_scheduler.py \\
+  --scope-file /etc/snake/approved-scope.json \\
+  --output /var/lib/snake/passive-feed.json \\
+  --provider ct --provider dnsdb \\
+  --interval-seconds 21600 \\
+  --authorization-reference "program-approval-ticket-123"
+```
+
+The DNSDB key is read from `DNSDB_API_KEY` in the process environment. Keep
+that environment file outside source control with mode 0600. The scheduler
+must run on a dedicated controlled host, not in the worker container. Apply
+host egress firewall rules that permit only the selected passive-provider
+endpoints; the Python origin allowlist is an additional control, not a
+replacement for network egress enforcement. The output feed should be
+transferred to the worker through a trusted channel and mounted read-only.
+The scheduler does not verify authorization, provider terms, domain ownership,
+or the truth/currentness of passive records. Review scope and program rules
+before each deployment and after every scope change.

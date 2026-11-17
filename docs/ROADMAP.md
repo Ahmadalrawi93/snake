@@ -14,7 +14,10 @@ Repository structure, FastAPI service, hostname allowlist primitive, dashboard s
 - Explicit reviewed hostname rules are required for approval.
 - Immutable SHA-256 scope snapshots bind targets to approved authorizations.
 - Pre-dispatch validation checks hash, target drift, authorization state, expiry, and revocation; admins can revoke snapshots.
-- Remaining: email verification, registration throttling, refresh/revocation, team roles, DNS/IP and redirect validation, immutable audit retention, and formal execution authorization.
+- Added a deterministic DNS/IP destination gate and redirect-hop validator for future workers; it rejects non-global addresses and returns IPs for connection pinning. This helper does not open sockets or enforce network egress.
+- Added persistent scan-job records and authenticated create/list/read/cancel endpoints. Enqueue revalidates snapshot integrity, authorization, expiry, target drift, and hostname scope.
+- Jobs remain `queued` records with `execution_enabled=false`; no queue consumer, worker, or scan execution exists.
+- Remaining: email verification, registration throttling, refresh/revocation, team roles, immutable audit retention, socket-level IP pinning, dispatch-time and request-time revalidation, and isolated worker egress enforcement.
 
 ## Phase 3 — Scanner Engine
 Isolated worker protocol and narrowly scoped passive discovery adapters. Re-check scope at dispatch and execution; enforce egress and resource ceilings. No arbitrary shell execution.

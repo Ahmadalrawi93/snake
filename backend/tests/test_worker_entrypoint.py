@@ -1,7 +1,11 @@
+import base64
 import io
 import json
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from app.core.worker_protocol import WorkerTaskEnvelope
 from app.core.worker_signing import (
@@ -9,9 +13,25 @@ from app.core.worker_signing import (
 )
 from worker_entrypoint import main
 
-SECRET = "validator-secret-for-tests-at-least-32-characters"
 WORKER_ID = "test-validator"
 KEY_ID = "test-validator-v1"
+
+
+def _keypair():
+    key = Ed25519PrivateKey.generate()
+    private = base64.b64encode(key.private_bytes(
+        serialization.Encoding.DER, serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    )).decode()
+    public = base64.b64encode(key.public_key().public_bytes(
+        serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo,
+    )).decode()
+    return private, public
+
+
+BACKEND_PRIVATE, BACKEND_PUBLIC = _keypair()
+WORKER_PRIVATE, WORKER_PUBLIC = _keypair()
+OTHER_PRIVATE, _ = _keypair()
 
 
 def _task():
@@ -31,45 +51,58 @@ def _run(monkeypatch, payload):
 
 
 def _configure(monkeypatch):
-    monkeypatch.setenv("SNAKE_WORKER_SIGNING_SECRET", SECRET)
+    monkeypatch.setenv("SNAKE_BACKEND_ED25519_PUBLIC_KEY_B64", BACKEND_PUBLIC)
+    monkeypatch.setenv("SNAKE_WORKER_ED25519_PRIVATE_KEY_B64", WORKER_PRIVATE)
     monkeypatch.setenv("SNAKE_WORKER_ID", WORKER_ID)
     monkeypatch.setenv("SNAKE_WORKER_KEY_ID", KEY_ID)
 
 
-def test_worker_verifies_signed_task_and_returns_signed_ack(monkeypatch, capsys):
+def test_worker_verifies_backend_task_and_signs_ack(monkeypatch, capsys):
     _configure(monkeypatch)
-    signed_task = sign_worker_task(_task(), SECRET, worker_id=WORKER_ID, key_id=KEY_ID)
-    assert _run(monkeypatch, signed_task.model_dump_json()) == 0
+    task = sign_worker_task(_task(), BACKEND_PRIVATE, worker_id=WORKER_ID, key_id=KEY_ID)
+    assert _run(monkeypatch, task.model_dump_json()) == 0
     result = SignedWorkerValidationResult.model_validate_json(capsys.readouterr().out)
     assert result.result.outcome == "accepted"
     assert result.result.execution_enabled is False
     assert result.result.worker_id == WORKER_ID
     assert result.key_id == KEY_ID
-    assert verify_worker_validation_result(result, SECRET, expected_key_id=KEY_ID)
+    assert verify_worker_validation_result(
+        result, WORKER_PUBLIC, expected_worker_id=WORKER_ID, expected_key_id=KEY_ID
+    )
 
 
-def test_worker_rejects_unsigned_or_tampered_task(monkeypatch, capsys):
+def test_worker_rejects_tampered_task(monkeypatch, capsys):
     _configure(monkeypatch)
-    signed_task = sign_worker_task(_task(), SECRET, worker_id=WORKER_ID, key_id=KEY_ID)
-    payload = json.loads(signed_task.model_dump_json())
+    task = sign_worker_task(_task(), BACKEND_PRIVATE, worker_id=WORKER_ID, key_id=KEY_ID)
+    payload = json.loads(task.model_dump_json())
     payload["envelope"]["job_id"] = 99
     assert _run(monkeypatch, json.dumps(payload)) == 2
     assert "signature" in capsys.readouterr().err
 
 
+def test_worker_rejects_task_signed_by_non_backend_key(monkeypatch, capsys):
+    _configure(monkeypatch)
+    task = sign_worker_task(_task(), OTHER_PRIVATE, worker_id=WORKER_ID, key_id=KEY_ID)
+    assert _run(monkeypatch, task.model_dump_json()) == 2
+    assert "signature" in capsys.readouterr().err
+
+
 def test_worker_rejects_task_for_another_identity(monkeypatch, capsys):
     _configure(monkeypatch)
-    signed_task = sign_worker_task(_task(), SECRET, worker_id="other-worker", key_id=KEY_ID)
-    assert _run(monkeypatch, signed_task.model_dump_json()) == 2
+    task = sign_worker_task(_task(), BACKEND_PRIVATE, worker_id="other-worker", key_id=KEY_ID)
+    assert _run(monkeypatch, task.model_dump_json()) == 2
     assert "worker binding" in capsys.readouterr().err
 
 
-def test_worker_requires_unique_identity_configuration(monkeypatch, capsys):
-    monkeypatch.delenv("SNAKE_WORKER_SIGNING_SECRET", raising=False)
-    monkeypatch.delenv("SNAKE_WORKER_ID", raising=False)
-    monkeypatch.delenv("SNAKE_WORKER_KEY_ID", raising=False)
+def test_worker_requires_all_asymmetric_key_material(monkeypatch, capsys):
+    for name in (
+        "SNAKE_BACKEND_ED25519_PUBLIC_KEY_B64",
+        "SNAKE_WORKER_ED25519_PRIVATE_KEY_B64",
+        "SNAKE_WORKER_ID", "SNAKE_WORKER_KEY_ID",
+    ):
+        monkeypatch.delenv(name, raising=False)
     assert _run(monkeypatch, "{}") == 2
-    assert "Unique worker secret" in capsys.readouterr().err
+    assert "Backend public key" in capsys.readouterr().err
 
 
 def test_worker_rejects_command_fields(monkeypatch, capsys):
@@ -86,8 +119,8 @@ def test_worker_rejects_expired_signed_task(monkeypatch, capsys):
         "issued_at": datetime.now(timezone.utc) - timedelta(minutes=5),
         "expires_at": datetime.now(timezone.utc) - timedelta(minutes=1),
     })
-    signed_task = sign_worker_task(task, SECRET, worker_id=WORKER_ID, key_id=KEY_ID)
-    assert _run(monkeypatch, signed_task.model_dump_json()) == 2
+    signed = sign_worker_task(task, BACKEND_PRIVATE, worker_id=WORKER_ID, key_id=KEY_ID)
+    assert _run(monkeypatch, signed.model_dump_json()) == 2
     assert "expired" in capsys.readouterr().err
 
 

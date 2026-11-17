@@ -582,3 +582,67 @@ def test_analysis_evaluation_api_is_owner_scoped_and_human_only():
     assert client.get(
         f"/api/v1/projects/{project_id}/analysis-evaluation-metrics", headers=other_headers
     ).status_code == 404
+
+
+def test_human_finding_decisions_are_owner_scoped_and_append_only():
+    from app.db.models import AIAnalysisRun, HumanFindingDecision, Project
+
+    owner_headers = register_and_auth("finding-decision-owner@example.org")
+    other_headers = register_and_auth("finding-decision-other@example.org")
+    project_data = client.post(
+        "/api/v1/projects", json={"name": "Finding Decision Project"}, headers=owner_headers
+    ).json()
+    db = TestingSession()
+    try:
+        project = db.query(Project).filter_by(id=project_data["id"]).one()
+        run = AIAnalysisRun(
+            project_id=project.id, created_by=project.owner_id,
+            context_sha256="1" * 64, correlations_sha256="2" * 64,
+            provider="deepseek", model="test-model", status="completed",
+            disposition="requires_independent_validation", result_json="{}",
+            execution_enabled=False,
+        )
+        db.add(run)
+        db.commit()
+        run_id = run.id
+    finally:
+        db.close()
+
+    fingerprint = "a" * 64
+    endpoint = f"/api/v1/analysis-runs/{run_id}/finding-decisions"
+    payload = {
+        "candidate_fingerprint": fingerprint,
+        "outcome": "confirmed",
+        "evidence_sha256": "b" * 64,
+        "validation_method": "manual_reproduction",
+        "notes": "Independently reproduced with authorized test accounts",
+        "reviewer_attested": True,
+    }
+    assert client.post(endpoint, json=payload, headers=other_headers).status_code == 404
+    missing_attestation = dict(payload)
+    missing_attestation.pop("reviewer_attested")
+    assert client.post(endpoint, json=missing_attestation, headers=owner_headers).status_code == 422
+
+    created = client.post(endpoint, json=payload, headers=owner_headers)
+    assert created.status_code == 201, created.text
+    assert created.json()["evaluator_id"] > 0
+    assert created.json()["reviewer_attested"] is True
+    assert client.post(endpoint, json=payload, headers=owner_headers).status_code == 409
+
+    listed = client.get(
+        endpoint, params={"candidate_fingerprint": fingerprint}, headers=owner_headers
+    )
+    assert listed.status_code == 200
+    assert len(listed.json()) == 1
+    assert listed.json()[0]["outcome"] == "confirmed"
+
+    db = TestingSession()
+    try:
+        record = db.query(HumanFindingDecision).one()
+        record.notes = "tampered"
+        import pytest
+        with pytest.raises(Exception):
+            db.commit()
+        db.rollback()
+    finally:
+        db.close()

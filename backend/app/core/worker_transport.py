@@ -16,7 +16,7 @@ def issue_signed_worker_task(
     now: datetime | None = None,
     ttl_seconds: int = 120,
 ) -> SignedWorkerTask:
-    """Revalidate scope, reserve the queued job once, then sign its task envelope.
+    """Revalidate scope, sign the envelope, then reserve the queued job exactly once.
 
     The returned object is a message for a future authenticated transport. This
     function does not send it, start a process, or perform any network operation.

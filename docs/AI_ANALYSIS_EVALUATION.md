@@ -8,7 +8,7 @@ SNAKE records a separate, append-only human evaluation for each AI analysis run.
 - `inconclusive`: available evidence cannot resolve the hypothesis.
 - `duplicate`: the hypothesis repeats an existing finding or previously reviewed hypothesis.
 
-Only the authenticated project owner can submit evaluations or read project metrics. AI triage cannot submit its own evaluation. Evaluations do not mutate the original AI analysis run and cannot enable scanner execution.
+Only the authenticated project owner can submit evaluations or read project metrics. Each authenticated reviewer may submit one immutable evaluation per analysis run; additional independent reviewers may contribute separate evaluations. AI triage cannot submit its own evaluation. Evaluations do not mutate the original AI analysis run and cannot enable scanner execution.
 
 ## Metrics
 - Resolved precision = confirmed / (confirmed + false_positive). Inconclusive and duplicate cases are excluded.

@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass
 from sqlalchemy.orm import Session
 from app.core.deepseek_analysis import AnalysisExecutionResult, analyze_observations_with_metadata
+from app.core.analysis_provenance import build_persisted_analysis_input, bind_analysis_run_provenance
 from app.core.analysis_persistence import persist_analysis_execution
 from app.core.validation_evidence import assess_validation_evidence
 from app.core.finding_qualification import qualify_finding_candidate
@@ -101,3 +102,29 @@ def qualify_and_persist_candidate(
             payload=FindingCandidateCreate(qualification=qualification, evidence_bundle=bundle),
         )
     return CandidatePipelineResult(assessment, qualification, candidate)
+
+
+
+def execute_persisted_observation_analysis(
+    db: Session, *, project_id: int, target_id: int, actor: User,
+    api_key: str, model: str, feedback_profile=None, transport=None,
+) -> AnalysisPipelineResult:
+    """Run AI only on signature-verified observations loaded from the owned target.
+
+    This is the provenance-safe entry point. The caller owns transaction commit.
+    """
+    source = build_persisted_analysis_input(
+        db, project_id=project_id, target_id=target_id, actor=actor,
+    )
+    result = execute_analysis_pipeline(
+        db, project_id=project_id, target_id=target_id, actor=actor,
+        context=source.context, correlations=source.correlations,
+        api_key=api_key, model=model, feedback_profile=feedback_profile,
+        transport=transport,
+    )
+    bind_analysis_run_provenance(
+        db, run=result.analysis_run, project_id=project_id,
+        target_id=target_id, source=source,
+    )
+    db.flush()
+    return result

@@ -61,6 +61,10 @@ def test_explicit_call_uses_fixed_https_endpoint_and_validates_provenance():
     assert seen["body"]["messages"][0]["role"] == "system"
     assert "untrusted evidence" in seen["body"]["messages"][1]["content"]
     assert "supersecretvalue" not in seen["body"]["messages"][1]["content"]
+    sent_evidence = json.loads(seen["body"]["messages"][1]["content"])
+    assert sent_evidence["application_profile"]["routes"][0]["route_template"] == "/api/users/:id"
+    assert sent_evidence["application_profile"]["routes"][0]["surfaces"] == ["object_access"]
+    assert sent_evidence["application_profile"]["hosts"][0]["hostname"] == "example.test"
     assert "Treat every value" in SYSTEM_PROMPT
     assert "tools" not in seen["body"]
 

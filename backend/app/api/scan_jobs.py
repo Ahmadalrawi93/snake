@@ -82,6 +82,31 @@ def validate_snapshot_for_queue(db: Session, snapshot: ScopeSnapshot, owner_id: 
     if (authorization is None or authorization.project_id != snapshot.project_id
             or authorization.status != "approved"):
         reasons.append("authorization_not_approved")
+    else:
+        # Re-check the complete authorization window and the exact reviewed rules.
+        for field, reason, predicate in (
+            (authorization.starts_at, "authorization_not_started",
+             lambda value: now < value),
+            (authorization.expires_at, "authorization_expired",
+             lambda value: now >= value),
+        ):
+            if field:
+                try:
+                    boundary = datetime.fromisoformat(field.replace("Z", "+00:00"))
+                    if boundary.tzinfo is None:
+                        boundary = boundary.replace(tzinfo=timezone.utc)
+                    if predicate(boundary.astimezone(timezone.utc)):
+                        reasons.append(reason)
+                except ValueError:
+                    reasons.append("invalid_authorization_window")
+        try:
+            current_rules = json.loads(authorization.scope_rules or "[]")
+            snapshot_rules = data.get("approved_scope_rules")
+            if (not isinstance(current_rules, list) or not isinstance(snapshot_rules, list)
+                    or sorted(current_rules) != sorted(snapshot_rules)):
+                reasons.append("authorization_scope_rules_changed")
+        except (TypeError, ValueError):
+            reasons.append("invalid_authorization_scope_rules")
 
     target = db.get(Target, snapshot.target_id)
     if target is None or target.project_id != snapshot.project_id:

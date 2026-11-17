@@ -19,6 +19,7 @@ from pydantic import ValidationError
 from worker_replay_ledger import WorkerReplayLedger
 
 from app.core.worker_protocol import WorkerValidationResult, ensure_not_expired
+from app.schemas.worker_transport import WorkerTaskResponse
 from app.core.worker_signing import (
     SignedWorkerTask,
     sign_worker_validation_result,
@@ -112,9 +113,10 @@ def validate_task_request(raw: bytes, *, backend_public_key: str,
             validated_at=datetime.now(timezone.utc),
             execution_enabled=False,
         )
-        return sign_worker_validation_result(
+        acknowledgement = sign_worker_validation_result(
             result, worker_private_key, key_id=key_id
-        ).model_dump_json().encode("utf-8")
+        )
+        return WorkerTaskResponse(acknowledgement=acknowledgement, observation_batch=None).model_dump_json().encode("utf-8")
 
     if replay_ledger is None:
         ensure_not_expired(signed.envelope)

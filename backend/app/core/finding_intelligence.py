@@ -33,18 +33,21 @@ def _category_family(category: str) -> str:
 
 
 def _route_signatures(texts: list[str]) -> set[str]:
+    """Extract normalized API paths and resource prefixes from evidence text."""
     routes: set[str] = set()
     for text in texts:
-        for match in re.findall(r"(?:(?:https?://[^\s\"'<>]+)?/(?:api|v[0-9]+|graphql)[^\s\"'<>]*)", text, re.I):
-            raw = match if match.startswith("http") else "https://placeholder.invalid" + match
-            path = urlsplit(raw).path.rstrip("/") or "/"
+        for match in re.findall(r"/(?:api|v[0-9]+|graphql)(?:/[A-Za-z0-9._~:%-]+)*", text, re.I):
+            path = match.split("?", 1)[0].split("#", 1)[0].rstrip("/") or "/"
             path = re.sub(r"/[0-9]+(?=/|$)", "/:id", path)
-            path = re.sub(
-                r"/[0-9a-f]{8}-[0-9a-f-]{27,}(?=/|$)", "/:id", path, flags=re.I
-            )
+            path = re.sub(r"/[0-9a-f]{8}-[0-9a-f-]{27,}(?=/|$)", "/:id", path, flags=re.I)
+            segments = path.split("/")
+            # Keep the full route and the object/resource prefix before nested actions.
             routes.add(path.casefold())
+            for index, segment in enumerate(segments):
+                if segment == ":id":
+                    routes.add("/".join(segments[:index + 1]).casefold())
+                    break
     return routes
-
 
 def _evidence_tokens(candidate: CandidateSimilarityInput) -> set[str]:
     return _tokens(" ".join(candidate.evidence_texts))
@@ -91,7 +94,7 @@ def compare_candidates(
             rationale.append("shared_normalized_routes")
         # Cross-category comparisons require strong evidence overlap and a shared route.
         cross_family_candidate = (
-            not category_match and evidence_similarity >= 0.72 and shared_routes >= 1
+            not category_match and evidence_similarity >= 0.55 and shared_routes >= 1
         )
         same_category_candidate = (
             category_match and (

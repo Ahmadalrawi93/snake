@@ -294,7 +294,7 @@ def write_feed(path: str | os.PathLike[str], records: list[dict[str, str]]) -> N
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Collect passive CT names for an operator-reviewed scope")
+    parser = argparse.ArgumentParser(description="Collect passive DNS intelligence for an operator-reviewed scope")
     parser.add_argument("--scope-file", required=True, help="JSON file containing approved_scope_rules")
     parser.add_argument("--output", required=True, help="private JSON feed output path")
     parser.add_argument("--provider", action="append", choices=["ct", "dnsdb"],\n                        help="passive source to query; repeat to combine providers (default: ct)")\n    parser.add_argument("--authorization-reference", required=True,

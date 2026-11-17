@@ -114,3 +114,38 @@ worker image. Run it on a separate controlled host with outbound access only
 to the provider. Transfer the resulting feed to the worker through a trusted
 channel and mount it read-only. Provider availability, terms, rate limits, and
 data retention practices must be reviewed before operational use.
+
+
+## External passive DNS collector (DNSDB)
+
+The same external collector can optionally query DomainTools Farsight DNSDB
+API v2 as a passive DNS source. It uses the fixed HTTPS origin
+`api.dnsdb.info`, the documented `X-API-Key` header, NDJSON/SAF framing,
+and a bounded response. It requests only exact approved names or the wildcard
+form for an explicitly wildcard-approved scope rule. It never resolves names
+or connects to discovered hosts.
+
+Set the API key in the collector process environment (do not put it in the
+scope file, command line, output feed, or source control):
+```sh
+export DNSDB_API_KEY='your-provider-api-key'
+python collect_passive_feed.py \
+  --scope-file ./approved-scope.json \
+  --output ./passive-feed.json \
+  --provider ct --provider dnsdb \
+  --authorization-reference "program-approval-ticket-123"
+```
+
+DNSDB API access requires a separately provisioned paid/provider account and
+is not enabled by default. The collector rejects incomplete SAF streams and
+accepts only RRsets with passive replication timestamps; records containing
+only zone-file import timestamps are excluded. A DNSDB response marked
+`limited` is retained as a bounded, potentially truncated result. RRset owner
+names are rechecked against the approved scope before they enter the feed.
+Only a bounded sample per provider is included when both providers are
+selected. Provider rate limits, account entitlements, terms, and data handling
+must be checked by the operator.
+
+DNSDB records are historical observations, not proof of current DNS state,
+asset ownership, authorization, reachability, or vulnerability. The API key
+is used only in the outbound provider request and is never persisted by SNAKE.

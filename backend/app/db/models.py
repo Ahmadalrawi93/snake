@@ -120,3 +120,29 @@ class WorkerKey(Base):
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+
+class WorkerDispatchAttempt(Base):
+    """Append-only delivery attempt history for one already-signed task."""
+    __tablename__ = "worker_dispatch_attempts"
+    __table_args__ = (
+        UniqueConstraint("task_id", "attempt_number", name="uq_worker_attempt_task_number"),
+        CheckConstraint(
+            "status IN ('started', 'delivered', 'failed', 'unknown')",
+            name="ck_worker_attempt_status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    task_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("worker_task_receipts.task_id"), nullable=False, index=True
+    )
+    attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    worker_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    key_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    envelope_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="started")
+    error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

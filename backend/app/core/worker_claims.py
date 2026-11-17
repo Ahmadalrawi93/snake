@@ -22,6 +22,8 @@ def reserve_task_receipt(
     db: Session,
     envelope: WorkerTaskEnvelope,
     *,
+    worker_id: str | None = None,
+    key_id: str | None = None,
     now: datetime | None = None,
 ) -> WorkerTaskReceipt:
     """Atomically reserve one queued job and persist its unique task receipt.
@@ -56,6 +58,8 @@ def reserve_task_receipt(
             task_id=str(envelope.task_id),
             job_id=envelope.job_id,
             envelope_sha256=envelope_digest(envelope),
+            worker_id=worker_id,
+            key_id=key_id,
             expires_at=envelope.expires_at.astimezone(timezone.utc),
             consumed_at=None,
             created_at=current.astimezone(timezone.utc),

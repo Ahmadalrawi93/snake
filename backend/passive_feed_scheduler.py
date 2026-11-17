@@ -18,6 +18,7 @@ from typing import Callable
 from asset_intelligence_history import update_history
 from asset_intelligence_prioritization import prioritize_assets
 from attack_surface_graph import build_attack_surface_graph
+from api_endpoint_intelligence import build_api_endpoint_intelligence
 
 from collect_passive_feed import (
     MAX_FEED_RECORDS,
@@ -44,6 +45,7 @@ def run_cycle(
     history_db: str | None = None,
     priority_report: str | None = None,
     graph_report: str | None = None,
+    endpoint_report: str | None = None,
 ) -> int:
     """Build a fresh feed and atomically publish it only after all sources succeed."""
     if not providers or len(set(providers)) != len(providers) or any(p not in {"ct", "dnsdb"} for p in providers):
@@ -78,6 +80,10 @@ def run_cycle(
         graph = build_attack_surface_graph(records, scope_rules)
         write_feed(graph_report, graph)
         LOG.info("attack surface graph written; nodes=%d edges=%d", graph["summary"]["nodes"], graph["summary"]["edges"])
+    if endpoint_report:
+        intelligence = build_api_endpoint_intelligence(records, scope_rules)
+        write_feed(endpoint_report, intelligence)
+        LOG.info("passive API endpoint report written; endpoints=%d", intelligence["summary"]["endpoints"])
     return len(records)
 
 
@@ -113,6 +119,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--history-db", help="SQLite asset history path; defaults to OUTPUT.history.sqlite3")
     parser.add_argument("--priority-report", help="separate ranked JSON report; defaults to OUTPUT.priority.json")
     parser.add_argument("--graph-report", help="passive relationship graph; defaults to OUTPUT.graph.json")
+    parser.add_argument("--endpoint-report", help="passive API endpoint hints; defaults to OUTPUT.api-endpoints.json")
     args = parser.parse_args(argv)
     if not args.authorization_reference.strip() or len(args.authorization_reference) > 200:
         parser.error("authorization reference must be 1-200 characters")
@@ -146,6 +153,8 @@ def main(argv: list[str] | None = None) -> int:
                     args.authorization_reference,
                     history_db=args.history_db or args.output + ".history.sqlite3",
                     priority_report=args.priority_report or args.output + ".priority.json",
+                    graph_report=args.graph_report or args.output + ".graph.json",
+                    endpoint_report=args.endpoint_report or args.output + ".api-endpoints.json",
                 )
                 LOG.info("passive feed refreshed; records=%d", count)
             except Exception as exc:

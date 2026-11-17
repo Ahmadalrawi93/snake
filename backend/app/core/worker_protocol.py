@@ -44,3 +44,22 @@ def ensure_not_expired(task: WorkerTaskEnvelope, now: datetime | None = None) ->
         raise ValueError("worker task expired")
     if task.execution_enabled is not False:
         raise ValueError("worker execution is disabled")
+
+
+class WorkerValidationResult(BaseModel):
+    """A validation-only acknowledgement; it cannot claim scan completion."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    task_id: UUID
+    envelope_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    worker_id: str = Field(min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9._-]+$")
+    outcome: Literal["accepted", "rejected"]
+    validated_at: datetime
+    execution_enabled: Literal[False] = False
+
+    @model_validator(mode="after")
+    def validate_timestamp(self):
+        if self.validated_at.tzinfo is None:
+            raise ValueError("worker result timestamp must be timezone-aware")
+        return self

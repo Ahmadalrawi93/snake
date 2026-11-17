@@ -28,7 +28,12 @@ def make_context():
         value="https://example.test/api/users", evidence="observed collection route",
         source="passive", observed_at=datetime.now(timezone.utc),
     )
-    context = build_analysis_context([collection, item])
+    auth = WorkerObservation(
+        observation_id=uuid4(), kind="url",
+        value="https://example.test/login", evidence="observed authentication route",
+        source="passive", observed_at=datetime.now(timezone.utc),
+    )
+    context = build_analysis_context([auth, collection, item])
     correlations = correlate_analysis_context(context)
     return context, correlations, observation_id
 
@@ -73,6 +78,8 @@ def test_explicit_call_uses_fixed_https_endpoint_and_validates_provenance():
     assert sent_evidence["business_logic_profile"]["object_surfaces"][0]["resource"] == "users"
     assert sent_evidence["business_logic_profile"]["object_surfaces"][0]["object_route"] == "/api/users/:id"
     assert sent_evidence["business_logic_profile"]["hypotheses"][0]["disposition"] == "requires_independent_validation"
+    assert sent_evidence["cross_surface_profile"]["links"][0]["relation"] == "authentication_to_object_surface"
+    assert len(sent_evidence["cross_surface_profile"]["links"][0]["observation_ids"]) == 3
     assert "Treat every value" in SYSTEM_PROMPT
     assert "tools" not in seen["body"]
 

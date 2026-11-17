@@ -145,3 +145,25 @@ def test_scheduler_writes_separate_passive_graph(tmp_path):
     assert graph["summary"]["api_route_hints"] == 1
     assert graph["execution_enabled"] is False
     assert graph_path.stat().st_mode & 0o777 == 0o600
+
+
+def test_scheduler_writes_separate_api_endpoint_report(tmp_path):
+    scope = tmp_path / "scope.json"
+    scope.write_text(json.dumps({"approved_scope_rules": ["*.example.org"]}))
+    scope.chmod(0o600)
+    output = tmp_path / "feed.json"
+    endpoint_path = tmp_path / "api-endpoints.json"
+    record = {"hostname": "api.example.org", "kind": "url",
+              "value": "https://api.example.org/v2/accounts/123",
+              "source": "ct_sh_ct", "evidence": "passive",
+              "observed_at": "2026-11-17T10:00:00+00:00"}
+    run_cycle(str(scope), str(output), ["ct"], "ticket",
+              ct_collector=lambda _rules: [record],
+              endpoint_report=str(endpoint_path))
+    feed = json.loads(output.read_text())
+    report = json.loads(endpoint_path.read_text())
+    assert "priority_score" not in feed[0]
+    assert report["classification"] == "passive_unconfirmed_api_endpoint_hints"
+    assert report["endpoints"][0]["path_template"] == "/v2/accounts/{id}"
+    assert report["execution_enabled"] is False
+    assert endpoint_path.stat().st_mode & 0o777 == 0o600

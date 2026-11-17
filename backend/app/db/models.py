@@ -85,3 +85,15 @@ class ScanJob(Base):
     execution_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class WorkerTaskReceipt(Base):
+    """Durable one-time task ledger; it never grants permission to execute a scan."""
+    __tablename__ = "worker_task_receipts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    task_id: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
+    job_id: Mapped[int] = mapped_column(ForeignKey("scan_jobs.id"), unique=True, nullable=False)
+    envelope_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

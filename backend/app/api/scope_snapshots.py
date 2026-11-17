@@ -62,13 +62,21 @@ def create_scope_snapshot(
     if target.target_type == "url":
         target_url = target.value
     elif target.target_type == "domain":
-        target_url = "https://" + target.value
+        from app.core.scope_policy import normalize_host
+        try:
+            target_url = "https://" + normalize_host(target.value)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Domain targets must contain only a valid hostname")
     else:
         raise HTTPException(status_code=422, detail="Only URL and domain targets are supported for scope snapshots")
 
-    parsed = urlsplit(target_url)
-    if not parsed.hostname:
-        raise HTTPException(status_code=422, detail="Target must contain a valid hostname")
+    try:
+        parsed = urlsplit(target_url)
+        if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
+            raise ValueError("invalid target URL")
+        _ = parsed.port
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Target must be a valid HTTP or HTTPS URL")
 
     now = datetime.now(timezone.utc)
     authorizations = db.query(Authorization).filter_by(
@@ -156,9 +164,13 @@ def validate_scope_snapshot(
     if project is None:
         raise HTTPException(status_code=404, detail="Scope snapshot not found")
     reasons = []
-    canonical = json.dumps(json.loads(row.snapshot_json), sort_keys=True,
-                           separators=(",", ":"), ensure_ascii=False)
-    if hashlib.sha256(canonical.encode("utf-8")).hexdigest() != row.sha256:
+    try:
+        snapshot_data = json.loads(row.snapshot_json)
+        canonical = json.dumps(snapshot_data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        if hashlib.sha256(canonical.encode("utf-8")).hexdigest() != row.sha256:
+            reasons.append("snapshot_integrity_mismatch")
+    except (TypeError, ValueError):
+        snapshot_data = {}
         reasons.append("snapshot_integrity_mismatch")
     if row.status != "active":
         reasons.append("snapshot_not_active")
@@ -173,7 +185,7 @@ def validate_scope_snapshot(
     if target is None or target.project_id != row.project_id:
         reasons.append("target_missing_or_moved")
     else:
-        original_target = json.loads(row.snapshot_json).get("target")
+        original_target = snapshot_data.get("target")
         current_target = target.value if target.target_type == "url" else (
             "https://" + target.value if target.target_type == "domain" else None
         )

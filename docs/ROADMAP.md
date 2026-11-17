@@ -33,3 +33,14 @@ Safe validation library, reproducible evidence, severity rationale, exportable r
 
 ## Phase 7 — Production Hardening
 Threat modeling, security testing of SNAKE itself, secrets management, backups, observability, deployment automation, and operational procedures.
+
+
+## Worker security boundary (current increment)
+- [x] Strict worker task envelope with fixed profile, snapshot digest, expiry, and no arbitrary command fields.
+- [x] Tests for unknown command fields, execution-enabled payloads, unsupported profiles, naive timestamps, and expired tasks.
+- [ ] Dispatcher with database-backed revalidation at dispatch time.
+- [ ] Isolated non-root container runtime with resource limits and default-deny egress.
+- [ ] Socket-level destination pinning and redirect revalidation before every request.
+- [ ] Passive recon adapters; no adapter is executable yet.
+
+The worker protocol is a data contract only. No worker, dispatcher, network request, or scan execution is enabled.

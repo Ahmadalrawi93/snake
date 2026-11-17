@@ -27,6 +27,7 @@ class AuthorizationRead(BaseModel):
     expires_at: str | None
     status: str
     notes: str
+    scope_rules: str
     created_at: datetime
 
 class TargetCreate(BaseModel):

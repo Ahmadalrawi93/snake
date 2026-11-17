@@ -46,7 +46,7 @@ def make_task():
         task_id=uuid4(), job_id=10, scope_snapshot_id=20,
         scope_snapshot_sha256="a" * 64, profile="passive_recon",
         target_url="https://example.com/", issued_at=now,
-        expires_at=now + timedelta(minutes=2), approved_scope_rules=["example.com"], execution_enabled=False,
+        expires_at=now + timedelta(minutes=2), approved_scope_rules=["example.com", "*.example.com"], execution_enabled=False,
     )
 
 

@@ -10,7 +10,7 @@ from app.core.worker_protocol import WorkerTaskEnvelope, ensure_not_expired
 def valid_payload():
     now = datetime.now(timezone.utc)
     return {
-        "task_id": str(uuid4()),
+        "task_id": uuid4(),
         "job_id": 7,
         "scope_snapshot_id": 3,
         "scope_snapshot_sha256": "a" * 64,

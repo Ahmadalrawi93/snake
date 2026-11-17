@@ -2,6 +2,9 @@ import base64
 import json
 from datetime import datetime, timedelta, timezone
 from email.message import Message
+from http.client import HTTPConnection
+from http.server import HTTPServer
+from threading import Thread
 from uuid import uuid4
 
 import pytest
@@ -224,3 +227,47 @@ def test_worker_listener_accepts_explicit_private_interface():
         "SNAKE_WORKER_BIND_HOST": "10.20.30.40",
         "SNAKE_WORKER_BIND_PORT": "9443",
     }) == ("10.20.30.40", 9443)
+
+
+
+def test_http_handler_replays_exact_acknowledgement_after_duplicate_delivery(tmp_path):
+    backend_private, backend_public = keypair()
+    worker_private, _ = keypair()
+    task = sign_worker_task(
+        make_task(), backend_private, worker_id="worker-1", key_id="key-1"
+    )
+    ledger_path = tmp_path / "handler-replay.sqlite3"
+    ledger = WorkerReplayLedger(ledger_path)
+    handler = __import__("worker_https_server").build_handler(
+        backend_public_key=backend_public,
+        worker_private_key=worker_private,
+        worker_id="worker-1",
+        key_id="key-1",
+        replay_ledger=ledger,
+    )
+    server = HTTPServer(("127.0.0.1", 0), handler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        responses = []
+        for _ in range(2):
+            connection = HTTPConnection("127.0.0.1", server.server_port, timeout=3)
+            body = task.model_dump_json().encode("utf-8")
+            connection.request(
+                "POST", "/internal/v1/tasks", body=body,
+                headers={"Content-Type": "application/json"},
+            )
+            response = connection.getresponse()
+            responses.append((response.status, response.read()))
+            connection.close()
+        assert responses[0][0] == 200
+        assert responses[1][0] == 200
+        assert responses[0][1] == responses[1][1]
+        with __import__("sqlite3").connect(ledger_path) as db:
+            assert db.execute(
+                "SELECT COUNT(*) FROM worker_task_ledger"
+            ).fetchone()[0] == 1
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=3)

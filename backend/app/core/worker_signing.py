@@ -39,7 +39,7 @@ def sign_worker_task(envelope: WorkerTaskEnvelope, secret: str) -> SignedWorkerT
     if not isinstance(secret, str) or len(secret) < 32:
         raise ValueError("worker signing secret must contain at least 32 characters")
     digest = hmac.new(
-        secret.encode("utf-8"), b"SNAKE-WORKER-TASK-v1\\x00" + _canonical_payload(envelope), hashlib.sha256
+        secret.encode("utf-8"), b"SNAKE-WORKER-TASK-v1" + bytes.fromhex("00") + _canonical_payload(envelope), hashlib.sha256
     ).hexdigest()
     return SignedWorkerTask(envelope=envelope, signature=f"v1={digest}")
 
@@ -73,7 +73,7 @@ def sign_worker_validation_result(result: WorkerValidationResult, secret: str) -
     ).encode("utf-8")
     digest = hmac.new(
         secret.encode("utf-8"),
-        b"SNAKE-WORKER-RESULT-v1\\x00" + payload,
+        b"SNAKE-WORKER-RESULT-v1" + bytes.fromhex("00") + payload,
         hashlib.sha256,
     ).hexdigest()
     return SignedWorkerValidationResult(result=result, signature=f"v1={digest}")

@@ -98,3 +98,8 @@ Persisted finding candidates now have an append-only human lifecycle and an encr
 ## Explicit analysis orchestration
 
 The synchronous service in `backend/app/core/analysis_orchestrator.py` connects DeepSeek analysis, persisted manual-only validation strategy, server-recomputed evidence assessment, candidate qualification, and immutable candidate persistence. It is an explicit service call only; no route, queue, worker, or scanner invokes it automatically. See [Analysis Orchestrator](docs/ANALYSIS_ORCHESTRATOR.md) for trust boundaries and limitations.
+
+
+## Worker observation provenance
+
+The provenance-safe analysis path rebuilds context from signed worker observations stored in the backend, verifies the original Ed25519 batch signature, binds each observation to its task, target, authorization and scope snapshot, and stores immutable links on the analysis run. Candidate qualification rebuilds that context from the stored links rather than trusting client-provided observations. See [Worker Observation Provenance](docs/WORKER_OBSERVATION_PROVENANCE.md). The worker currently provides validation-only acknowledgements; actual reconnaissance result production and a production ingestion endpoint remain future work.

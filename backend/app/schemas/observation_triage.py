@@ -5,7 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-_TEXT = r"^[^\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]{1,2000}$"
+_TEXT = r"^[^\x00-\x08\x0b\x0c\x0e-\x1f\x7f]{1,2000}$"
 
 
 class ObservationTriage(BaseModel):
@@ -25,7 +25,10 @@ class ObservationTriage(BaseModel):
     disposition: Literal["requires_independent_validation"] = "requires_independent_validation"
 
     @model_validator(mode="after")
-    def unique_references(self):
+    def validate_output(self):
         if len(self.supporting_observation_ids) != len(set(self.supporting_observation_ids)):
             raise ValueError("duplicate supporting observation reference")
+        for value in [*self.missing_evidence, *self.validation_questions]:
+            if len(value) > 1000 or any(ord(char) < 32 and char not in "\t" for char in value):
+                raise ValueError("triage text contains invalid control characters")
         return self

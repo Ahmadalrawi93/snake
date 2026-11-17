@@ -306,7 +306,7 @@ export default function Home() {
                 {pendingAuthorizations.length === 0 ? <div className="empty-state admin-empty">No pending authorization records.</div> : pendingAuthorizations.map(item => (
                   <article className="review-card" key={item.id}>
                     <div className="review-meta"><b>Authorization #{item.id} · Project #{item.project_id}</b><small>{item.starts_at || "Start unspecified"} → {item.expires_at || "Expiry unspecified"}</small></div>
-                    <a href={item.reference} target="_blank" rel="noreferrer">{item.reference}</a>
+                    <p className="reference">{item.reference}</p>
                     <p>{item.notes || "No submitter notes."}</p>
                     <label>Review notes<input value={reviewNotes[item.id] || ""} onChange={e => setReviewNotes(current => ({ ...current, [item.id]: e.target.value }))} placeholder="What did you verify?" maxLength={4000} /></label>
                     <label>Approved hostname rules (comma-separated)<input value={reviewScopes[item.id] || ""} onChange={e => setReviewScopes(current => ({ ...current, [item.id]: e.target.value }))} placeholder="example.com, *.example.com" /></label>

@@ -204,3 +204,34 @@ class WorkerObservationRecord(Base):
     classification: Mapped[str] = mapped_column(
         String(40), nullable=False, default="unconfirmed_observation"
     )
+
+
+class AIAnalysisRun(Base):
+    """Immutable, provenance-bound AI triage output; never a confirmed finding."""
+    __tablename__ = "ai_analysis_runs"
+    __table_args__ = (
+        CheckConstraint("status IN ('completed')", name="ck_ai_analysis_run_status"),
+        CheckConstraint("disposition = 'requires_independent_validation'",
+                        name="ck_ai_analysis_requires_validation"),
+        CheckConstraint("execution_enabled = 0", name="ck_ai_analysis_execution_disabled"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    context_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    correlations_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    provider: Mapped[str] = mapped_column(String(40), nullable=False, default="deepseek")
+    model: Mapped[str] = mapped_column(String(100), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="completed")
+    disposition: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="requires_independent_validation"
+    )
+    result_json: Mapped[str] = mapped_column(Text, nullable=False)
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    completion_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cost_usd: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    provider_request_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    execution_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

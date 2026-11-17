@@ -88,3 +88,8 @@ See [human finding decisions](docs/HUMAN_FINDING_DECISIONS.md) for API behavior,
 See [persisted finding candidates](docs/FINDING_CANDIDATE_PERSISTENCE.md) for candidate storage and trust boundaries.
 
 Finding Intelligence compares persisted candidates using category families, normalized title/evidence tokens, source-observation overlap, and normalized route signatures. Cross-category matching requires strong evidence overlap and a shared route. It labels possible duplicates for human review only; it never merges, suppresses, deletes, or confirms candidates. See [Finding Intelligence](docs/FINDING_INTELLIGENCE.md).
+
+
+## Finding lifecycle and evidence vault
+
+Persisted finding candidates now have an append-only human lifecycle and an encrypted evidence vault. Lifecycle state is derived from immutable transition events; evidence bytes are Fernet-encrypted before database storage and verified by SHA-256 on retrieval. Configure `SNAKE_EVIDENCE_VAULT_FERNET_KEY` through deployment secret management before enabling evidence uploads. Missing keys fail closed. See [Finding Lifecycle & Evidence Vault](docs/FINDING_LIFECYCLE_EVIDENCE_VAULT.md).

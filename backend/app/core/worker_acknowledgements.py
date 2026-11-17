@@ -1,9 +1,10 @@
-"""Verify and atomically consume Ed25519-authenticated worker acknowledgements."""
+"""Verify and atomically consume Ed25519 acknowledgements against registered worker keys."""
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
 from app.core.worker_claims import consume_task_receipt
+from app.core.worker_key_registry import get_active_worker_public_key
 from app.core.worker_protocol import WorkerValidationResult
 from app.core.worker_signing import (
     SignedWorkerValidationResult,
@@ -24,7 +25,6 @@ def accept_worker_acknowledgement(
     db: Session,
     signed: SignedWorkerValidationResult,
     *,
-    worker_public_key_b64: str,
     expected_worker_id: str,
     expected_key_id: str,
     now: datetime | None = None,
@@ -33,7 +33,13 @@ def accept_worker_acknowledgement(
     result: WorkerValidationResult = signed.result
     if not expected_worker_id or result.worker_id != expected_worker_id:
         return False
-    if result.execution_enabled is not False:
+    if result.execution_enabled is not False or signed.key_id != expected_key_id:
+        return False
+
+    worker_public_key_b64 = get_active_worker_public_key(
+        db, worker_id=expected_worker_id, key_id=expected_key_id
+    )
+    if worker_public_key_b64 is None:
         return False
     if not verify_worker_validation_result(
         signed, worker_public_key_b64,

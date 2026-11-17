@@ -37,6 +37,8 @@ def reserve_task_receipt(
     ensure_not_expired(envelope, now=current)
     if envelope.execution_enabled is not False:
         raise ValueError("worker execution is disabled")
+    if not worker_id or not key_id:
+        raise ValueError("worker identity and key ID are required for task reservation")
 
     try:
         result = db.execute(

@@ -37,7 +37,7 @@ def build_intelligence_feedback_profile(
         raise LookupError("project not found")
 
     rows = (
-        db.query(AIAnalysisEvaluation.outcome, AIAnalysisRun.result_json)
+        db.query(AIAnalysisEvaluation.analysis_run_id, AIAnalysisEvaluation.outcome, AIAnalysisRun.result_json)
         .join(AIAnalysisRun, AIAnalysisRun.id == AIAnalysisEvaluation.analysis_run_id)
         .filter(
             AIAnalysisEvaluation.project_id == project_id,
@@ -50,8 +50,11 @@ def build_intelligence_feedback_profile(
         "category": "other", "reviewed": 0, "confirmed": 0,
         "false_positive": 0, "inconclusive": 0, "duplicate": 0,
     })
-    evaluated_runs = 0
-    for outcome, result_json in rows:
+    # Collapse multiple reviewers of the same run into one conservative label.
+    # A confirmed review wins a conflict; false-positive only counts when no
+    # reviewer confirmed it. Unresolved labels never become negative evidence.
+    per_run = {}
+    for run_id, outcome, result_json in rows:
         try:
             result = json.loads(result_json)
             category = result.get("category", "other")
@@ -61,8 +64,24 @@ def build_intelligence_feedback_profile(
         except (TypeError, ValueError):
             continue
         fingerprint = _hypothesis_fingerprint(category, hypothesis)
+        item = per_run.setdefault(run_id, {"fingerprint": fingerprint, "category": category, "outcomes": set()})
+        if item["fingerprint"] == fingerprint:
+            item["outcomes"].add(outcome)
+
+    evaluated_runs = 0
+    for item in per_run.values():
+        fingerprint = item["fingerprint"]
+        outcomes = item["outcomes"]
+        if "confirmed" in outcomes:
+            outcome = "confirmed"
+        elif "false_positive" in outcomes:
+            outcome = "false_positive"
+        elif "inconclusive" in outcomes:
+            outcome = "inconclusive"
+        else:
+            outcome = "duplicate"
         bucket = aggregates[fingerprint]
-        bucket["category"] = category
+        bucket["category"] = item["category"]
         bucket["reviewed"] += 1
         bucket[outcome] += 1
         evaluated_runs += 1

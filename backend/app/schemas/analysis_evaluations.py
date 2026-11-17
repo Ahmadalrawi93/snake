@@ -8,7 +8,7 @@ class AnalysisEvaluationCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     outcome: Literal["confirmed", "false_positive", "inconclusive", "duplicate"]
     evidence_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
-    validation_method: str = Field(min_length=3, max_length=80)
+    validation_method: str = Field(min_length=3, max_length=80, pattern=r"^[a-z][a-z0-9_]{2,79}$")
     notes: str = Field(default="", max_length=2000)
 
     @field_validator("validation_method", "notes")

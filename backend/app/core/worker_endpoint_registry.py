@@ -21,6 +21,8 @@ def validate_worker_endpoint(base_url: str, tls_server_name: str, certificate_sh
         raise ValueError("invalid worker endpoint URL") from exc
     if parsed.scheme.lower() != "https":
         raise ValueError("worker endpoint must use HTTPS")
+    if port == 0:
+        raise ValueError("worker endpoint port must be between 1 and 65535")
     if parsed.username is not None or parsed.password is not None:
         raise ValueError("endpoint credentials are forbidden")
     if parsed.query or parsed.fragment or parsed.path not in ("", "/"):

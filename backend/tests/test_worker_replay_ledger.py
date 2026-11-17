@@ -73,3 +73,27 @@ def test_concurrent_duplicate_delivery_creates_one_ack(tmp_path):
     assert {ack for ack, _ in results} == {b"one-canonical-ack"}
     assert sum(not duplicate for _, duplicate in results) == 1
     assert sum(duplicate for _, duplicate in results) == 7
+
+
+
+def test_ledger_file_permissions_and_future_schema_guard(tmp_path):
+    import sqlite3
+    import stat
+
+    path = tmp_path / "private" / "ledger.sqlite3"
+    WorkerReplayLedger(path)
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+    with sqlite3.connect(path) as db:
+        db.execute("PRAGMA user_version = 99")
+    with pytest.raises(ValueError, match="schema_is_newer"):
+        WorkerReplayLedger(path)
+
+
+def test_ledger_rejects_symlink_database_path(tmp_path):
+    real_path = tmp_path / "real.sqlite3"
+    WorkerReplayLedger(real_path)
+    link_path = tmp_path / "linked.sqlite3"
+    link_path.symlink_to(real_path)
+    with pytest.raises(ValueError, match="must_not_be_a_symlink"):
+        WorkerReplayLedger(link_path)

@@ -353,3 +353,93 @@ def test_admin_can_register_list_and_revoke_worker_public_keys():
         headers=admin_headers,
     )
     assert duplicate_revoke.status_code == 409
+
+
+
+def test_admin_reconciles_late_signed_worker_ack_once():
+    import base64
+    from datetime import datetime, timedelta, timezone
+    from uuid import uuid4
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from app.core.worker_signing import sign_worker_validation_result
+    from app.core.worker_protocol import WorkerValidationResult
+    from app.db.models import (
+        AuditEvent, ScanJob, WorkerDispatchAttempt, WorkerKey, WorkerTaskReceipt,
+    )
+
+    admin_headers = register_and_auth("reconcile-admin@example.org")
+    now = datetime.now(timezone.utc)
+    task_id = uuid4()
+    worker_id, key_id = "reconcile-worker-01", "reconcile-key-v1"
+    private = Ed25519PrivateKey.generate()
+    private_b64 = base64.b64encode(private.private_bytes(
+        serialization.Encoding.DER, serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    )).decode()
+    public_b64 = base64.b64encode(private.public_key().public_bytes(
+        serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo,
+    )).decode()
+    digest = "f" * 64
+    db = TestingSession()
+    try:
+        db.query(User).filter_by(email="reconcile-admin@example.org").one().role = "admin"
+        db.add(ScanJob(
+            id=991, project_id=1, target_id=1, scope_snapshot_id=1,
+            created_by=1, profile="passive_recon", status="dispatch_reserved",
+            execution_enabled=False,
+        ))
+        db.add(WorkerKey(
+            worker_id=worker_id, key_id=key_id, public_key_b64=public_b64,
+            fingerprint_sha256=__import__(
+                "app.core.worker_signing", fromlist=["ed25519_public_key_fingerprint"]
+            ).ed25519_public_key_fingerprint(public_b64),
+            status="active", created_by=None,
+        ))
+        db.add(WorkerTaskReceipt(
+            task_id=str(task_id), job_id=991, envelope_sha256=digest,
+            worker_id=worker_id, key_id=key_id,
+            created_at=now - timedelta(seconds=20),
+            expires_at=now - timedelta(seconds=2), consumed_at=None,
+        ))
+        db.add(WorkerDispatchAttempt(
+            task_id=str(task_id), attempt_number=1, worker_id=worker_id,
+            key_id=key_id, envelope_sha256=digest, status="unknown",
+            error_code="transport_exception",
+            started_at=now - timedelta(seconds=15),
+            completed_at=now - timedelta(seconds=10),
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    result = WorkerValidationResult(
+        task_id=task_id, envelope_sha256=digest, worker_id=worker_id,
+        outcome="accepted", validated_at=now - timedelta(seconds=5),
+        execution_enabled=False,
+    )
+    signed = sign_worker_validation_result(result, private_b64, key_id=key_id)
+    endpoint = f"/api/v1/admin/workers/tasks/{task_id}/reconcile"
+    response = client.post(
+        endpoint, json={"acknowledgement": signed.model_dump(mode="json")},
+        headers=admin_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "delivered"
+    assert response.json()["execution_enabled"] is False
+
+    duplicate = client.post(
+        endpoint, json={"acknowledgement": signed.model_dump(mode="json")},
+        headers=admin_headers,
+    )
+    assert duplicate.status_code == 409
+
+    db = TestingSession()
+    try:
+        attempt = db.query(WorkerDispatchAttempt).filter_by(task_id=str(task_id)).one()
+        assert attempt.status == "delivered"
+        assert db.query(AuditEvent).filter_by(
+            action="worker_task.reconciled", resource_id=str(task_id)
+        ).count() == 1
+    finally:
+        db.close()

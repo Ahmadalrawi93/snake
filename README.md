@@ -13,6 +13,8 @@ AI-assisted security assessment platform for **authorized** bug bounty work.
 - Immutable scope snapshots bind a target to a reviewed authorization and store a SHA-256 integrity digest.
 - Pre-dispatch validation checks snapshot integrity, target consistency, authorization status, expiry, and revocation.
 - Admins can revoke active scope snapshots; snapshot creation never triggers network activity.
+- DNS/IP destination policy rejects non-global answers and validates each redirect hop for future worker use; it returns addresses for pinning but does not open connections.
+- Persistent scan jobs support authenticated enqueue/list/read/cancel. Enqueue revalidates scope and authorization; jobs remain queued with execution disabled.
 - Explicit CLI script to provision/promote an administrator (no public admin registration).
 - Audit events scoped to the acting user.
 - SQLite local persistence and Alembic migration for legacy databases.
@@ -59,11 +61,14 @@ The script creates or promotes that account to `admin` and resets its password. 
 - `POST /api/v1/projects/{id}/targets/{target_id}/scope-snapshots`
 - `GET /api/v1/projects/{id}/scope-snapshots`
 - `GET /api/v1/scope-snapshots/{id}/validate`
+- `POST /api/v1/scope-snapshots/{id}/scan-jobs` — create a queued, non-executing job (currently `passive_recon` profile only).
+- `GET /api/v1/projects/{id}/scan-jobs` and `GET /api/v1/scan-jobs/{id}`
+- `POST /api/v1/scan-jobs/{id}/cancel` — cancel a queued job.
 - Admin: `POST /api/v1/admin/scope-snapshots/{id}/revoke`
 
 Authorization records remain `pending`. Registering a target does not perform network activity or authorize a scan.
 
 ## Known limitations
-This is not production-ready. Registration is open and has no email verification or rate limiting. JWT revocation/refresh, team roles, strict tenant-level audit retention, immutable scope snapshots, IP/redirect re-validation, worker isolation, and active scanning are not implemented. Authorization approval is a manual record review only. A scope snapshot is a deterministic permission boundary record, not a scan authorization token for an execution engine; no worker or scanner is enabled. The current hostname-only policy does not yet resolve and pin DNS/IPs or validate redirects. Keep the API private until these controls are completed.
+This is not production-ready. Registration is open and has no email verification or rate limiting. JWT revocation/refresh, team roles, strict tenant-level audit retention, socket-level IP pinning, dispatch-time and request-time revalidation, worker isolation, and scanning are not implemented. Authorization approval is a manual record review only. The DNS helper is not a firewall and does not itself pin sockets. Jobs are database records only: there is no queue consumer, worker, or scanner, and no outbound scan traffic is generated. Keep the API private until these controls are completed.
 
 See [architecture](docs/ARCHITECTURE.md) and [roadmap](docs/ROADMAP.md).

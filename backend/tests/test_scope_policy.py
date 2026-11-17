@@ -36,3 +36,11 @@ def test_invalid_hostname_is_rejected():
         pass
     else:
         raise AssertionError("Expected invalid hostname")
+
+def test_malformed_port_is_rejected():
+    result = ScopePolicy(["example.com"]).check_url("https://example.com:99999")
+    assert not result.allowed
+
+def test_invalid_ipv6_authority_is_rejected():
+    result = ScopePolicy(["example.com"]).check_url("https://[not-ipv6]/")
+    assert not result.allowed

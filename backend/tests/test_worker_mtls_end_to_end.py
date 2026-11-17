@@ -200,23 +200,23 @@ def integrated_transport(tmp_path):
                 assert host == "worker.example.org"
                 return ["93.184.216.34"]
 
-            result = deliver_signed_worker_task(
-                db, signed, resolver=resolver,
-                client_certificate_path=client_cert,
-                client_private_key_path=client_key,
-                ca_certificate_path=ca,
-                connection_factory=_LocalPinnedConnection,
-            )
-            receipt = db.query(WorkerTaskReceipt).filter_by(
-                task_id=str(envelope.task_id)
-            ).one()
-            attempt = db.query(WorkerDispatchAttempt).filter_by(
-                task_id=str(envelope.task_id)
-            ).one()
+            def dispatch(connection_factory=_LocalPinnedConnection, timeout_seconds=5.0):
+                return deliver_signed_worker_task(
+                    db, signed, resolver=resolver,
+                    client_certificate_path=client_cert,
+                    client_private_key_path=client_key,
+                    ca_certificate_path=ca,
+                    connection_factory=connection_factory,
+                    timeout_seconds=timeout_seconds,
+                )
+
             yield {
-                "result": result,
-                "receipt": receipt,
-                "attempt": attempt,
+                "dispatch": dispatch,
+                "signed": signed,
+                "envelope": envelope,
+                "receipt": db.query(WorkerTaskReceipt).filter_by(
+                    task_id=str(envelope.task_id)
+                ).one(),
                 "db": db,
             }
     finally:
@@ -228,14 +228,48 @@ def integrated_transport(tmp_path):
 
 def test_backend_to_worker_full_mtls_dispatch_and_ack(integrated_transport):
     state = integrated_transport
-    assert state["result"]["http_status"] == 200
-    assert state["result"]["acknowledgement"]["result"]["outcome"] == "accepted"
-    assert state["result"]["acknowledgement"]["result"]["execution_enabled"] is False
+    result = state["dispatch"]()
+    attempt = state["db"].query(WorkerDispatchAttempt).filter_by(
+        task_id=str(state["envelope"].task_id)
+    ).one()
+    assert result["http_status"] == 200
+    assert result["acknowledgement"]["result"]["outcome"] == "accepted"
+    assert result["acknowledgement"]["result"]["execution_enabled"] is False
     assert state["receipt"].consumed_at is not None
-    assert state["attempt"].status == "delivered"
+    assert attempt.status == "delivered"
+
+
+def test_ambiguous_post_send_timeout_is_unknown_and_cannot_retry(integrated_transport):
+    state = integrated_transport
+
+    class TimeoutAfterSend:
+        def __init__(self, **kwargs):
+            self.request_called = False
+
+        def request(self, *args, **kwargs):
+            self.request_called = True
+            raise TimeoutError("simulated response timeout after request transmission")
+
+        def close(self):
+            pass
+
+    with pytest.raises(TimeoutError):
+        state["dispatch"](connection_factory=TimeoutAfterSend, timeout_seconds=0.2)
+
+    attempt = state["db"].query(WorkerDispatchAttempt).filter_by(
+        task_id=str(state["envelope"].task_id)
+    ).one()
+    assert attempt.status == "unknown"
+    assert attempt.error_code == "transport_exception"
+    with pytest.raises(ValueError, match="previous attempt is not confirmed failed"):
+        state["dispatch"](connection_factory=TimeoutAfterSend, timeout_seconds=0.2)
 
 
 def test_full_dispatch_does_not_enable_scan_execution(integrated_transport):
     state = integrated_transport
-    assert state["result"]["acknowledgement"]["result"]["execution_enabled"] is False
-    assert state["attempt"].status == "delivered"
+    result = state["dispatch"]()
+    attempt = state["db"].query(WorkerDispatchAttempt).filter_by(
+        task_id=str(state["envelope"].task_id)
+    ).one()
+    assert result["acknowledgement"]["result"]["execution_enabled"] is False
+    assert attempt.status == "delivered"

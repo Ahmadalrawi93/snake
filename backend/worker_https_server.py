@@ -37,7 +37,18 @@ def validate_http_task_headers(headers) -> tuple[int, int | None]:
         values = headers.get_all(name, [])
         if len(values) > 1:
             return 400, None
-    if headers.get_all("Transfer-Encoding", []):
+    hosts = headers.get_all("Host", [])
+    if len(hosts) != 1:
+        return 400, None
+    host = hosts[0].strip()
+    if (not host or not host.isascii()
+            or any(ord(char) <= 32 or ord(char) == 127 for char in host)
+            or "," in host):
+        return 400, None
+    if (headers.get_all("Transfer-Encoding", [])
+            or headers.get_all("Content-Encoding", [])
+            or headers.get_all("Trailer", [])
+            or headers.get_all("Upgrade", [])):
         return 400, None
     if headers.get_all("Expect", []):
         return 417, None
@@ -144,6 +155,11 @@ def build_handler(*, backend_public_key: str, worker_private_key: str,
             self.close_connection = True
 
         def do_POST(self):
+            # The backend adapter emits HTTP/1.1. Reject legacy/unknown
+            # versions rather than applying ambiguous framing semantics.
+            if self.request_version != "HTTP/1.1":
+                self._send(505, b'{"error":"http_version_not_supported"}')
+                return
             if self.path != TASK_PATH:
                 self._send(404, b'{"error":"not_found"}')
                 return

@@ -70,7 +70,9 @@ def create_persisted_finding_impact(
         raise LookupError("analysis run not found")
 
     bundle_data = json.loads(candidate.evidence_bundle_json)
-    bundle = ValidationEvidenceBundle.model_validate(bundle_data)
+    # JSON mode preserves UUIDs and datetimes as strings; model_validate_json
+    # applies Pydantic's JSON decoding rules while retaining strict model types.
+    bundle = ValidationEvidenceBundle.model_validate_json(candidate.evidence_bundle_json)
     if _sha256(_canonical(bundle_data)) != candidate.evidence_bundle_sha256:
         raise ValueError("persisted evidence bundle digest mismatch")
     qualification = FindingQualification.model_validate_json(candidate.qualification_json)

@@ -46,7 +46,10 @@ def review_authorization(
         for rule in payload.scope_rules:
             try:
                 if rule.startswith("*."):
-                    normalized_rules.append("*." + normalize_host(rule[2:]))
+                    suffix = normalize_host(rule[2:])
+                    if "." not in suffix:
+                        raise ValueError("Wildcard suffix must contain at least two labels")
+                    normalized_rules.append("*." + suffix)
                 else:
                     normalized_rules.append(normalize_host(rule))
             except ValueError:

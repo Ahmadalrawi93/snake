@@ -35,7 +35,7 @@ class PassiveFeedRecord(BaseModel):
 
     hostname: str = Field(min_length=1, max_length=253)
     kind: Literal["hostname", "url", "dns_record", "technology", "http_header"]
-    value: str = Field(min_length=1, max_length=2048, pattern=r"^[^\\x00-\\x1f\\x7f]+$")
+    value: str = Field(min_length=1, max_length=2048, pattern=r"^[^\x00-\x1f\x7f]+$")
     evidence: str = Field(default="", max_length=8192)
     source: str = Field(min_length=1, max_length=80, pattern=r"^[a-zA-Z0-9._-]+$")
     observed_at: datetime

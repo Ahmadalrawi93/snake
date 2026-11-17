@@ -192,7 +192,7 @@ def integrated_transport(tmp_path):
                 task_id=uuid4(), job_id=501, scope_snapshot_id=9,
                 scope_snapshot_sha256="c" * 64, profile="passive_recon",
                 target_url="https://authorized.example/",
-                approved_scope_rules=["authorized.example"],
+                approved_scope_rules=["authorized.example", "*.authorized.example"],
                 issued_at=now, expires_at=now + timedelta(minutes=3),
                 execution_enabled=False,
             )

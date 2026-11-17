@@ -33,6 +33,7 @@ Required HTTPS listener environment:
 
 Run the HTTPS listener in the worker image by overriding its one-shot entrypoint:
 ```sh
+install -d -m 0700 -o 10001 -g 10001 ./worker-state
 docker run --rm --entrypoint python \
   --read-only --user 10001:10001 --cap-drop ALL --security-opt no-new-privileges \
   -p 8443:8443 \
@@ -44,8 +45,11 @@ docker run --rm --entrypoint python \
 ```
 
 The command above is an example deployment shape, not a production-ready
-orchestrator. Pre-create `./worker-state` and grant it to UID/GID 10001 before
-launching; otherwise the non-root listener cannot write its replay ledger. Keep
+orchestrator. The `install` command creates the host directory with restrictive
+permissions and ownership for UID/GID 10001; otherwise the non-root listener
+cannot write its replay ledger. The SQLite database file is restricted to mode
+0600 by the worker at initialization. Do not share this directory with
+untrusted containers or users. Keep
 that volume persistent across container replacement, protect it from other
 containers/users, and include it in backup/retention planning. The TLS
 certificate/key and CA files must be provisioned securely.

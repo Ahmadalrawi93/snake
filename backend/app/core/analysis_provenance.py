@@ -36,8 +36,10 @@ def _canonical_hash(value) -> str:
 
 def _record_matches_batch(record: WorkerObservationRecord, batch) -> bool:
     item = next((entry for entry in batch.observations if str(entry.observation_id) == record.observation_id), None)
+    canonical_payload = json.dumps(batch.model_dump(mode="json"), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return bool(
         item is not None
+        and record.batch_payload_json == canonical_payload
         and item.kind == record.kind
         and item.value == record.value
         and item.evidence == record.evidence

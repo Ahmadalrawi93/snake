@@ -35,6 +35,7 @@ def test_issue_signed_task_revalidates_reserves_and_signs(monkeypatch):
         expires_at=now + timedelta(minutes=1), execution_enabled=False,
     )
     events = []
+    monkeypatch.setattr(worker_transport, "get_active_worker_public_key", lambda *a, **k: public)
     monkeypatch.setattr(worker_transport, "prepare_dispatch_envelope",
         lambda db, job_id, **kwargs: events.append(("revalidate", job_id)) or envelope)
     monkeypatch.setattr(worker_transport, "reserve_task_receipt",
@@ -58,6 +59,7 @@ def test_invalid_signing_key_does_not_reserve_job(monkeypatch):
         expires_at=now + timedelta(minutes=1), execution_enabled=False,
     )
     reserved = []
+    monkeypatch.setattr(worker_transport, "get_active_worker_public_key", lambda *a, **k: public)
     monkeypatch.setattr(worker_transport, "prepare_dispatch_envelope", lambda *a, **k: envelope)
     monkeypatch.setattr(worker_transport, "reserve_task_receipt", lambda *a, **k: reserved.append(True))
     import pytest
@@ -67,3 +69,28 @@ def test_invalid_signing_key_does_not_reserve_job(monkeypatch):
             worker_id=WORKER_ID, key_id=KEY_ID, now=now
         )
     assert reserved == []
+
+
+
+def test_unregistered_or_revoked_worker_key_cannot_receive_task(monkeypatch):
+    import pytest
+
+    events = []
+    monkeypatch.setattr(
+        worker_transport, "get_active_worker_public_key",
+        lambda *a, **k: None,
+    )
+    monkeypatch.setattr(
+        worker_transport, "prepare_dispatch_envelope",
+        lambda *a, **k: events.append("revalidated"),
+    )
+    monkeypatch.setattr(
+        worker_transport, "reserve_task_receipt",
+        lambda *a, **k: events.append("reserved"),
+    )
+    with pytest.raises(ValueError, match="not registered and active"):
+        worker_transport.issue_signed_worker_task(
+            object(), 24, backend_private_key_b64="unused",
+            worker_id=WORKER_ID, key_id=KEY_ID,
+        )
+    assert events == []

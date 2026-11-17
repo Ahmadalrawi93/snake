@@ -182,3 +182,11 @@ def test_rejects_observation_row_not_matching_signed_batch(provenance_db):
     db.commit()
     with pytest.raises(ValueError, match="does not match its signed batch"):
         build_persisted_analysis_input(db, project_id=project.id, target_id=target.id, actor=user, now=now)
+
+
+def test_revoked_worker_key_cannot_source_a_new_analysis(provenance_db):
+    db, user, project, target, _, now = provenance_db
+    db.query(WorkerKey).filter_by(worker_id="worker-01", key_id="key-01").one().status = "revoked"
+    db.commit()
+    with pytest.raises(ValueError, match="revoked for new analysis"):
+        build_persisted_analysis_input(db, project_id=project.id, target_id=target.id, actor=user, now=now)

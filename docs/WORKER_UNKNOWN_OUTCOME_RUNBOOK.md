@@ -43,8 +43,7 @@ decision.
 ## Resolution
 
 - Matching durable acknowledgement verified: close the attempt as delivered
-  through a future audited reconciliation workflow. Until that workflow exists,
-  preserve the evidence and do not mutate database rows manually in production.
+  through a future audited reconciliation workflow. The endpoint records the verified transition and audit event atomically; preserve the evidence and do not mutate database rows manually in production.
 - Authoritative proof of rejection before acceptance: an operator may authorize
   a new dispatch through a future explicit retry workflow after recording the
   evidence and confirming the original task was not accepted.
@@ -53,10 +52,7 @@ decision.
 
 ## Engineering gate
 
-Before production dispatch is enabled, implement an authenticated,
-role-restricted reconciliation API/command that reads worker-side evidence
-without exposing the database, verifies the signed acknowledgement against the
-registered active/revoked key policy and receipt digest, writes an immutable
-audit event, and supports explicit operator approval. Add tests for lost
-ledger, restored backup, revoked keys, duplicate reconciliation, and concurrent
-operator actions.
+Before production dispatch is enabled, add a secure worker-side evidence
+retrieval channel, explicit operator approval policy, rate limiting, alerting,
+and PostgreSQL concurrency tests. Add tests for lost ledger, restored backup,
+revoked keys, duplicate reconciliation, and concurrent operator actions.

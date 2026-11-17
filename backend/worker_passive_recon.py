@@ -42,6 +42,8 @@ class PassiveFeedRecord(BaseModel):
 
     @model_validator(mode="after")
     def validate_record(self):
+        if any(ord(char) < 32 or ord(char) == 127 for char in self.value + self.evidence):
+            raise ValueError("feed value and evidence must not contain control characters")
         if self.observed_at.tzinfo is None:
             raise ValueError("feed timestamp must be timezone-aware")
         host = normalize_host(self.hostname)

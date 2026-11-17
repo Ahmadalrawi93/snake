@@ -24,6 +24,7 @@ AI-assisted security assessment platform for **authorized** bug bounty work.
 - Evidence-only cross-surface reasoning links authentication, object-resource, and sensitive-action route observations on the same host; it never infers shared controls or confirms vulnerabilities.
 - Evidence-bound validation strategy ranks manual review questions, records missing evidence and prerequisites, and remains non-executable; no requests, commands, or payloads are generated.
 - Validation evidence assessment checks human-attested supporting/contradictory evidence, source provenance, expected/observed behavior, and impact context; readiness never means a confirmed vulnerability.
+- Finding qualification converts complete, consistent evidence into an unconfirmed human-review candidate, binds assessment counts and provenance IDs to the supplied bundle, and flags repeated category/hypothesis fingerprints; it cannot confirm findings or authorize tests.
 - Immutable AI triage history with context/correlation digests, optional provider usage metadata, and owner-scoped read access.
 - Human-only hypothesis evaluation with append-only outcomes and conservative precision/coverage metrics.
 - Target-aware AI analysis history and strictly isolated human-feedback profiles; target associations are explicit and never inferred.
@@ -75,3 +76,6 @@ See [application intelligence profile](docs/APPLICATION_INTELLIGENCE.md) for its
 
 
 See [business logic intelligence](docs/BUSINESS_LOGIC_INTELLIGENCE.md), [cross-surface reasoning](docs/CROSS_SURFACE_REASONING.md), and [validation strategy engine](docs/VALIDATION_STRATEGY_ENGINE.md) and [validation evidence engine](docs/VALIDATION_EVIDENCE_ENGINE.md) for evidence boundaries and confirmation limitations.
+
+
+See [finding qualification engine](docs/FINDING_QUALIFICATION_ENGINE.md) for candidate rules, deduplication limits, and confirmation boundaries.

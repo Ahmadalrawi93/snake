@@ -121,3 +121,35 @@ def test_unresolved_labels_are_not_counted_as_negative_or_positive(db):
     assert item.confirmed == item.false_positive == 0
     assert item.resolved_precision is None
     assert item.recommendation == "insufficient_evidence"
+
+
+
+def test_multiple_reviewers_of_one_run_count_as_one_pattern_sample(db):
+    owner = User(email="profile-multi-review@example.test", password_hash="hash")
+    reviewer = User(email="profile-second-review@example.test", password_hash="hash")
+    db.add_all([owner, reviewer])
+    db.flush()
+    project = Project(owner_id=owner.id, name="feedback")
+    db.add(project)
+    db.flush()
+    run = AIAnalysisRun(
+        project_id=project.id, created_by=owner.id, context_sha256="a"*64,
+        correlations_sha256="b"*64, provider="deepseek", model="test-model",
+        status="completed", disposition="requires_independent_validation",
+        result_json=json.dumps({"category": "authorization", "hypothesis": "Potential IDOR"}),
+        execution_enabled=False,
+    )
+    db.add(run)
+    db.flush()
+    for actor, outcome in [(owner, "false_positive"), (reviewer, "false_positive")]:
+        db.add(AIAnalysisEvaluation(
+            analysis_run_id=run.id, project_id=project.id, evaluator_id=actor.id,
+            outcome=outcome, evidence_sha256="c"*64,
+            validation_method="manual_review", notes="",
+        ))
+    db.commit()
+    profile = build_intelligence_feedback_profile(db, project_id=project.id, actor=owner)
+    assert profile.evaluated_runs == 1
+    assert profile.patterns[0].reviewed == 1
+    assert profile.patterns[0].false_positive == 1
+    assert profile.patterns[0].recommendation == "insufficient_evidence"

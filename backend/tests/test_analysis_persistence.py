@@ -9,7 +9,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.db.database import Base
 from app.db.models import AIAnalysisRun, Project, User
-from app.core.analysis_persistence import persist_analysis_run
+from app.core.analysis_persistence import persist_analysis_run, persist_analysis_execution
+from app.core.deepseek_analysis import AnalysisExecutionResult
 from app.core.analysis_context import build_analysis_context
 from app.core.evidence_correlation import correlate_analysis_context
 from app.schemas.observation_triage import ObservationTriage
@@ -112,3 +113,29 @@ def test_redacts_secrets_echoed_by_model_before_storage(db):
         context=context, correlations=correlations, triage=triage, model="model")
     assert "echoedsecret" not in record.result_json
     assert "[REDACTED]" in record.result_json
+
+
+
+def test_execution_metadata_flows_into_immutable_persistence(db):
+    user = User(email="execution@example.test", password_hash="hash")
+    db.add(user)
+    db.flush()
+    project = Project(owner_id=user.id, name="execution")
+    db.add(project)
+    db.flush()
+    context, correlations, triage = setup_context()
+    execution = AnalysisExecutionResult(
+        triage=triage, provider="deepseek", model="deepseek-test",
+        prompt_tokens=30, completion_tokens=20, total_tokens=50,
+        provider_request_id="req_example", context_sha256="a"*64,
+        correlations_sha256="b"*64, response_received_at=datetime.now(timezone.utc),
+    )
+    record = persist_analysis_execution(
+        db, project_id=project.id, actor=user, context=context,
+        correlations=correlations, execution=execution,
+    )
+    assert record.prompt_tokens == 30
+    assert record.completion_tokens == 20
+    assert record.total_tokens == 50
+    assert record.provider_request_id == "req_example"
+    assert record.model == "deepseek-test"

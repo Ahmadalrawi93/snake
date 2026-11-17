@@ -73,3 +73,11 @@ def test_rejects_invalid_limit():
     context, business, _ = profile([])
     with pytest.raises(ValueError):
         build_cross_surface_profile(context, business, max_links=0)
+
+
+def test_collection_route_without_identifier_route_does_not_create_object_cross_link():
+    context, business, result = profile([
+        "https://app.example.test/login",
+        "https://app.example.test/api/users",
+    ])
+    assert result.links == []

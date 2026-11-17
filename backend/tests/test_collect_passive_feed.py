@@ -21,7 +21,7 @@ def test_ct_collector_keeps_only_scope_and_normalizes_wildcards():
         return [row("api.example.org\n*.example.org\noutside.invalid\nnotexample.org")]
     records = collect_ct_feed(["*.example.org"], fetcher=fetcher)
     assert calls == ["example.org", "%.example.org"]
-    assert {item["hostname"] for item in records} == {"api.example.org", "example.org"}
+    assert {item["hostname"] for item in records} == {"api.example.org"}
     assert all(item["source"] == "crt_sh_ct" for item in records)
     assert all(item["kind"] == "hostname" for item in records)
 

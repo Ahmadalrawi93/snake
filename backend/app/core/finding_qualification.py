@@ -6,6 +6,7 @@ from uuid import UUID
 from app.schemas.validation_strategy import ValidationStrategyItem
 from app.schemas.validation_evidence import ValidationEvidenceBundle, ValidationEvidenceAssessment
 from app.schemas.finding_qualification import FindingQualification
+from app.schemas.evidence_gap_intelligence import EvidenceGapReport
 
 
 def _fingerprint(category: str, hypothesis: str) -> str:
@@ -20,6 +21,7 @@ def qualify_finding_candidate(
     assessment: ValidationEvidenceAssessment,
     *,
     prior_candidate_fingerprints: list[str] | None = None,
+    evidence_gaps: EvidenceGapReport | None = None,
 ) -> FindingQualification:
     """Return a review candidate only when evidence is coherent and documented.
 
@@ -52,12 +54,20 @@ def qualify_finding_candidate(
         if getattr(assessment, field) != expected:
             raise ValueError(f"assessment {field} does not match evidence bundle")
 
+    if evidence_gaps is not None and evidence_gaps.strategy_id != strategy.strategy_id:
+        raise ValueError("evidence gap report does not match validation strategy")
+
     fingerprint = _fingerprint(strategy.category, strategy.hypothesis)
     prior = set(prior_candidate_fingerprints or [])
     if any(not re.fullmatch(r"[a-f0-9]{64}", item) for item in prior):
         raise ValueError("invalid prior candidate fingerprint")
 
     blockers = list(assessment.required_gaps)
+    if evidence_gaps is not None:
+        blockers.extend(
+            f"evidence_gap:{gap.category}"
+            for gap in evidence_gaps.gaps if gap.hard_blocker
+        )
     if assessment.evidence_status != "consistent":
         blockers.append("evidence_is_not_consistent")
     if assessment.contradicting_evidence_count:
@@ -76,6 +86,7 @@ def qualify_finding_candidate(
     if duplicate_of:
         blockers.append("candidate_matches_a_prior_category_and_hypothesis_fingerprint")
 
+    blockers = list(dict.fromkeys(blockers))
     ready = not blockers
     evidence_quality = (
         "mixed" if assessment.evidence_status == "mixed"

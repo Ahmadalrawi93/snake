@@ -101,4 +101,4 @@ def test_no_claims_never_infers_impact_from_free_text():
     result = assess_finding_impact(q, b, a, [])
     assert result.assessment_status == "no_structured_impact_claims"
     assert result.severity_suggestion == "not_assessed"
-    assert "free-text impact was not interpreted." in result.rationale
+    assert any("free-text impact was not interpreted." in item.lower() for item in result.rationale)

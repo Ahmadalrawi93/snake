@@ -101,7 +101,7 @@ def test_only_admin_can_review_authorization_records():
     assert any(item["id"] == record["id"] for item in pending.json())
 
     approved = client.post(f"/api/v1/admin/authorizations/{record['id']}/review",
-        json={"decision": "approved", "review_notes": "Authorization evidence reviewed manually"},
+        json={"decision": "approved", "review_notes": "Authorization evidence reviewed manually", "scope_rules": ["example.org"]},
         headers=admin_headers)
     assert approved.status_code == 200
     assert approved.json()["status"] == "approved"
@@ -109,3 +109,57 @@ def test_only_admin_can_review_authorization_records():
         json={"decision": "rejected", "review_notes": "Second decision attempt"},
         headers=admin_headers)
     assert duplicate_review.status_code == 409
+
+def test_scope_snapshot_requires_approved_matching_authorization():
+    from app.db.models import User
+    headers = register_and_auth("scope-owner@example.org")
+    project = client.post("/api/v1/projects", json={"name": "Scope Project"}, headers=headers).json()
+    target = client.post(f"/api/v1/projects/{project['id']}/targets",
+        json={"value": "https://app.example.org/login", "target_type": "url"}, headers=headers).json()
+    auth = client.post(f"/api/v1/projects/{project['id']}/authorizations",
+        json={"reference": "https://program.example.org", "notes": "Evidence submitted"},
+        headers=headers).json()
+    endpoint = f"/api/v1/projects/{project['id']}/targets/{target['id']}/scope-snapshots"
+    assert client.post(endpoint, headers=headers).status_code == 403
+
+    admin_headers = register_and_auth("scope-admin@example.org")
+    db = TestingSession()
+    try:
+        admin_user = db.query(User).filter_by(email="scope-admin@example.org").one()
+        admin_user.role = "admin"
+        db.commit()
+    finally:
+        db.close()
+
+    approved = client.post(f"/api/v1/admin/authorizations/{auth['id']}/review",
+        json={"decision": "approved", "review_notes": "Reviewed scope evidence",
+              "scope_rules": ["*.example.org"]}, headers=admin_headers)
+    assert approved.status_code == 200
+    snapshot_response = client.post(endpoint, headers=headers)
+    assert snapshot_response.status_code == 201
+    snapshot = snapshot_response.json()
+    assert snapshot["snapshot"]["hostname"] == "app.example.org"
+    assert snapshot["snapshot"]["execution_enabled"] is False
+    assert len(snapshot["sha256"]) == 64
+
+def test_scope_snapshot_rejects_out_of_scope_target():
+    from app.db.models import User
+    headers = register_and_auth("scope-denied@example.org")
+    project = client.post("/api/v1/projects", json={"name": "Out of Scope"}, headers=headers).json()
+    target = client.post(f"/api/v1/projects/{project['id']}/targets",
+        json={"value": "https://evil.invalid", "target_type": "url"}, headers=headers).json()
+    auth = client.post(f"/api/v1/projects/{project['id']}/authorizations",
+        json={"reference": "https://program.example.org"}, headers=headers).json()
+    admin_headers = register_and_auth("scope-denied-admin@example.org")
+    db = TestingSession()
+    try:
+        db.query(User).filter_by(email="scope-denied-admin@example.org").one().role = "admin"
+        db.commit()
+    finally:
+        db.close()
+    assert client.post(f"/api/v1/admin/authorizations/{auth['id']}/review",
+        json={"decision": "approved", "review_notes": "Only example.org is in scope",
+              "scope_rules": ["example.org"]}, headers=admin_headers).status_code == 200
+    denied = client.post(f"/api/v1/projects/{project['id']}/targets/{target['id']}/scope-snapshots",
+        headers=headers)
+    assert denied.status_code == 403

@@ -1,0 +1,83 @@
+import json
+import os
+
+import pytest
+
+from passive_feed_scheduler import run_cycle, _acquire_lock
+
+
+def test_cycle_combines_providers_and_writes_private_feed(tmp_path):
+    scope = tmp_path / "scope.json"
+    scope.write_text(json.dumps({"approved_scope_rules": ["example.org"]}))
+    scope.chmod(0o600)
+    output = tmp_path / "feed.json"
+    calls = []
+    def ct(rules):
+        calls.append(("ct", rules))
+        return [{"hostname": "example.org", "kind": "hostname", "value": "example.org",
+                 "evidence": "ct", "source": "ct", "observed_at": "2026-01-01T00:00:00+00:00"}]
+    def dnsdb(rules, key):
+        calls.append(("dnsdb", rules, key))
+        return [{"hostname": "example.org", "kind": "dns_record", "value": "A 192.0.2.1",
+                 "evidence": "dns", "source": "dnsdb", "observed_at": "2026-01-01T00:00:00+00:00"}]
+    count = run_cycle(str(scope), str(output), ["ct", "dnsdb"], "ticket-1",
+                      ct_collector=ct, dnsdb_collector=dnsdb,
+                      environ={"DNSDB_API_KEY": "test-key"})
+    assert count == 2
+    assert [item["kind"] for item in json.loads(output.read_text())] == ["hostname", "dns_record"]
+    assert output.stat().st_mode & 0o777 == 0o600
+    assert calls[0] == ("ct", ["example.org"])
+    assert calls[1] == ("dnsdb", ["example.org"], "test-key")
+
+
+def test_cycle_reloads_scope_each_time(tmp_path):
+    scope = tmp_path / "scope.json"
+    scope.write_text(json.dumps({"approved_scope_rules": ["example.org"]}))
+    scope.chmod(0o600)
+    observed = []
+    def collector(rules):
+        observed.append(list(rules))
+        return []
+    run_cycle(str(scope), str(tmp_path / "feed.json"), ["ct"], "ticket",
+              ct_collector=collector)
+    scope.write_text(json.dumps({"approved_scope_rules": ["new.example.org"]}))
+    run_cycle(str(scope), str(tmp_path / "feed.json"), ["ct"], "ticket",
+              ct_collector=collector)
+    assert observed == [["example.org"], ["new.example.org"]]
+
+
+def test_failed_source_does_not_replace_previous_feed(tmp_path):
+    scope = tmp_path / "scope.json"
+    scope.write_text(json.dumps({"approved_scope_rules": ["example.org"]}))
+    scope.chmod(0o600)
+    output = tmp_path / "feed.json"
+    output.write_text('[{"known_good":true}]')
+    with pytest.raises(RuntimeError):
+        run_cycle(str(scope), str(output), ["ct"], "ticket",
+                  ct_collector=lambda _rules: (_ for _ in ()).throw(RuntimeError("provider down")))
+    assert json.loads(output.read_text()) == [{"known_good": True}]
+
+
+def test_dnsdb_cycle_requires_key_without_exposing_it(tmp_path):
+    scope = tmp_path / "scope.json"
+    scope.write_text(json.dumps({"approved_scope_rules": ["example.org"]}))
+    scope.chmod(0o600)
+    with pytest.raises(ValueError, match="DNSDB_API_KEY"):
+        run_cycle(str(scope), str(tmp_path / "feed.json"), ["dnsdb"], "ticket",
+                  environ={})
+
+
+def test_lock_rejects_second_process_and_symlink(tmp_path):
+    lock = tmp_path / "scheduler.lock"
+    fd = _acquire_lock(str(lock))
+    try:
+        with pytest.raises(RuntimeError, match="already running"):
+            _acquire_lock(str(lock))
+    finally:
+        os.close(fd)
+    target = tmp_path / "target"
+    target.write_text("")
+    link = tmp_path / "link"
+    link.symlink_to(target)
+    with pytest.raises(OSError):
+        _acquire_lock(str(link))

@@ -1,1 +1,0 @@
-Temporary permission test. This file confirms GitHub write access if committed successfully.

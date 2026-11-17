@@ -155,6 +155,7 @@ def deliver_signed_worker_task(
         finish_dispatch_attempt(
             db, attempt.id, "failed", error_code="endpoint_changed_before_connect", now=now
         )
+        connection.close()
         raise ValueError("worker endpoint changed before connection")
 
     host_header = endpoint.tls_server_name

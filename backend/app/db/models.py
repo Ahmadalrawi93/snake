@@ -375,6 +375,30 @@ class FindingCandidateRecord(Base):
 
 
 
+class FindingImpactAssessmentRecord(Base):
+    """Append-only human impact assessment bound to an immutable candidate and evidence."""
+    __tablename__ = "finding_impact_assessments"
+    __table_args__ = (
+        UniqueConstraint("candidate_id", "assessment_sha256", name="uq_finding_impact_candidate_digest"),
+        CheckConstraint("final_severity = 'not_assessed'", name="ck_finding_impact_final_severity_unassessed"),
+        CheckConstraint("cvss_vector IS NULL", name="ck_finding_impact_cvss_unassigned"),
+        CheckConstraint("execution_enabled = false", name="ck_finding_impact_execution_disabled"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("finding_candidate_records.id"), nullable=False, index=True)
+    analysis_run_id: Mapped[int] = mapped_column(ForeignKey("ai_analysis_runs.id"), nullable=False, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    reviewer_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    evidence_bundle_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    claims_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    assessment_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    assessment_json: Mapped[str] = mapped_column(Text, nullable=False)
+    final_severity: Mapped[str] = mapped_column(String(20), nullable=False, default="not_assessed")
+    cvss_vector: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    execution_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
 class FindingLifecycleEvent(Base):
     """Append-only state transition; current status is derived from the latest event."""
     __tablename__ = "finding_lifecycle_events"

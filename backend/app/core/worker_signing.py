@@ -35,7 +35,7 @@ def sign_worker_task(envelope: WorkerTaskEnvelope, secret: str) -> SignedWorkerT
     if not isinstance(secret, str) or len(secret) < 32:
         raise ValueError("worker signing secret must contain at least 32 characters")
     digest = hmac.new(
-        secret.encode("utf-8"), _canonical_payload(envelope), hashlib.sha256
+        secret.encode("utf-8"), b"SNAKE-WORKER-TASK-v1\\x00" + _canonical_payload(envelope), hashlib.sha256
     ).hexdigest()
     return SignedWorkerTask(envelope=envelope, signature=f"v1={digest}")
 
@@ -57,7 +57,7 @@ class SignedWorkerValidationResult(BaseModel):
     signature: Annotated[str, Field(pattern=_SIGNATURE_RE)]
 
 
-def sign_worker_validation_result(result, secret: str) -> SignedWorkerValidationResult:
+def sign_worker_validation_result(result: WorkerValidationResult, secret: str) -> SignedWorkerValidationResult:
     """Sign a validation acknowledgement with result-specific domain separation."""
     if not isinstance(secret, str) or len(secret) < 32:
         raise ValueError("worker signing secret must contain at least 32 characters")

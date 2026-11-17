@@ -12,6 +12,7 @@ from app.core.evidence_gap_intelligence import build_evidence_gap_report
 from app.core.evidence_acquisition_planner import build_evidence_acquisition_plan
 from app.core.evidence_quality import assess_evidence_quality
 from app.core.hypothesis_ranking import rank_hypotheses
+from app.core.cross_hypothesis_evidence_reuse import build_evidence_reuse_report
 from app.core.finding_qualification import qualify_finding_candidate
 from app.core.finding_candidates import persist_finding_candidate
 from app.db.models import AIAnalysisRun, FindingCandidateRecord, Project, User
@@ -23,6 +24,7 @@ from app.schemas.evidence_gap_intelligence import EvidenceGapReport
 from app.schemas.evidence_acquisition_plan import EvidenceAcquisitionPlan
 from app.schemas.evidence_quality import EvidenceQualityAssessment
 from app.schemas.hypothesis_ranking import HypothesisRankingReport
+from app.schemas.cross_hypothesis_evidence_reuse import CrossHypothesisEvidenceReuseReport
 from app.schemas.validation_strategy import ValidationStrategyPlan
 from app.schemas.finding_candidates import FindingCandidateCreate
 from app.schemas.finding_qualification import FindingQualification
@@ -42,6 +44,7 @@ class CandidatePipelineResult:
     acquisition_plan: EvidenceAcquisitionPlan
     evidence_quality: EvidenceQualityAssessment
     hypothesis_ranking: HypothesisRankingReport
+    evidence_reuse: CrossHypothesisEvidenceReuseReport
     qualification: FindingQualification
     candidate: FindingCandidateRecord | None
 
@@ -116,6 +119,7 @@ def qualify_and_persist_candidate(
     acquisition_plan = build_evidence_acquisition_plan(strategy, bundle, evidence_gaps)
     evidence_quality = assess_evidence_quality(bundle, assessment)
     hypothesis_ranking = rank_hypotheses(plan)
+    evidence_reuse = build_evidence_reuse_report(plan, bundle)
     qualification = qualify_finding_candidate(
         strategy, bundle, assessment, prior_candidate_fingerprints=prior,
         evidence_gaps=evidence_gaps,
@@ -126,7 +130,7 @@ def qualify_and_persist_candidate(
             db, analysis_run_id=run.id, actor=actor,
             payload=FindingCandidateCreate(qualification=qualification, evidence_bundle=bundle),
         )
-    return CandidatePipelineResult(assessment, evidence_coverage, evidence_gaps, acquisition_plan, evidence_quality, hypothesis_ranking, qualification, candidate)
+    return CandidatePipelineResult(assessment, evidence_coverage, evidence_gaps, acquisition_plan, evidence_quality, hypothesis_ranking, evidence_reuse, qualification, candidate)
 
 
 

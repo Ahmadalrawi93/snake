@@ -5,7 +5,8 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 type User = { id: number; email: string; role: string };
 type Project = { id: number; name: string; description: string; created_at: string };
 type Target = { id: number; value: string; target_type: string; status: string };
-type Authorization = { id: number; reference: string; starts_at: string | null; expires_at: string | null; status: string; notes: string };\ntype ScopeSnapshot = { id: number; target_id: number; authorization_id: number; sha256: string; status: string; created_at: string; expires_at: string | null; snapshot: { target?: string; hostname?: string; execution_enabled?: boolean } };
+type Authorization = { id: number; reference: string; starts_at: string | null; expires_at: string | null; status: string; notes: string };
+type ScopeSnapshot = { id: number; target_id: number; authorization_id: number; sha256: string; status: string; created_at: string; expires_at: string | null; snapshot: { target?: string; hostname?: string; execution_enabled?: boolean } };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
@@ -15,7 +16,9 @@ export default function Home() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [targets, setTargets] = useState<Target[]>([]);
-  const [authorizations, setAuthorizations] = useState<Authorization[]>([]);\n  const [snapshots, setSnapshots] = useState<ScopeSnapshot[]>([]);\n  const [snapshotValidity, setSnapshotValidity] = useState<Record<number, string>>({});
+  const [authorizations, setAuthorizations] = useState<Authorization[]>([]);
+  const [snapshots, setSnapshots] = useState<ScopeSnapshot[]>([]);
+  const [snapshotValidity, setSnapshotValidity] = useState<Record<number, string>>({});
   const [targetValue, setTargetValue] = useState("");
   const [targetType, setTargetType] = useState("domain");
   const [authReference, setAuthReference] = useState("");
@@ -60,10 +63,12 @@ export default function Home() {
   const loadProjectResources = useCallback(async (projectId: number) => {
     const [targetList, authorizationList, snapshotList] = await Promise.all([
       api(`/api/v1/projects/${projectId}/targets`),
-      api(`/api/v1/projects/${projectId}/authorizations`),\n      api(`/api/v1/projects/${projectId}/scope-snapshots`)
+      api(`/api/v1/projects/${projectId}/authorizations`),
+      api(`/api/v1/projects/${projectId}/scope-snapshots`)
     ]);
     setTargets(targetList);
-    setAuthorizations(authorizationList);\n    setSnapshots(snapshotList);
+    setAuthorizations(authorizationList);
+    setSnapshots(snapshotList);
   }, [api]);
 
   async function selectProject(projectId: number) {

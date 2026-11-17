@@ -51,7 +51,8 @@ def db():
             task_id=str(TASK_ID), job_id=901, envelope_sha256="c" * 64,
             worker_id=WORKER_ID, key_id=KEY_ID,
             expires_at=NOW + timedelta(minutes=3),
-            consumed_at=NOW, created_at=NOW - timedelta(seconds=30),
+            consumed_at=NOW, acknowledgement_outcome="accepted",
+            acknowledgement_worker_id=WORKER_ID, created_at=NOW - timedelta(seconds=30),
         ))
         session.commit()
         yield session
@@ -90,6 +91,8 @@ def test_valid_signed_batch_persists_only_unconfirmed_observation(db):
     assert record.value == "api.example.test"
     assert record.classification == "unconfirmed_observation"
     assert record.batch_sha256
+    assert record.batch_signature == signed.signature
+    assert record.batch_payload_json
     assert record.worker_id == WORKER_ID
 
 

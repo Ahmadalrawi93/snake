@@ -19,9 +19,9 @@ The access token supplies the evaluator identity. The API verifies that the anal
 ## Important limitations
 
 - The attestation is an explicit statement by the authenticated account holder, not cryptographic proof that the reviewer actually reproduced the issue.
-- The API binds the decision to an owned analysis run and a caller-supplied candidate fingerprint. It does **not yet** prove that this fingerprint corresponds to a server-persisted Finding Qualification artifact; candidate qualification artifacts are not yet persisted as first-class records.
+- The API now requires a server-persisted candidate record for the same owned analysis run and fingerprint. The candidate record stores the exact evidence bundle and its SHA-256 digest, and is immutable.
 - A `confirmed` decision is therefore a human-recorded review outcome, not an automated platform assertion that the vulnerability is objectively true.
 - Multi-reviewer quorum, independent reviewer separation, evidence file storage, and signed evidence attestations are not implemented.
 - The workflow does not authorize testing, alter scope, or enable execution.
 
-Next hardening step: persist qualification artifacts server-side, bind their exact evidence bundle digest, and accept decisions only for those persisted candidate records.
+Important: the candidate persistence endpoint structurally binds the submitted qualification and evidence bundle to the analysis run context digest and evidence IDs, but does not independently recompute the qualification from original observations. Candidate creation should therefore be called by the trusted analysis orchestration layer, not treated as proof that the evidence is true.

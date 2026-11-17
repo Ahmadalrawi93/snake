@@ -235,3 +235,33 @@ passive-feed.json
 passive-feed.json.history.sqlite3
 passive-feed.json.priority.json
 ```
+
+
+## Passive attack-surface graph
+
+The scheduler also emits a separate relationship graph (default
+`OUTPUT.graph.json`; override with `--graph-report`). It links observed
+hostnames to approved scope rules, passive URLs to their hostnames, and
+technology/DNS/header observations to their associated hostnames. URLs whose
+first path segment is a known API marker (for example `v1`, `graphql`, or
+`swagger`) receive an `api_route_hint` node. This is a syntactic hint from
+passive evidence, not a discovered live API or a vulnerability.
+
+The graph is bounded (500 input records, 1,500 nodes, 3,000 edges), carries
+source and observation-time references on edges, and is written separately
+from the worker feed and priority report. Out-of-scope hosts and URLs whose
+declared hostname does not match the URL hostname are excluded. Query strings,
+fragments, and URL credentials are excluded. No requests are made to graph
+nodes or discovered endpoints.
+
+The graph classification is always
+`passive_unconfirmed_attack_surface_graph`; it does not prove ownership,
+reachability, authorization, endpoint existence, or exploitability.
+
+The scheduler's default output set is:
+```text
+passive-feed.json
+passive-feed.json.history.sqlite3
+passive-feed.json.priority.json
+passive-feed.json.graph.json
+```

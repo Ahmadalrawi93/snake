@@ -2,7 +2,17 @@ services:
   backend:
     build:
       context: ../backend
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    environment:
+      SNAKE_ENV: production
+      SNAKE_API_HOST: 0.0.0.0
+      SNAKE_DATABASE_URL: sqlite:////data/snake.db
+      SNAKE_JWT_SECRET_KEY: ${SNAKE_JWT_SECRET_KEY:?Set SNAKE_JWT_SECRET_KEY to a random secret of at least 32 characters}
+      SNAKE_ALLOWED_ORIGINS: ${SNAKE_ALLOWED_ORIGINS:-http://localhost:3000}
     ports:
       - "8000:8000"
+    volumes:
+      - snake-data:/data
     restart: unless-stopped
+
+volumes:
+  snake-data:

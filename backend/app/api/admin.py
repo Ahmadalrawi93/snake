@@ -91,3 +91,98 @@ def revoke_scope_snapshot(
     ))
     db.commit()
     return {"id": row.id, "status": row.status}
+
+
+class WorkerPublicKeyCreate(BaseModel):
+    key_id: str = Field(min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9._-]+$")
+    public_key_b64: str = Field(min_length=20, max_length=2048)
+
+
+@router.get("/workers/keys")
+def list_worker_keys(
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    from app.db.models import WorkerKey
+    rows = db.query(WorkerKey).order_by(WorkerKey.worker_id, WorkerKey.created_at).all()
+    return [{
+        "worker_id": row.worker_id,
+        "key_id": row.key_id,
+        "fingerprint_sha256": row.fingerprint_sha256,
+        "status": row.status,
+        "created_at": row.created_at,
+        "revoked_at": row.revoked_at,
+    } for row in rows]
+
+
+@router.post("/workers/{worker_id}/keys", status_code=201)
+def register_worker_key(
+    worker_id: str,
+    payload: WorkerPublicKeyCreate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    from fastapi import Path
+    from app.core.worker_key_registry import register_worker_public_key
+    from app.core.worker_signing import ed25519_public_key_fingerprint
+
+    if not __import__("re").fullmatch(r"[a-zA-Z0-9._-]{1,128}", worker_id):
+        raise HTTPException(status_code=422, detail="Invalid worker ID")
+    try:
+        fingerprint = ed25519_public_key_fingerprint(payload.public_key_b64)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    try:
+        row = register_worker_public_key(
+            db,
+            worker_id=worker_id,
+            key_id=payload.key_id,
+            public_key_b64=payload.public_key_b64,
+            created_by=admin.id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    db.add(AuditEvent(
+        actor_user_id=admin.id,
+        action="worker_key.registered",
+        resource_type="worker_key",
+        resource_id=f"{worker_id}:{payload.key_id}",
+        details=f"fingerprint_sha256={fingerprint}",
+    ))
+    db.commit()
+    return {
+        "worker_id": row.worker_id,
+        "key_id": row.key_id,
+        "fingerprint_sha256": row.fingerprint_sha256,
+        "status": row.status,
+    }
+
+
+@router.post("/workers/{worker_id}/keys/{key_id}/revoke")
+def revoke_worker_key(
+    worker_id: str,
+    key_id: str,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    from app.core.worker_key_registry import revoke_worker_public_key
+
+    if not __import__("re").fullmatch(r"[a-zA-Z0-9._-]{1,128}", worker_id):
+        raise HTTPException(status_code=422, detail="Invalid worker ID")
+    if not __import__("re").fullmatch(r"[a-zA-Z0-9._-]{1,128}", key_id):
+        raise HTTPException(status_code=422, detail="Invalid key ID")
+    try:
+        row = revoke_worker_public_key(db, worker_id=worker_id, key_id=key_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    if row is None:
+        raise HTTPException(status_code=404, detail="Worker key not found")
+    db.add(AuditEvent(
+        actor_user_id=admin.id,
+        action="worker_key.revoked",
+        resource_type="worker_key",
+        resource_id=f"{worker_id}:{key_id}",
+        details=f"fingerprint_sha256={row.fingerprint_sha256}",
+    ))
+    db.commit()
+    return {"worker_id": row.worker_id, "key_id": row.key_id, "status": row.status}

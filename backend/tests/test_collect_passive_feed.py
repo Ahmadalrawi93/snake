@@ -102,7 +102,7 @@ def test_provider_url_is_fixed_https_crt_sh_origin():
 def test_redirect_handler_refuses_redirects():
     handler = NoRedirect()
     with pytest.raises(HTTPError):
-        handler.redirect_request(None, None, 302, "Found", {}, "https://attacker.invalid/")
+        handler.redirect_request(__import__("urllib.request").request.Request("https://crt.sh/"), None, 302, "Found", {}, "https://attacker.invalid/")
 
 
 def test_ct_fetch_rejects_oversized_and_malformed_responses():

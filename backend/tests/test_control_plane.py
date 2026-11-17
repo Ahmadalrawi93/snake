@@ -75,3 +75,37 @@ def test_duplicate_registration_and_bad_password_are_rejected():
     bad_login = client.post("/api/v1/auth/login",
         json={"email": payload["email"], "password": "wrong-password"})
     assert bad_login.status_code == 401
+
+def test_only_admin_can_review_authorization_records():
+    user_headers = register_and_auth("submitter@example.org")
+    project = client.post("/api/v1/projects", json={"name": "Review Lab"}, headers=user_headers).json()
+    record = client.post(f"/api/v1/projects/{project['id']}/authorizations",
+        json={"reference": "https://example.org/security", "notes": "Program scope evidence"},
+        headers=user_headers).json()
+    denied = client.post(f"/api/v1/admin/authorizations/{record['id']}/review",
+        json={"decision": "approved", "review_notes": "Looks good"}, headers=user_headers)
+    assert denied.status_code == 403
+
+    admin_headers = register_and_auth("reviewer@example.org")
+    db = TestingSession()
+    try:
+        from app.db.models import User
+        admin_user = db.query(User).filter_by(email="reviewer@example.org").one()
+        admin_user.role = "admin"
+        db.commit()
+    finally:
+        db.close()
+
+    pending = client.get("/api/v1/admin/authorizations/pending", headers=admin_headers)
+    assert pending.status_code == 200
+    assert any(item["id"] == record["id"] for item in pending.json())
+
+    approved = client.post(f"/api/v1/admin/authorizations/{record['id']}/review",
+        json={"decision": "approved", "review_notes": "Authorization evidence reviewed manually"},
+        headers=admin_headers)
+    assert approved.status_code == 200
+    assert approved.json()["status"] == "approved"
+    duplicate_review = client.post(f"/api/v1/admin/authorizations/{record['id']}/review",
+        json={"decision": "rejected", "review_notes": "Second decision attempt"},
+        headers=admin_headers)
+    assert duplicate_review.status_code == 409

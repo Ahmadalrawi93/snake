@@ -229,8 +229,8 @@ def integrated_transport(tmp_path):
 def test_backend_to_worker_full_mtls_dispatch_and_ack(integrated_transport):
     state = integrated_transport
     assert state["result"]["http_status"] == 200
-    assert state["result"]["acknowledgement"]["outcome"] == "accepted"
-    assert state["result"]["acknowledgement"]["execution_enabled"] is False
+    assert state["result"]["acknowledgement"]["result"]["outcome"] == "accepted"
+    assert state["result"]["acknowledgement"]["result"]["execution_enabled"] is False
     assert state["receipt"].consumed_at is not None
     assert state["attempt"].status == "delivered"
 

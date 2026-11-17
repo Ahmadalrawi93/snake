@@ -12,8 +12,13 @@ The one-shot worker validator accepts signed JSON on stdin. A separate minimal
 HTTPS listener now accepts the same signed task at the fixed
 `POST /internal/v1/tasks` path, requires a client certificate issued by the
 configured backend CA and matching an exact SHA-256 client-certificate pin,
-validates the backend Ed25519 signature, worker/key binding,
-and expiry, then returns a signed validation-only acknowledgement. It caps
+validates the backend Ed25519 signature and worker/key binding, then uses a
+worker-side SQLite replay ledger before returning a signed validation-only
+acknowledgement. The ledger commits the task ID, envelope digest, worker/key
+identity, and exact acknowledgement bytes atomically. An identical retry returns
+the stored acknowledgement (even after a process restart); reuse of a task ID
+with changed content or identity is rejected. Expiry is enforced on first
+acceptance, not on an already accepted duplicate. It caps
 request bodies at 64 KiB, applies a five-second socket read timeout, bounds
 concurrent handler threads, and accepts only HTTP/1.1 with exactly one non-empty Host header. It rejects
 ambiguous framing (duplicate Content-Length/Content-Type/Host), Transfer-Encoding,
@@ -112,4 +117,24 @@ malformed and oversized responses, production PostgreSQL concurrency tests,
 network firewall/egress enforcement, certificate lifecycle/rotation, and
 operator-controlled deployment. The HTTPS listener remains validation-only;
 no API route, scheduler, or background dispatcher invokes it, and scan execution
-remains disabled.
+remains disabled. The listener requires `SNAKE_WORKER_REPLAY_DB_PATH`; point it
+at a durable writable filesystem location. The current hardened Compose
+`worker-validator` remains read-only and isolated and does not mount this ledger
+or launch the HTTPS listener. A future listener deployment must explicitly
+provision a persistent volume with restrictive ownership/permissions and backup/
+retention policy; ephemeral container storage defeats restart replay protection.
+
+
+## Worker-side replay ledger
+
+The HTTPS listener's SQLite ledger uses `BEGIN IMMEDIATE`, a primary-key
+constraint on task ID, a 10-second busy timeout, WAL mode, and
+`synchronous=FULL`. Signature and worker/key binding are verified before ledger
+access. A new task must pass expiry validation before its acknowledgement is
+created and committed. Concurrent identical deliveries serialize: one creates
+the acknowledgement and the others return its exact stored bytes. A task ID
+collision with a different envelope digest or worker/key identity fails closed.
+This is validation idempotency only; it does not make future scan execution
+idempotent. The ledger path must be persistent and writable in any listener
+deployment, and SQLite concurrency/durability must be re-evaluated if multiple
+worker processes or hosts share the same task namespace.

@@ -12,7 +12,7 @@ from sqlalchemy.pool import StaticPool
 from app.db.database import Base
 from app.db.models import (
     User, Project, Target, Authorization, ScopeSnapshot, ScanJob,
-    WorkerTaskReceipt, WorkerKey, WorkerObservationRecord, AIAnalysisRun,
+    WorkerTaskReceipt, WorkerKey, WorkerObservationRecord, AIAnalysisRun, Project, Target,
 )
 from app.core.worker_signing import ed25519_public_key_fingerprint
 from app.core.worker_observation_signing import sign_worker_observation_batch, observation_batch_digest
@@ -249,3 +249,37 @@ def test_rejects_ip_only_observation_without_hostname_scope_binding(provenance_d
         build_persisted_analysis_input(
             db, project_id=project.id, target_id=target.id, actor=user, now=now
         )
+
+
+def test_investigation_memory_is_persistent_and_target_scoped(provenance_db):
+    from app.core.investigation_memory import record_and_compare_investigation_memory
+    from app.schemas.validation_strategy import ValidationStrategyItem
+    db, user, project, target, _, now = provenance_db
+    strategy = ValidationStrategyItem(
+        strategy_id="object_review", category="object_authorization", priority="high",
+        priority_basis="Review ownership boundary", hypothesis="A user may access another user's invoice",
+        supporting_observation_ids=["obs-a", "obs-b"], missing_evidence=[],
+        validation_questions=["Check expected ownership"], manual_review_actions=["Review authorized test evidence"],
+        prerequisites=["Written authorization"],
+    )
+    def make_run(target_id):
+        run = AIAnalysisRun(project_id=project.id, target_id=target_id, created_by=user.id,
+            context_sha256="a"*64, correlations_sha256="b"*64, provider="deepseek", model="test",
+            status="completed", disposition="requires_independent_validation", result_json="{}", execution_enabled=False)
+        db.add(run); db.flush()
+        return run
+    first = make_run(target.id)
+    initial = record_and_compare_investigation_memory(db, run=first, strategy=strategy, actor=user)
+    assert initial.prior_matches == []
+    second = make_run(target.id)
+    repeated = record_and_compare_investigation_memory(db, run=second, strategy=strategy, actor=user)
+    assert len(repeated.prior_matches) == 1
+    assert repeated.prior_matches[0].shared_observation_count == 2
+    assert repeated.prior_matches[0].new_observation_count == 0
+    assert repeated.prior_matches[0].disposition == "previously_seen_no_new_observations"
+    other_target = Target(project_id=project.id, value="https://other.example.test", target_type="url", status="registered")
+    db.add(other_target); db.flush()
+    third = make_run(other_target.id)
+    isolated = record_and_compare_investigation_memory(db, run=third, strategy=strategy, actor=user)
+    assert isolated.prior_matches == []
+    assert isolated.review_suppressed is False

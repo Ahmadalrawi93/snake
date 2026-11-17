@@ -3,7 +3,7 @@ import hashlib
 import json
 from sqlalchemy.orm import Session
 
-from app.db.models import AIAnalysisRun, Project, User
+from app.db.models import AIAnalysisRun, Project, Target, User
 from app.core.analysis_redaction import redact_text
 from app.schemas.analysis_context import AnalysisContext
 from app.schemas.evidence_correlation import CorrelationReport
@@ -30,11 +30,14 @@ def persist_analysis_run(
     total_tokens: int | None = None,
     cost_usd: str | None = None,
     provider_request_id: str | None = None,
+    target_id: int | None = None,
 ) -> AIAnalysisRun:
     """Store only validated triage and digests, not raw prompts, evidence, or credentials."""
     project = db.query(Project).filter_by(id=project_id, owner_id=actor.id).first()
     if project is None:
         raise ValueError("project is not owned by actor")
+    if target_id is not None and db.query(Target.id).filter_by(id=target_id, project_id=project_id).first() is None:
+        raise ValueError("target does not belong to project")
     if not model or len(model) > 100 or any(ord(c) < 33 for c in model):
         raise ValueError("invalid model")
     for value in (prompt_tokens, completion_tokens, total_tokens):
@@ -53,6 +56,7 @@ def persist_analysis_run(
     result_data["validation_questions"] = [redact_text(value) for value in result_data["validation_questions"]]
     record = AIAnalysisRun(
         project_id=project.id,
+        target_id=target_id,
         created_by=actor.id,
         context_sha256=_canonical_digest(context_data),
         correlations_sha256=_canonical_digest(correlations_data),
@@ -83,6 +87,7 @@ def persist_analysis_execution(
     correlations: CorrelationReport,
     execution: AnalysisExecutionResult,
     cost_usd: str | None = None,
+    target_id: int | None = None,
 ) -> AIAnalysisRun:
     """Persist an explicit provider execution using its validated output and usage metadata."""
     if execution.provider != "deepseek":
@@ -100,4 +105,5 @@ def persist_analysis_execution(
         total_tokens=execution.total_tokens,
         cost_usd=cost_usd,
         provider_request_id=execution.provider_request_id,
+        target_id=target_id,
     )

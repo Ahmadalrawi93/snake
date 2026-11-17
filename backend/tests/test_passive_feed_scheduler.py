@@ -8,7 +8,7 @@ from passive_feed_scheduler import run_cycle, _acquire_lock
 
 def test_cycle_combines_providers_and_writes_private_feed(tmp_path):
     scope = tmp_path / "scope.json"
-    scope.write_text(json.dumps({"approved_scope_rules": ["*.example.org"]}))
+    scope.write_text(json.dumps({"approved_scope_rules": ["example.org"]}))
     scope.chmod(0o600)
     output = tmp_path / "feed.json"
     calls = []
@@ -32,7 +32,7 @@ def test_cycle_combines_providers_and_writes_private_feed(tmp_path):
 
 def test_cycle_reloads_scope_each_time(tmp_path):
     scope = tmp_path / "scope.json"
-    scope.write_text(json.dumps({"approved_scope_rules": ["*.example.org"]}))
+    scope.write_text(json.dumps({"approved_scope_rules": ["example.org"]}))
     scope.chmod(0o600)
     observed = []
     def collector(rules):

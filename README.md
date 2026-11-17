@@ -2,20 +2,14 @@
 
 AI-assisted security assessment platform for **authorized** bug bounty work.
 
-> Status: Phase 1 foundation. This is not yet an autonomous scanner or exploitation product.
+> Status: Phase 2 control-plane foundation. This is not yet an autonomous scanner or exploitation product.
 
-## Principles
-- Written authorization and explicit target scope are mandatory.
-- Deterministic policy—not an LLM—decides whether an action is allowed.
-- Discovery and validation are separated; intrusive checks require approval.
-- Every task must be auditable and evidence-backed.
-
-## Repository
-- `backend/`: FastAPI control-plane foundation and scope policy.
-- `frontend/`: Next.js dashboard shell.
-- `agents/`, `scanner/`, `intelligence/`: contracts and future modules.
-- `docs/`: architecture and roadmap.
-- `infrastructure/`: local container setup.
+## Current capabilities
+- FastAPI backend and health endpoint.
+- Deterministic hostname allowlist check.
+- SQLite-backed project, authorization-record, and target registry.
+- Audit events for project, authorization, and target registration.
+- Next.js dashboard shell.
 
 ## Backend quick start
 ```bash
@@ -27,7 +21,18 @@ uvicorn app.main:app --reload
 ```
 API docs: http://127.0.0.1:8000/docs
 
-## Safety
-The current scope endpoint checks hostnames against a configured allowlist. It does not prove legal authorization. Do not connect active scanners until authorization records, scope snapshots, redirect/IP re-validation, rate limits, worker egress restrictions, audit logs, and approval gates are implemented.
+## Control-plane endpoints
+- `POST /api/v1/projects` and `GET /api/v1/projects`
+- `POST /api/v1/projects/{id}/authorizations`
+- `GET /api/v1/projects/{id}/authorizations`
+- `POST /api/v1/projects/{id}/targets`
+- `GET /api/v1/projects/{id}/targets`
+- `GET /api/v1/audit`
+- `POST /api/v1/scopes/check`
 
-See [ROADMAP](docs/ROADMAP.md). No real reconnaissance, exploitation, or autonomous scanning is implemented yet.
+Authorization records are created with `pending` status. Recording a URL or a target does not prove authorization and does not enable scanning. There is deliberately no endpoint to activate scanning or execute tools yet.
+
+## Safety and known limitations
+This is an early foundation, not production-ready. It currently has no user authentication, authorization-review workflow, database migrations, immutable scope snapshots, IP/redirect re-validation, rate limiting, worker isolation, or active scanner. Do not expose this API publicly or use it to scan targets.
+
+See [architecture](docs/ARCHITECTURE.md) and [roadmap](docs/ROADMAP.md).

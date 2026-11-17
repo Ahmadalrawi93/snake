@@ -19,7 +19,7 @@ _GAP_DEFINITIONS = (
     ("authorized_test_account", "authorized_test_account", "No designated test-account evidence is documented.",
      "Confirmation that the identities and test objects were supplied or explicitly approved for this program.",
      "Request designated test identities and objects through the program's approved channel; never use real-user accounts or data.", True),
-    ("impact_context", "impact_context", "Impact context is not documented; this does not establish that impact is absent.",
+    ("impact_context", "impact_context", "Impact context is not documented; the impact status therefore remains unknown.",
      "A source-linked description of the affected asset, data class, or permitted test-object consequence.",
      "Document impact only from approved test artifacts or program-owner confirmation; do not cause irreversible changes or access real-user data.", True),
     ("source_traceability", "source_traceability", "Evidence items are not linked to source observations.",

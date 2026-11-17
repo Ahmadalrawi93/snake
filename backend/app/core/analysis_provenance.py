@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
+from uuid import UUID
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from app.core.analysis_context import build_analysis_context
@@ -112,7 +113,7 @@ def build_persisted_analysis_input(
                 "signature": record.batch_signature,
             }))
             batch = signed.batch
-            if (batch.task_id != __import__("uuid").UUID(receipt.task_id)
+            if (batch.task_id != UUID(receipt.task_id)
                     or batch.envelope_sha256 != receipt.envelope_sha256
                     or batch.worker_id != receipt.worker_id or batch.key_id != receipt.key_id
                     or observation_batch_digest(batch) != record.batch_sha256
@@ -133,7 +134,7 @@ def build_persisted_analysis_input(
         records.append(record)
     observations = [
         WorkerObservation(
-            observation_id=__import__("uuid").UUID(record.observation_id),
+            observation_id=UUID(record.observation_id),
             kind=record.kind, value=record.value, evidence=record.evidence,
             source=record.source, observed_at=_utc(record.observed_at),
         )
@@ -173,3 +174,73 @@ def bind_analysis_run_provenance(
             scope_snapshot_sha256=snapshot.sha256, authorization_id=authorization.id,
         ))
     db.flush()
+
+
+
+def load_verified_analysis_run_context(db: Session, *, run: AIAnalysisRun):
+    """Rebuild context from immutable run links and re-verify stored worker signatures."""
+    joined = (
+        db.query(AnalysisRunObservationLink, WorkerObservationRecord, ScopeSnapshot, Authorization)
+        .join(WorkerObservationRecord, WorkerObservationRecord.id == AnalysisRunObservationLink.observation_record_id)
+        .join(ScopeSnapshot, ScopeSnapshot.id == AnalysisRunObservationLink.scope_snapshot_id)
+        .join(Authorization, Authorization.id == AnalysisRunObservationLink.authorization_id)
+        .filter(AnalysisRunObservationLink.analysis_run_id == run.id)
+        .order_by(AnalysisRunObservationLink.id.asc())
+        .all()
+    )
+    if not joined or len(joined) != run.source_observation_count:
+        raise ValueError("analysis run observation provenance is incomplete")
+    batch_checks = {}
+    records = []
+    provenance_items = []
+    for link, record, snapshot, authorization in joined:
+        if (link.project_id != run.project_id or link.target_id != run.target_id
+                or link.task_id != record.task_id or link.worker_id != record.worker_id
+                or link.key_id != record.key_id or link.envelope_sha256 != record.envelope_sha256
+                or link.batch_sha256 != record.batch_sha256
+                or link.batch_signature != record.batch_signature
+                or link.scope_snapshot_sha256 != snapshot.sha256
+                or link.authorization_id != snapshot.authorization_id
+                or authorization.project_id != run.project_id):
+            raise ValueError("analysis run provenance link integrity check failed")
+        if not _verify_snapshot(snapshot):
+            raise ValueError("linked scope snapshot integrity check failed")
+        if record.task_id not in batch_checks:
+            key = db.query(WorkerKey).filter_by(worker_id=record.worker_id, key_id=record.key_id).first()
+            if key is None:
+                raise ValueError("historical worker verification key is unavailable")
+            signed = SignedWorkerObservationBatch.model_validate_json(json.dumps({
+                "batch": json.loads(record.batch_payload_json), "signature": record.batch_signature,
+            }))
+            if (observation_batch_digest(signed.batch) != record.batch_sha256
+                    or signed.batch.task_id != UUID(record.task_id)
+                    or signed.batch.envelope_sha256 != record.envelope_sha256
+                    or signed.batch.worker_id != record.worker_id or signed.batch.key_id != record.key_id
+                    or not verify_worker_observation_batch(signed, key.public_key_b64)):
+                raise ValueError("linked worker batch signature is invalid")
+            batch_checks[record.task_id] = record.batch_sha256
+        records.append(record)
+        provenance_items.append({
+            "observation_id": record.observation_id, "record_id": record.id,
+            "task_id": record.task_id, "worker_id": record.worker_id,
+            "key_id": record.key_id, "envelope_sha256": record.envelope_sha256,
+            "batch_sha256": record.batch_sha256, "batch_signature": record.batch_signature,
+            "scope_snapshot_id": snapshot.id, "scope_snapshot_sha256": snapshot.sha256,
+            "authorization_id": authorization.id, "target_id": link.target_id,
+            "project_id": link.project_id,
+        })
+    provenance_items.sort(key=lambda item: (item["task_id"], item["observation_id"]))
+    digest = _canonical_hash(provenance_items)
+    if digest != run.provenance_sha256:
+        raise ValueError("analysis run provenance digest mismatch")
+    observations = [
+        WorkerObservation(
+            observation_id=UUID(record.observation_id), kind=record.kind,
+            value=record.value, evidence=record.evidence, source=record.source,
+            observed_at=_utc(record.observed_at),
+        ) for record in records
+    ]
+    context = build_analysis_context(observations)
+    if _canonical_hash(context.model_dump(mode="json")) != run.context_sha256:
+        raise ValueError("persisted analysis context no longer matches linked worker observations")
+    return context, correlate_analysis_context(context)

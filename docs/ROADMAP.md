@@ -21,7 +21,7 @@ Repository structure, FastAPI service, hostname allowlist primitive, dashboard s
 - [x] Database-backed dispatch validation gate re-reads persisted job/project/target/snapshot/authorization state.
 - [x] Short-lived task envelope capped at five minutes and authorization/snapshot expiry.
 - [x] Validation-only container image: non-root user, read-only root filesystem at runtime, all capabilities dropped, no-new-privileges, bounded CPU/memory/PIDs/tmpfs, and no network.
-- [x] HMAC-SHA256 task-envelope signing and constant-time signature verification (library primitive; not yet wired to transport).
+- [x] HMAC-SHA256 task-envelope and validation-acknowledgement signing with constant-time verification (library primitives; not yet wired to transport).
 - [x] Atomic queued-job reservation and durable one-time receipt/consumption primitives (internal only; not connected to a worker).
 - [ ] Authenticated worker transport and signed task/result messages.
 - [ ] DNS/IP pinning and redirect-hop enforcement at the actual socket/request layer.

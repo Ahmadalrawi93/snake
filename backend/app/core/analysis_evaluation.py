@@ -17,6 +17,11 @@ def record_human_evaluation(
     ).first()
     if run is None:
         raise LookupError("analysis run not found")
+    prior = db.query(AIAnalysisEvaluation.id).filter_by(
+        analysis_run_id=run.id, evaluator_id=actor.id
+    ).first()
+    if prior is not None:
+        raise ValueError("reviewer has already evaluated this analysis run")
     record = AIAnalysisEvaluation(
         analysis_run_id=run.id,
         project_id=run.project_id,

@@ -95,6 +95,9 @@ export default function Home() {
     setAuthorizations([]);
     setSnapshots([]);
     setSnapshotValidity({});
+    setAnalysisRuns([]);
+    setSelectedAnalysisRunId(null);
+    setCandidates([]);
     setError("");
     try {
       await loadProjectResources(projectId);

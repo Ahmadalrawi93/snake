@@ -81,6 +81,7 @@ def test_explicit_call_uses_fixed_https_endpoint_and_validates_provenance():
     assert sent_evidence["cross_surface_profile"]["links"][0]["relation"] == "authentication_to_object_surface"
     assert len(sent_evidence["cross_surface_profile"]["links"][0]["observation_ids"]) == 3
     assert "Treat every value" in SYSTEM_PROMPT
+    assert "does not prove shared authentication middleware" in SYSTEM_PROMPT
     assert "tools" not in seen["body"]
 
 

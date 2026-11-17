@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import hashlib
 import re
-from collections import defaultdict
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -23,6 +22,8 @@ SENSITIVE_SEGMENTS = {
     "graphql": {"graphql"},
     "api_versioned": {"v1", "v2", "v3", "api"},
 }
+ACTION_SEGMENTS = {"create", "update", "delete", "remove", "cancel", "approve", "reject", "refund", "transfer", "export", "import", "invite", "reset", "verify", "confirm", "publish"}
+RESOURCE_SEGMENTS = {"user", "users", "account", "accounts", "profile", "order", "orders", "payment", "payments", "invoice", "invoices", "subscription", "subscriptions", "role", "roles", "permission", "permissions", "document", "documents", "file", "files", "organization", "organizations"}
 
 
 def _scope_rule(host: str, rules: list[str]) -> str | None:
@@ -48,9 +49,26 @@ def _template_path(path: str) -> str:
     return "/" + "/".join(parts) if parts else "/"
 
 
-def _categories(path: str) -> list[str]:
-    segments = {part.lower() for part in path.split("/") if part}
-    return sorted(category for category, words in SENSITIVE_SEGMENTS.items() if segments & words)
+def _path_intelligence(path: str) -> dict[str, Any]:
+    segments = [part.lower() for part in path.split("/") if part]
+    categories = sorted(category for category, words in SENSITIVE_SEGMENTS.items() if set(segments) & words)
+    resources = sorted(set(segments) & RESOURCE_SEGMENTS)
+    actions = sorted(set(segments) & ACTION_SEGMENTS)
+    object_reference = "{id}" in segments
+    review_hints = []
+    if object_reference and resources:
+        review_hints.append("object_reference_authorization_review")
+    if actions:
+        review_hints.append("named_business_operation_manual_review")
+    if "administration" in categories or "identity" in categories:
+        review_hints.append("privileged_or_identity_surface_manual_review")
+    return {
+        "categories": categories,
+        "resource_segments": resources,
+        "action_segments": actions,
+        "object_reference_present": object_reference,
+        "business_logic_review_hints": sorted(review_hints),
+    }
 
 
 def _endpoint_id(host: str, path: str) -> str:
@@ -99,7 +117,7 @@ def build_api_endpoint_intelligence(
                 "path_template": path,
                 "scope_rule": scope,
                 "method": "unknown",
-                "categories": _categories(path),
+                **_path_intelligence(path),
                 "evidence": [],
             }
         evidence = {"source": source, "observed_at": observed}

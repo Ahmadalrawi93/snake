@@ -111,10 +111,13 @@ receipt consumption. A separate listener test rejects an unpinned backend
 client certificate.
 
 This proves the local transport protocol path, not production deployment
-readiness. Remaining gates include a real delayed-response timeout integration test,
-revoked endpoint/key races under PostgreSQL, malformed and oversized response
-coverage, production PostgreSQL concurrency tests, network firewall/egress
-enforcement, certificate lifecycle/rotation, and operator-controlled deployment.
+readiness. The backend now has a real mTLS integration test in which the worker accepts
+and validates a task but deliberately delays its acknowledgement beyond the
+backend deadline. The backend records `unknown` and refuses a second dispatch.
+Remaining gates include revoked endpoint/key races under PostgreSQL, malformed
+and oversized response coverage, production PostgreSQL concurrency tests,
+network firewall/egress enforcement, certificate lifecycle/rotation, and
+operator-controlled deployment.
 The listener now defaults to loopback and rejects wildcard bind addresses; an
 operator must explicitly select a non-wildcard interface for remote connectivity. The HTTPS listener remains validation-only;
 no API route, scheduler, or background dispatcher invokes it, and scan execution
@@ -159,3 +162,9 @@ configuration as a unit. Do not attempt zero-downtime rotation with the current
 single-pin schema. Track certificate owner, serial number, SHA-256 fingerprint,
 not-before/not-after dates, deployment window, and revocation status in the
 operator's change record; never commit private keys or CA private material.
+
+
+The replay-ledger tests also verify transaction rollback when acknowledgement
+signing fails or returns an invalid empty/non-bytes payload. Since no durable
+acknowledgement was committed or returned in those cases, a later valid
+acceptance can proceed without leaving a poisoned task ID reservation.

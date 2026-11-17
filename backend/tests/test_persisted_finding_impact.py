@@ -178,6 +178,26 @@ def test_same_assessment_is_idempotent_and_different_claims_append(impact_contex
     ).count() == 1
 
 
+
+def test_distinct_claim_revision_is_appended_not_overwritten(impact_context):
+    db, owner, _other, candidate, _foreign, claim = impact_context
+    first = service.create_persisted_finding_impact(
+        db, candidate_id=candidate.id, actor=owner, claims=[claim],
+    )
+    db.commit()
+    revised_claim = claim.model_copy(update={
+        "statement": "A second authorized test identity accessed additional synthetic records."
+    })
+    second = service.create_persisted_finding_impact(
+        db, candidate_id=candidate.id, actor=owner, claims=[revised_claim],
+    )
+    db.commit()
+    assert second["id"] != first["id"]
+    assert db.query(FindingImpactAssessmentRecord).filter_by(
+        candidate_id=candidate.id
+    ).count() == 2
+
+
 def test_other_owner_cannot_read_or_create_assessments(impact_context):
     db, owner, other, candidate, foreign_candidate, claim = impact_context
     with pytest.raises(LookupError):

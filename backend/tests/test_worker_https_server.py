@@ -180,3 +180,26 @@ def test_https_worker_replay_returns_identical_persisted_ack(tmp_path):
             backend_public_key=backend_public, worker_private_key=worker_private,
             worker_id="worker-1", key_id="key-1", replay_ledger=reopened,
         )
+
+
+def test_expired_task_is_not_written_to_replay_ledger(tmp_path):
+    backend_private, backend_public = keypair()
+    worker_private, _ = keypair()
+    ledger_path = tmp_path / "worker.sqlite3"
+    ledger = WorkerReplayLedger(ledger_path)
+    task = make_task().model_copy(update={
+        "expires_at": datetime.now(timezone.utc) - timedelta(seconds=5),
+    })
+    signed = sign_worker_task(
+        task, backend_private, worker_id="worker-1", key_id="key-1"
+    )
+    with pytest.raises(ValueError):
+        validate_task_request(
+            signed.model_dump_json().encode(),
+            backend_public_key=backend_public, worker_private_key=worker_private,
+            worker_id="worker-1", key_id="key-1", replay_ledger=ledger,
+        )
+    import sqlite3
+    with sqlite3.connect(ledger_path) as db:
+        count = db.execute("SELECT COUNT(*) FROM worker_task_ledger").fetchone()[0]
+    assert count == 0

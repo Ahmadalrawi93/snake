@@ -8,7 +8,7 @@ from app.schemas.finding_impact import FindingImpactClaim, FindingImpactAssessme
 
 class FindingImpactAssessmentCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
-    claims: list[FindingImpactClaim] = Field(max_length=100)
+    claims: list[FindingImpactClaim] = Field(min_length=1, max_length=100)
 
 
 class FindingImpactAssessmentRead(BaseModel):

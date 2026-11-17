@@ -12,7 +12,7 @@ from sqlalchemy.pool import StaticPool
 from app.db.database import Base
 from app.db.models import (
     User, Project, Target, Authorization, ScopeSnapshot, ScanJob,
-    WorkerTaskReceipt, WorkerKey, WorkerObservationRecord, AIAnalysisRun,
+    WorkerTaskReceipt, WorkerKey, WorkerObservationRecord, AIAnalysisRun, HumanFindingDecision,
 )
 from app.core.worker_signing import ed25519_public_key_fingerprint
 from app.core.worker_observation_signing import sign_worker_observation_batch, observation_batch_digest
@@ -283,3 +283,41 @@ def test_investigation_memory_is_persistent_and_target_scoped(provenance_db):
     isolated = record_and_compare_investigation_memory(db, run=third, strategy=strategy, actor=user)
     assert isolated.prior_matches == []
     assert isolated.review_suppressed is False
+
+
+def test_investigation_memory_uses_only_linked_human_finding_decisions(provenance_db):
+    from app.core.investigation_memory import record_and_compare_investigation_memory
+    from app.schemas.validation_strategy import ValidationStrategyItem
+    db, user, project, target, _, now = provenance_db
+    strategy = ValidationStrategyItem(
+        strategy_id="invoice_object_access", category="object_authorization", priority="high",
+        priority_basis="Manual authorization review", hypothesis="A user may access another user's invoice",
+        supporting_observation_ids=["obs-1", "obs-2"], missing_evidence=[],
+        validation_questions=["Does the server enforce object ownership?"],
+        manual_review_actions=["Compare authorized test-account behavior"],
+        prerequisites=["Written authorization"],
+    )
+    def make_run():
+        item = AIAnalysisRun(project_id=project.id, target_id=target.id, created_by=user.id,
+            context_sha256="c"*64, correlations_sha256="d"*64, provider="deepseek", model="test",
+            status="completed", disposition="requires_independent_validation", result_json="{}", execution_enabled=False)
+        db.add(item); db.flush()
+        return item
+    candidate_fp = "e"*64
+    previous = make_run()
+    record_and_compare_investigation_memory(
+        db, run=previous, strategy=strategy, actor=user, candidate_fingerprint=candidate_fp,
+    )
+    db.add(HumanFindingDecision(
+        analysis_run_id=previous.id, project_id=project.id, evaluator_id=user.id,
+        candidate_fingerprint=candidate_fp, outcome="false_positive",
+        evidence_sha256="f"*64, validation_method="manual_reproduction",
+        notes="Human-reviewed result", reviewer_attested=True,
+    ))
+    db.flush()
+    current = make_run()
+    report = record_and_compare_investigation_memory(db, run=current, strategy=strategy, actor=user)
+    assert len(report.prior_matches) == 1
+    assert report.prior_matches[0].human_outcomes == ["false_positive"]
+    assert report.prior_matches[0].review_state == "human_reviewed"
+    assert report.review_suppressed is False

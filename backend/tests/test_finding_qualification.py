@@ -65,29 +65,17 @@ def test_complete_evidence_only_yields_unconfirmed_human_review_candidate():
 ])
 def test_incomplete_or_conflicting_evidence_never_becomes_candidate(changes):
     strategy, bundle, assessment = fixtures()
+    data = assessment.model_dump()
     if changes.get("evidence_status") == "mixed":
-        original = bundle.items[-1]
-        bundle.items[-1] = original.model_copy(update={"relationship": "contradicts"})
-        from app.core.validation_evidence import assess_validation_evidence
-        from app.schemas.analysis_context import AnalysisContext
-        # Build a minimal context carrying every referenced observation ID.
-        from app.schemas.analysis_context import ContextObservation
-        context = AnalysisContext(
-            groups=[], ungrouped=[
-                ContextObservation(
-                    kind="url", value="/api/users/1", evidence="observed",
-                    source="test", observation_ids=[str(value)]
-                ) for value in {oid for item in bundle.items for oid in item.observation_ids}
-            ], trust_notice="Untrusted test evidence"
-        )
-        assessment = assess_validation_evidence(
-            context, strategy, bundle, expected_context_sha256=bundle.analysis_context_sha256
-        )
+        bundle.items[-1] = bundle.items[-1].model_copy(update={"relationship": "contradicts"})
+        data["evidence_status"] = "mixed"
+        data["supporting_evidence_count"] = 3
+        data["contradicting_evidence_count"] = 1
     else:
-        data = assessment.model_dump()
         data.update(changes)
-        assessment = ValidationEvidenceAssessment.model_validate(data)
-    result = qualify_finding_candidate(strategy, bundle, assessment)
+    result = qualify_finding_candidate(
+        strategy, bundle, ValidationEvidenceAssessment.model_validate(data)
+    )
     assert result.qualification == "insufficient_evidence"
     assert result.finding_status == "unconfirmed"
     assert result.blockers

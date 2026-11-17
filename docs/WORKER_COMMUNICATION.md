@@ -15,9 +15,10 @@ configured backend CA and matching an exact SHA-256 client-certificate pin,
 validates the backend Ed25519 signature, worker/key binding,
 and expiry, then returns a signed validation-only acknowledgement. It caps
 request bodies at 64 KiB, applies a five-second socket read timeout, bounds
-concurrent handler threads, and rejects ambiguous HTTP framing: duplicate
-Content-Length/Content-Type/Host headers, Transfer-Encoding, non-ASCII or
-non-decimal lengths, and Expect/continue are not accepted. The backend mTLS adapter now requires the worker's
+concurrent handler threads, and accepts only HTTP/1.1 with exactly one non-empty Host header. It rejects
+ambiguous framing (duplicate Content-Length/Content-Type/Host), Transfer-Encoding,
+Content-Encoding, Trailer, Upgrade, non-ASCII or non-decimal lengths, and
+Expect/continue rather than attempting to normalize them. The backend mTLS adapter now requires the worker's
 signed acknowledgement, verifies it against the active registered public key,
 and consumes the durable receipt once.
 

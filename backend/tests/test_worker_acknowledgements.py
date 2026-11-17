@@ -170,9 +170,11 @@ def make_unknown_attempt(db, receipt):
 def test_reconcile_late_signed_ack_after_receipt_expiry(db):
     receipt, task_id = make_receipt(db)
     attempt = make_unknown_attempt(db, receipt)
-    validated_at = receipt.created_at + timedelta(seconds=20)
+    created_at = receipt.created_at.replace(tzinfo=timezone.utc) if receipt.created_at.tzinfo is None else receipt.created_at
+    expires_at = receipt.expires_at.replace(tzinfo=timezone.utc) if receipt.expires_at.tzinfo is None else receipt.expires_at
+    validated_at = created_at + timedelta(seconds=20)
     signed = make_ack(task_id, validated_at=validated_at)
-    reconciliation_time = receipt.expires_at + timedelta(minutes=1)
+    reconciliation_time = expires_at + timedelta(minutes=1)
 
     assert reconcile_unknown_worker_acknowledgement(
         db, signed, expected_worker_id=WORKER_ID,
@@ -195,11 +197,11 @@ def test_reconciliation_rejects_ack_validated_after_original_expiry(db):
     receipt, task_id = make_receipt(db)
     make_unknown_attempt(db, receipt)
     signed = make_ack(
-        task_id, validated_at=receipt.expires_at + timedelta(seconds=1)
+        task_id, validated_at=(receipt.expires_at.replace(tzinfo=timezone.utc) if receipt.expires_at.tzinfo is None else receipt.expires_at) + timedelta(seconds=1)
     )
     assert not reconcile_unknown_worker_acknowledgement(
         db, signed, expected_worker_id=WORKER_ID,
-        expected_key_id=KEY_ID, now=receipt.expires_at + timedelta(minutes=1),
+        expected_key_id=KEY_ID, now=(receipt.expires_at.replace(tzinfo=timezone.utc) if receipt.expires_at.tzinfo is None else receipt.expires_at) + timedelta(minutes=1),
     )
 
 

@@ -4,7 +4,7 @@ The worker HTTPS endpoint returns a strict `WorkerTaskResponse` JSON envelope co
 - `acknowledgement`: the worker's Ed25519-signed validation acknowledgement;
 - `observation_batch`: optional worker Ed25519-signed observation batch.
 
-The current validation-only listener sets `observation_batch` to null. It does not perform reconnaissance or synthesize observations. The backend transport verifies and consumes the acknowledgement first; when a signed batch is present, it validates the batch against the consumed task receipt and active registered worker key, persists it through the idempotent batch store, and commits before marking the dispatch attempt delivered.
+The listener optionally reads a trusted, pre-collected local JSON feed when `SNAKE_WORKER_PASSIVE_FEED_FILE` is configured. It filters feed records against the approved scope rules embedded in the signed task, creates deterministic observation IDs, and signs the batch with the worker Ed25519 key. It does not collect data from target networks, perform DNS/HTTP requests, or run active tests. Without the optional feed, `observation_batch` remains null. The backend transport verifies and consumes the acknowledgement first; when a signed batch is present, it validates the batch against the consumed task receipt and active registered worker key, persists it through the idempotent batch store, and commits before marking the dispatch attempt delivered.
 
 The response remains bounded by the existing 64 KiB limit. mTLS, pinned destination IP, DNS revalidation, TLS hostname verification, exact certificate pinning, strict HTTP framing, and Ed25519 task/acknowledgement signatures remain required.
 

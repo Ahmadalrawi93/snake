@@ -30,3 +30,12 @@ The profile is computed from append-only evaluation records on read; no mutable 
 The DeepSeek adapter accepts an optional, caller-supplied `IntelligenceFeedbackProfile`. When provided, it is included as historical aggregate context in the model request. It is omitted entirely by default. The system instruction explicitly prohibits treating the profile as proof, suppressing reasonable hypotheses, or overriding current evidence. The adapter still validates the returned triage against the current observation IDs and enforces `requires_independent_validation`.
 
 The adapter does not query the database or select a project profile itself. The authenticated application layer must obtain the profile through the owner-scoped API for the same project being analyzed. Do not reuse a profile across unrelated projects or targets. Current aggregation is project-wide, not target-, program-, or model-version-specific, so it is a weak prioritization signal and can be misleading in projects containing unrelated applications. A future iteration should stratify profiles by authorized target/program and model version before using them routinely.
+
+## Target-level isolation
+
+AI analysis runs can now be associated with an optional target record in the same project. The feedback endpoint accepts an optional `target_id` query parameter:
+
+- `GET /api/v1/projects/{project_id}/intelligence-feedback` returns only project-level runs that have no target association.
+- `GET /api/v1/projects/{project_id}/intelligence-feedback?target_id={target_id}` returns only runs explicitly associated with that target.
+
+A target must belong to the requested project. A target-specific profile never falls back to project-wide or other-target labels. Existing historical runs remain unassigned until explicitly associated; they are not guessed or backfilled. Analysis persistence accepts an optional `target_id` and verifies project ownership before storing it.

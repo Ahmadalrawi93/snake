@@ -18,6 +18,7 @@ from app.core.workflow_reasoning import build_workflow_reasoning
 from app.core.authorization_boundary import build_authorization_boundary_report
 from app.core.tenant_isolation import build_tenant_isolation_report
 from app.core.cross_endpoint_authorization import build_cross_endpoint_authorization_report
+from app.core.authorization_test_cases import build_authorization_test_case_report
 from app.core.finding_qualification import qualify_finding_candidate
 from app.core.finding_candidates import persist_finding_candidate
 from app.db.models import AIAnalysisRun, FindingCandidateRecord, Project, User
@@ -35,6 +36,7 @@ from app.schemas.workflow_reasoning import WorkflowReasoningReport
 from app.schemas.authorization_boundary import AuthorizationBoundaryReport
 from app.schemas.tenant_isolation import TenantIsolationReport
 from app.schemas.cross_endpoint_authorization import CrossEndpointAuthorizationReport
+from app.schemas.authorization_test_cases import AuthorizationTestCaseReport
 from app.schemas.validation_strategy import ValidationStrategyPlan
 from app.schemas.finding_candidates import FindingCandidateCreate
 from app.schemas.finding_qualification import FindingQualification
@@ -60,6 +62,7 @@ class CandidatePipelineResult:
     authorization_boundaries: AuthorizationBoundaryReport
     tenant_isolation: TenantIsolationReport
     cross_endpoint_authorization: CrossEndpointAuthorizationReport
+    authorization_test_cases: AuthorizationTestCaseReport
     qualification: FindingQualification
     candidate: FindingCandidateRecord | None
 
@@ -138,6 +141,10 @@ def qualify_and_persist_candidate(
     authorization_boundaries = build_authorization_boundary_report(context)
     tenant_isolation = build_tenant_isolation_report(context)
     cross_endpoint_authorization = build_cross_endpoint_authorization_report(context)
+    authorization_test_cases = build_authorization_test_case_report(
+        boundary=authorization_boundaries, tenant=tenant_isolation,
+        cross_endpoint=cross_endpoint_authorization, workflow=workflow_reasoning,
+    )
     evidence_reuse = build_evidence_reuse_report(plan, bundle)
     qualification = qualify_finding_candidate(
         strategy, bundle, assessment, prior_candidate_fingerprints=prior,
@@ -154,7 +161,7 @@ def qualify_and_persist_candidate(
         candidate_fingerprint=candidate.candidate_fingerprint if candidate else None,
     )
     hypothesis_ranking = apply_investigation_learning(hypothesis_ranking, investigation_memory)
-    return CandidatePipelineResult(assessment, evidence_coverage, evidence_gaps, acquisition_plan, evidence_quality, hypothesis_ranking, evidence_reuse, investigation_memory, workflow_reasoning, authorization_boundaries, tenant_isolation, cross_endpoint_authorization, qualification, candidate)
+    return CandidatePipelineResult(assessment, evidence_coverage, evidence_gaps, acquisition_plan, evidence_quality, hypothesis_ranking, evidence_reuse, investigation_memory, workflow_reasoning, authorization_boundaries, tenant_isolation, cross_endpoint_authorization, authorization_test_cases, qualification, candidate)
 
 
 

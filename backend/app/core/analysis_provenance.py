@@ -63,7 +63,8 @@ def _record_is_within_snapshot_scope(record: WorkerObservationRecord, snapshot: 
         elif record.kind == "url":
             parsed = urlsplit(record.value)
             if (parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname
-                    or parsed.username is not None or parsed.password is not None):
+                    or parsed.username is not None or parsed.password is not None
+                    or parsed.query or parsed.fragment):
                 return False
             _ = parsed.port
             host = normalize_host(parsed.hostname)

@@ -14,7 +14,8 @@ AI-assisted security assessment platform for **authorized** bug bounty work.
 - Pre-dispatch validation checks snapshot integrity, target consistency, authorization status, expiry, and revocation.
 - Admins can revoke active scope snapshots; snapshot creation never triggers network activity.
 - DNS/IP destination policy rejects non-global answers and validates each redirect hop for future worker use; it returns addresses for pinning but does not open connections.
-- Persistent scan jobs support authenticated enqueue/list/read/cancel. Enqueue revalidates scope and authorization; jobs remain queued with execution disabled.
+- Persistent scan jobs support authenticated enqueue/list/read/cancel. Enqueue revalidates scope, authorization status, the complete authorization time window, and exact approved scope rules; jobs remain queued with execution disabled.
+- A strict future worker-task envelope rejects unknown fields and arbitrary command injection; execution remains hard-disabled.
 - Explicit CLI script to provision/promote an administrator (no public admin registration).
 - Audit events scoped to the acting user.
 - SQLite local persistence and Alembic migration for legacy databases.
@@ -69,6 +70,6 @@ The script creates or promotes that account to `admin` and resets its password. 
 Authorization records remain `pending`. Registering a target does not perform network activity or authorize a scan.
 
 ## Known limitations
-This is not production-ready. Registration is open and has no email verification or rate limiting. JWT revocation/refresh, team roles, strict tenant-level audit retention, socket-level IP pinning, dispatch-time and request-time revalidation, worker isolation, and scanning are not implemented. Authorization approval is a manual record review only. The DNS helper is not a firewall and does not itself pin sockets. Jobs are database records only: there is no queue consumer, worker, or scanner, and no outbound scan traffic is generated. Keep the API private until these controls are completed.
+This is not production-ready. Registration is open and has no email verification or rate limiting. JWT revocation/refresh, team roles, strict tenant-level audit retention, socket-level IP pinning, dispatch-time and request-time revalidation, worker isolation, and scanning are not implemented. The worker protocol is only a validated data contract; it is not a dispatcher or execution engine. Authorization approval is a manual record review only. The DNS helper is not a firewall and does not itself pin sockets. Jobs are database records only: there is no queue consumer, worker, or scanner, and no outbound scan traffic is generated. Keep the API private until these controls are completed.
 
 See [architecture](docs/ARCHITECTURE.md) and [roadmap](docs/ROADMAP.md).

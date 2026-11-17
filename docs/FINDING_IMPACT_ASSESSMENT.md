@@ -49,8 +49,10 @@ impact engine.
   - A candidate outside the caller's ownership boundary is reported as not found.
 
 Each record binds the candidate, analysis run, project, reviewer,
-evidence-bundle digest, claims digest, and assessment digest. Audit events are
-recorded.
+evidence-bundle digest, claims digest, and assessment digest. On every read,
+SNAKE validates the stored assessment schema and recomputes both the assessment
+and claims digests before returning it. Integrity failures are rejected rather
+than silently served. Audit events are recorded.
 
 ## Database invariants
 

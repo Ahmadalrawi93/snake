@@ -36,10 +36,15 @@ stores the canonical origin, exact TLS server name, and SHA-256 certificate
 fingerprint. Registration rejects plain HTTP, IP-literal hosts, localhost/internal
 suffixes, embedded credentials, non-root paths, query strings, fragments, and
 mismatched TLS names. Endpoint revocation is one-way and audited. These records
-are configuration only: no code connects to them yet, and registration does not
-prove DNS resolution is safe. Before any socket is opened, the future transport
-must resolve and validate every address, pin the connection to the validated
-address, verify the TLS certificate fingerprint, and re-check endpoint/key status.
+are configuration only: no code connects to them yet. The backend now resolves
+registered hostnames through the existing network destination policy. It rejects
+the entire DNS answer if any address is private, loopback, link-local, reserved,
+or otherwise non-global, and returns validated public addresses for pinning.
+Revoked or missing endpoint records cannot be resolved. This remains DNS-only:
+the future transport must connect directly to one returned IP (never perform a
+second unconstrained DNS lookup), preserve the registered TLS server name, verify
+the exact certificate fingerprint, and re-check endpoint/key status immediately
+before connecting.
 
 ## Deliberately not connected yet
 
@@ -76,7 +81,9 @@ A future transport adapter must:
 
 ## Next implementation gate
 
-Build worker endpoint identity provisioning and production PostgreSQL concurrency
-tests before enabling any network transport. Then add transport integration
-tests for TLS identity mismatch, timeout/unknown outcome, duplicate delivery,
-revoked keys, malformed/oversized responses, and replayed acknowledgements.
+Implement outbound TLS transport using only validated pinned IP addresses, with
+certificate fingerprint verification, mutual TLS client identity, bounded
+requests/responses, strict deadlines, and attempt-ledger integration. Add transport
+integration tests for TLS identity mismatch, timeout/unknown outcome, duplicate
+delivery, revoked endpoints/keys, malformed or oversized responses, and replayed
+acknowledgements. Production PostgreSQL concurrency tests remain required.

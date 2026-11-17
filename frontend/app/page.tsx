@@ -7,7 +7,9 @@ type Project = { id: number; name: string; description: string; created_at: stri
 type Target = { id: number; value: string; target_type: string; status: string };
 type Authorization = { id: number; reference: string; starts_at: string | null; expires_at: string | null; status: string; notes: string };
 type ScopeSnapshot = { id: number; target_id: number; authorization_id: number; sha256: string; status: string; created_at: string; expires_at: string | null; snapshot: { target?: string; hostname?: string; execution_enabled?: boolean } };
-type PendingAuthorization = { id: number; project_id: number; reference: string; starts_at: string | null; expires_at: string | null; notes: string; created_at: string };\ntype AnalysisRun = { id: number; provider: string; model: string; source_observation_count: number; status: string; disposition: string; execution_enabled: false; created_at: string };\ntype FindingCandidate = { id: number; analysis_run_id: number; candidate_fingerprint: string; qualification: string; finding_status: string; evidence_bundle_sha256: string; execution_enabled: boolean; created_at: string };
+type PendingAuthorization = { id: number; project_id: number; reference: string; starts_at: string | null; expires_at: string | null; notes: string; created_at: string };
+type AnalysisRun = { id: number; provider: string; model: string; source_observation_count: number; status: string; disposition: string; execution_enabled: false; created_at: string };
+type FindingCandidate = { id: number; analysis_run_id: number; candidate_fingerprint: string; qualification: string; finding_status: string; evidence_bundle_sha256: string; execution_enabled: boolean; created_at: string };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
@@ -19,7 +21,10 @@ export default function Home() {
   const [targets, setTargets] = useState<Target[]>([]);
   const [authorizations, setAuthorizations] = useState<Authorization[]>([]);
   const [snapshots, setSnapshots] = useState<ScopeSnapshot[]>([]);
-  const [snapshotValidity, setSnapshotValidity] = useState<Record<number, string>>({});\n  const [analysisRuns, setAnalysisRuns] = useState<AnalysisRun[]>([]);\n  const [selectedAnalysisRunId, setSelectedAnalysisRunId] = useState<number | null>(null);\n  const [candidates, setCandidates] = useState<FindingCandidate[]>([]);
+  const [snapshotValidity, setSnapshotValidity] = useState<Record<number, string>>({});
+  const [analysisRuns, setAnalysisRuns] = useState<AnalysisRun[]>([]);
+  const [selectedAnalysisRunId, setSelectedAnalysisRunId] = useState<number | null>(null);
+  const [candidates, setCandidates] = useState<FindingCandidate[]>([]);
   const [pendingAuthorizations, setPendingAuthorizations] = useState<PendingAuthorization[]>([]);
   const [reviewNotes, setReviewNotes] = useState<Record<number, string>>({});
   const [reviewScopes, setReviewScopes] = useState<Record<number, string>>({});
@@ -73,11 +78,15 @@ export default function Home() {
     const [targetList, authorizationList, snapshotList, runList] = await Promise.all([
       api(`/api/v1/projects/${projectId}/targets`),
       api(`/api/v1/projects/${projectId}/authorizations`),
-      api(`/api/v1/projects/${projectId}/scope-snapshots`),\n      api(`/api/v1/projects/${projectId}/analysis-runs`)
+      api(`/api/v1/projects/${projectId}/scope-snapshots`),
+      api(`/api/v1/projects/${projectId}/analysis-runs`)
     ]);
     setTargets(targetList);
     setAuthorizations(authorizationList);
-    setSnapshots(snapshotList);\n    setAnalysisRuns(runList);\n    setSelectedAnalysisRunId(null);\n    setCandidates([]);
+    setSnapshots(snapshotList);
+    setAnalysisRuns(runList);
+    setSelectedAnalysisRunId(null);
+    setCandidates([]);
   }, [api]);
 
   async function selectProject(projectId: number) {

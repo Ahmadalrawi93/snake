@@ -11,7 +11,7 @@ from app.core.evidence_coverage import assess_evidence_coverage
 from app.core.evidence_gap_intelligence import build_evidence_gap_report
 from app.core.evidence_acquisition_planner import build_evidence_acquisition_plan
 from app.core.evidence_quality import assess_evidence_quality
-from app.core.hypothesis_ranking import rank_hypotheses
+from app.core.hypothesis_ranking import rank_hypotheses, apply_investigation_learning
 from app.core.cross_hypothesis_evidence_reuse import build_evidence_reuse_report
 from app.core.investigation_memory import record_and_compare_investigation_memory
 from app.core.finding_qualification import qualify_finding_candidate
@@ -137,6 +137,7 @@ def qualify_and_persist_candidate(
         db, run=run, strategy=strategy, actor=actor,
         candidate_fingerprint=candidate.candidate_fingerprint if candidate else None,
     )
+    hypothesis_ranking = apply_investigation_learning(hypothesis_ranking, investigation_memory)
     return CandidatePipelineResult(assessment, evidence_coverage, evidence_gaps, acquisition_plan, evidence_quality, hypothesis_ranking, evidence_reuse, investigation_memory, qualification, candidate)
 
 

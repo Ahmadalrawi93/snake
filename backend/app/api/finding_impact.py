@@ -59,3 +59,5 @@ def read_finding_impact_assessments(
         )
     except LookupError:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    except ValueError:
+        raise HTTPException(status_code=409, detail="Stored impact assessment integrity check failed")

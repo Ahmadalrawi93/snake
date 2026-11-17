@@ -10,6 +10,7 @@ import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime, timezone
 from socketserver import ThreadingMixIn
+from threading import BoundedSemaphore
 import ssl
 
 from pydantic import ValidationError
@@ -55,6 +56,23 @@ def validate_task_request(raw: bytes, *, backend_public_key: str,
 class _ThreadingHTTPServer(ThreadingMixIn, ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = False
+    request_slots = BoundedSemaphore(16)
+
+    def process_request(self, request, client_address):
+        if not self.request_slots.acquire(blocking=False):
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except Exception:
+            self.request_slots.release()
+            raise
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self.request_slots.release()
 
 
 def build_handler(*, backend_public_key: str, worker_private_key: str,
@@ -62,6 +80,10 @@ def build_handler(*, backend_public_key: str, worker_private_key: str,
     class Handler(BaseHTTPRequestHandler):
         server_version = "SNAKE-Worker"
         sys_version = ""
+
+        def setup(self):
+            self.request.settimeout(5.0)
+            super().setup()
 
         def log_message(self, fmt, *args):
             # Avoid logging task payloads or credential-bearing headers.

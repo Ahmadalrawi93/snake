@@ -1,7 +1,8 @@
 import re
+import json
 from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from app.core.worker_signing import SignedWorkerValidationResult
 from sqlalchemy.orm import Session
 from app.api.dependencies import require_admin
@@ -280,7 +281,7 @@ def revoke_worker_endpoint_route(
 
 class WorkerAcknowledgementReconciliation(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    acknowledgement: SignedWorkerValidationResult
+    acknowledgement: dict
 
 
 @router.post("/workers/tasks/{task_id}/reconcile")
@@ -298,7 +299,12 @@ def reconcile_worker_task(
         canonical_task_id = str(UUID(task_id))
     except ValueError:
         raise HTTPException(status_code=422, detail="Invalid task ID")
-    signed = payload.acknowledgement
+    try:
+        signed = SignedWorkerValidationResult.model_validate_json(
+            json.dumps(payload.acknowledgement, separators=(",", ":"))
+        )
+    except (ValidationError, TypeError, ValueError):
+        raise HTTPException(status_code=422, detail="Invalid signed acknowledgement schema")
     if str(signed.result.task_id) != canonical_task_id:
         raise HTTPException(status_code=422, detail="Acknowledgement task ID does not match path")
     receipt = db.query(WorkerTaskReceipt).filter_by(task_id=canonical_task_id).first()

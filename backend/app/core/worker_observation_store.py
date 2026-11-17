@@ -1,5 +1,6 @@
 """Persistence boundary for authenticated, unconfirmed worker observations."""
 from datetime import datetime, timezone
+import json
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -62,6 +63,7 @@ def store_worker_observation_batch(
         raise ValueError("observation batch was collected after task expiry")
 
     digest = observation_batch_digest(batch)
+    payload_json = json.dumps(batch.model_dump(mode="json"), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     records = [
         WorkerObservationRecord(
             observation_id=str(item.observation_id),
@@ -71,6 +73,7 @@ def store_worker_observation_batch(
             envelope_sha256=batch.envelope_sha256,
             batch_sha256=digest,
             batch_signature=signed.signature,
+            batch_payload_json=payload_json,
             kind=item.kind,
             value=item.value,
             evidence=item.evidence,

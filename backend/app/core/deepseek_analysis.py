@@ -14,11 +14,13 @@ from app.core.analysis_redaction import redact_analysis_context
 from app.core.application_profile import build_application_profile
 from app.core.business_logic_intelligence import build_business_logic_profile
 from app.core.cross_surface_reasoning import build_cross_surface_profile
+from app.core.validation_strategy import build_validation_strategy
 from app.core.observation_triage import validate_triage_references
 from app.schemas.analysis_context import AnalysisContext
 from app.schemas.evidence_correlation import CorrelationReport
 from app.schemas.intelligence_feedback import IntelligenceFeedbackProfile
 from app.schemas.observation_triage import ObservationTriage
+from app.schemas.validation_strategy import ValidationStrategyPlan
 
 
 API_URL = "https://api.deepseek.com/chat/completions"
@@ -50,6 +52,7 @@ class AnalysisExecutionResult:
     context_sha256: str
     correlations_sha256: str
     response_received_at: datetime
+    validation_strategy: ValidationStrategyPlan | None = None
 
 
 class AnalysisAdapterError(RuntimeError):
@@ -202,6 +205,10 @@ def analyze_observations_with_metadata(
         raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
         return hashlib.sha256(raw).hexdigest()
 
+    redacted_context = redact_analysis_context(context)
+    business_profile = build_business_logic_profile(redacted_context)
+    cross_profile = build_cross_surface_profile(redacted_context, business_profile)
+    validation_strategy = build_validation_strategy(redacted_context, triage, business_profile, cross_profile)
     return AnalysisExecutionResult(
         triage=triage,
         provider="deepseek",
@@ -213,4 +220,5 @@ def analyze_observations_with_metadata(
         context_sha256=digest(context.model_dump(mode="json")),
         correlations_sha256=digest(correlations.model_dump(mode="json")),
         response_received_at=datetime.now(timezone.utc),
+        validation_strategy=validation_strategy,
     )

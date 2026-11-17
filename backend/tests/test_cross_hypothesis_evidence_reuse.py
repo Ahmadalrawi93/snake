@@ -30,4 +30,4 @@ def test_reports_shared_observations_and_unique_evidence():
 def test_rejects_bundle_not_in_plan():
     p=ValidationStrategyPlan(items=[strat("other_review",["obs"])],global_prerequisites=["Written authorization"])
     with pytest.raises(ValueError,match="not present"):
-        build_evidence_reuse_report(p,bundle("missing_review",[]))
+        build_evidence_reuse_report(p,bundle("missing_review",["00000000-0000-4000-8000-000000000001"]))

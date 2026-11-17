@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.database import Base
 
@@ -323,4 +323,42 @@ class FindingCandidateRecord(Base):
     evidence_bundle_json: Mapped[str] = mapped_column(Text, nullable=False)
     qualification_json: Mapped[str] = mapped_column(Text, nullable=False)
     execution_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+
+class FindingLifecycleEvent(Base):
+    """Append-only state transition; current status is derived from the latest event."""
+    __tablename__ = "finding_lifecycle_events"
+    __table_args__ = (
+        CheckConstraint("from_status IN ('new','under_review','needs_more_evidence','confirmed','rejected','duplicate')", name="ck_finding_lifecycle_from"),
+        CheckConstraint("to_status IN ('new','under_review','needs_more_evidence','confirmed','rejected','duplicate')", name="ck_finding_lifecycle_to"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("finding_candidate_records.id"), nullable=False, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    actor_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    from_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    to_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    related_candidate_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class EvidenceArtifact(Base):
+    """Encrypted, immutable evidence bytes linked to a persisted candidate."""
+    __tablename__ = "finding_evidence_artifacts"
+    __table_args__ = (
+        CheckConstraint("size_bytes > 0 AND size_bytes <= 1048576", name="ck_finding_evidence_size"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("finding_candidate_records.id"), nullable=False, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    uploaded_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    filename: Mapped[str] = mapped_column(String(180), nullable=False)
+    media_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    encrypted_content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    description: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

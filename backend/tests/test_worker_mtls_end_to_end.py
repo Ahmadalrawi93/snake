@@ -24,6 +24,7 @@ from app.core.worker_protocol import WorkerTaskEnvelope
 from app.core.worker_signing import sign_worker_task, worker_task_digest
 from app.db.models import (
     ScanJob, WorkerTaskReceipt, WorkerKey, WorkerEndpoint, WorkerDispatchAttempt,
+    WorkerObservationRecord, WorkerObservationBatchReceipt,
 )
 from worker_https_server import _ThreadingHTTPServer, build_handler
 
@@ -159,7 +160,7 @@ def integrated_transport(tmp_path):
     thread.start()
 
     engine = create_engine("sqlite://")
-    for model in (ScanJob, WorkerTaskReceipt, WorkerKey, WorkerEndpoint, WorkerDispatchAttempt):
+    for model in (ScanJob, WorkerTaskReceipt, WorkerKey, WorkerEndpoint, WorkerDispatchAttempt, WorkerObservationBatchReceipt, WorkerObservationRecord):
         model.__table__.create(engine)
 
     try:
@@ -191,6 +192,7 @@ def integrated_transport(tmp_path):
                 task_id=uuid4(), job_id=501, scope_snapshot_id=9,
                 scope_snapshot_sha256="c" * 64, profile="passive_recon",
                 target_url="https://authorized.example/",
+                approved_scope_rules=["authorized.example"],
                 issued_at=now, expires_at=now + timedelta(minutes=3),
                 execution_enabled=False,
             )

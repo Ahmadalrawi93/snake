@@ -219,8 +219,10 @@ def bind_analysis_run_provenance(
 def load_verified_analysis_run_context(db: Session, *, run: AIAnalysisRun):
     """Rebuild context from immutable run links and re-verify stored worker signatures."""
     joined = (
-        db.query(AnalysisRunObservationLink, WorkerObservationRecord, ScopeSnapshot, Authorization)
+        db.query(AnalysisRunObservationLink, WorkerObservationRecord, ScopeSnapshot, Authorization, WorkerTaskReceipt, ScanJob)
         .join(WorkerObservationRecord, WorkerObservationRecord.id == AnalysisRunObservationLink.observation_record_id)
+        .join(WorkerTaskReceipt, WorkerTaskReceipt.task_id == WorkerObservationRecord.task_id)
+        .join(ScanJob, ScanJob.id == WorkerTaskReceipt.job_id)
         .join(ScopeSnapshot, ScopeSnapshot.id == AnalysisRunObservationLink.scope_snapshot_id)
         .join(Authorization, Authorization.id == AnalysisRunObservationLink.authorization_id)
         .filter(AnalysisRunObservationLink.analysis_run_id == run.id)
@@ -232,8 +234,17 @@ def load_verified_analysis_run_context(db: Session, *, run: AIAnalysisRun):
     batch_checks = {}
     records = []
     provenance_items = []
-    for link, record, snapshot, authorization in joined:
-        if (link.project_id != run.project_id or link.target_id != run.target_id
+    for link, record, snapshot, authorization, receipt, job in joined:
+        if (job.project_id != run.project_id or job.target_id != run.target_id
+                or job.scope_snapshot_id != snapshot.id or job.profile != "passive_recon"
+                or job.execution_enabled is not False
+                or receipt.worker_id != record.worker_id or receipt.key_id != record.key_id
+                or receipt.envelope_sha256 != record.envelope_sha256
+                or receipt.acknowledgement_outcome != "accepted"
+                or receipt.acknowledgement_worker_id != record.worker_id
+                or receipt.consumed_at is None
+                or snapshot.project_id != run.project_id or snapshot.target_id != run.target_id
+                or link.project_id != run.project_id or link.target_id != run.target_id
                 or link.task_id != record.task_id or link.worker_id != record.worker_id
                 or link.key_id != record.key_id or link.envelope_sha256 != record.envelope_sha256
                 or link.batch_sha256 != record.batch_sha256

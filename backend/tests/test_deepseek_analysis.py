@@ -152,6 +152,9 @@ def test_metadata_api_returns_validated_usage_and_context_digests():
     assert len(result.context_sha256) == 64
     assert len(result.correlations_sha256) == 64
     assert result.provider == "deepseek"
+    assert result.validation_strategy is not None
+    assert result.validation_strategy.status == "review_required"
+    assert all(item.execution_mode == "manual_human_review_only" for item in result.validation_strategy.items)
 
 
 

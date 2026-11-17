@@ -51,3 +51,13 @@ def test_rejects_unknown_categories():
 def test_rejects_empty_validation_questions():
     with pytest.raises(ValidationError):
         make_triage(validation_questions=[])
+
+
+def test_rejects_control_characters_in_hypothesis():
+    with pytest.raises(ValidationError):
+        make_triage(hypothesis="safe\\nforged")
+
+
+def test_rejects_control_characters_in_validation_questions():
+    with pytest.raises(ValidationError):
+        make_triage(validation_questions=["question\\nforged"])

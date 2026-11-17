@@ -293,3 +293,38 @@ def test_worker_response_contract_is_strict_and_allows_no_batch():
     payload["unexpected"] = True
     with pytest.raises(Exception):
         WorkerTaskResponse.model_validate(payload)
+
+
+def test_worker_response_rejects_payload_over_transport_limit():
+    from app.schemas.worker_transport import WorkerTaskResponse
+    from app.core.worker_protocol import WorkerValidationResult
+    from app.core.worker_signing import sign_worker_validation_result
+
+    private, _public = keypair()
+    ack = sign_worker_validation_result(
+        WorkerValidationResult(
+            task_id=uuid4(), envelope_sha256="a" * 64, worker_id="worker-1",
+            outcome="accepted", validated_at=datetime.now(timezone.utc),
+            execution_enabled=False,
+        ),
+        private, key_id="key-1",
+    )
+    # A valid schema object with oversized signed observation evidence must fail
+    # before it can be emitted over the fixed-size HTTPS response channel.
+    from app.schemas.worker_results import WorkerObservation, WorkerObservationBatch, SignedWorkerObservationBatch
+    from app.core.worker_observation_signing import sign_worker_observation_batch
+    batch = WorkerObservationBatch(
+        task_id=uuid4(), envelope_sha256="b" * 64, worker_id="worker-1",
+        key_id="key-1", collected_at=datetime.now(timezone.utc),
+        observations=[
+            WorkerObservation(
+                observation_id=uuid4(), kind="technology", value=f"tech-{i}",
+                evidence="x" * 8192, source="passive_feed",
+                observed_at=datetime.now(timezone.utc),
+            ) for i in range(10)
+        ],
+        execution_enabled=False,
+    )
+    signed_batch = sign_worker_observation_batch(batch, private)
+    with pytest.raises(ValueError, match="64 KiB"):
+        WorkerTaskResponse(acknowledgement=ack, observation_batch=signed_batch)

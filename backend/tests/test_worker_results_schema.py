@@ -49,7 +49,7 @@ def test_rejects_arbitrary_kind():
 
 def test_rejects_control_characters_in_value():
     with pytest.raises(ValidationError):
-        observation(value="host.test\\nINJECTED")
+        observation(value="host.test" + chr(10) + "INJECTED")
 
 
 def test_rejects_execution_enabled_true():

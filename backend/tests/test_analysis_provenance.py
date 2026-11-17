@@ -321,3 +321,16 @@ def test_investigation_memory_uses_only_linked_human_finding_decisions(provenanc
     assert report.prior_matches[0].human_outcomes == ["false_positive"]
     assert report.prior_matches[0].review_state == "human_reviewed"
     assert report.review_suppressed is False
+
+
+def test_investigation_memory_fingerprint_preserves_non_ascii_hypotheses():
+    from app.core.investigation_memory import hypothesis_fingerprint
+    from app.schemas.validation_strategy import ValidationStrategyItem
+    def make(hypothesis):
+        return ValidationStrategyItem(
+            strategy_id="arabic_review", category="business_logic", priority="medium",
+            priority_basis="Manual review", hypothesis=hypothesis,
+            supporting_observation_ids=[], missing_evidence=[],
+            validation_questions=["Review"], manual_review_actions=["Review"], prerequisites=[],
+        )
+    assert hypothesis_fingerprint(make("تجاوز صلاحيات الفواتير")) != hypothesis_fingerprint(make("تجاوز صلاحيات الحسابات"))

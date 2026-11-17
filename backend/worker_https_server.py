@@ -6,6 +6,7 @@ shell interface, database, queue, or target-network access.
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -27,6 +28,25 @@ from app.core.worker_signing import (
 
 TASK_PATH = "/internal/v1/tasks"
 MAX_BODY_BYTES = 64 * 1024
+
+
+def worker_bind_config(environ=None) -> tuple[str, int]:
+    """Resolve a fail-closed listener address; public wildcard binds are forbidden."""
+    values = os.environ if environ is None else environ
+    host = values.get("SNAKE_WORKER_BIND_HOST", "127.0.0.1")
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError as exc:
+        raise ValueError("worker bind host must be an explicit IP address") from exc
+    if address.is_unspecified:
+        raise ValueError("worker listener must not bind to a wildcard address")
+    try:
+        port = int(values.get("SNAKE_WORKER_BIND_PORT", "8443"))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("invalid worker bind port") from exc
+    if not 1 <= port <= 65535:
+        raise ValueError("invalid worker bind port")
+    return str(address), port
 
 
 def validate_http_task_headers(headers) -> tuple[int, int | None]:
@@ -231,10 +251,7 @@ def serve() -> None:
     key_id = os.environ["SNAKE_WORKER_KEY_ID"]
     ledger_path = os.environ["SNAKE_WORKER_REPLAY_DB_PATH"]
     replay_ledger = WorkerReplayLedger(ledger_path)
-    host = os.environ.get("SNAKE_WORKER_BIND_HOST", "0.0.0.0")
-    port = int(os.environ.get("SNAKE_WORKER_BIND_PORT", "8443"))
-    if not 1 <= port <= 65535:
-        raise ValueError("invalid worker bind port")
+    host, port = worker_bind_config()
 
     server = _ThreadingHTTPServer((host, port), build_handler(
         backend_public_key=backend_public,

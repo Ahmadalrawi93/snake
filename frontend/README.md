@@ -27,7 +27,8 @@ The default backend setting allows `http://localhost:3000`.
 - Account registration, login, and current-user validation use the authenticated
   FastAPI endpoints.
 - Project creation and owner-scoped listing are connected.
-- Project workspace loads its registered targets, authorization references, and immutable scope snapshots.
+- Project workspace loads its registered targets, authorization references, immutable scope snapshots, and persisted AI analysis history.
+- Analysis runs expose a read-only view of persisted finding candidates. The dashboard does not invoke the AI provider or start a new analysis from this view.
 - URL/domain targets can request a scope snapshot; the backend requires a currently valid, administrator-approved authorization whose hostname rules cover the target. Snapshot validation checks that the authorization, target, scope rules, expiry, and digest remain valid.
 - Users with the administrator role can review pending authorization references and must enter explicit hostname rules and review notes before approval. Public registration never grants administrator privileges.
 - Target registration stores a value only. It does not resolve DNS, send HTTP

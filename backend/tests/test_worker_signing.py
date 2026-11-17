@@ -4,7 +4,10 @@ from uuid import uuid4
 import pytest
 
 from app.core.worker_protocol import WorkerTaskEnvelope, WorkerValidationResult
-from app.core.worker_signing import (\n    sign_worker_task, verify_worker_task,\n    sign_worker_validation_result, verify_worker_validation_result,\n)
+from app.core.worker_signing import (
+    sign_worker_task, verify_worker_task,
+    sign_worker_validation_result, verify_worker_validation_result,
+)
 
 
 SECRET = "test-worker-signing-secret-at-least-32-chars"

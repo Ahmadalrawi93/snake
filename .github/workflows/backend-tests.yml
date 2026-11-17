@@ -33,3 +33,10 @@ jobs:
         run: python scripts/prepare_migration_ci.py && alembic upgrade head
       - name: Build validation-only worker image
         run: docker build -f worker.Dockerfile -t snake-worker-validator:test .
+      - name: Smoke-test worker runtime imports
+        run: >-
+          docker run --rm --entrypoint python snake-worker-validator:test -c
+          "import worker_https_server, worker_passive_recon;
+          from app.core.worker_protocol import WorkerTaskEnvelope;
+          from app.schemas.worker_transport import WorkerTaskResponse;
+          print('worker runtime imports OK')"

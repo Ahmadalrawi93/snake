@@ -81,6 +81,23 @@ def test_unknown_scope_or_sensitivity_prevents_severity_suggestion():
     assert "observed_impact_scope_or_asset_sensitivity_unknown" in result.blockers
 
 
+def test_unknown_sensitivity_also_blocks_severity_suggestion():
+    q, b, a, item, obs = make_inputs()
+    result = assess_finding_impact(
+        q, b, a, [claim(item, obs, data_sensitivity="unknown")]
+    )
+    assert result.severity_suggestion == "not_assessed"
+    assert "observed_impact_scope_or_asset_sensitivity_unknown" in result.blockers
+
+
+def test_any_unresolved_blocker_prevents_severity_suggestion():
+    q, b, a, item, obs = make_inputs()
+    mixed = a.model_copy(update={"evidence_status": "mixed"})
+    result = assess_finding_impact(q, b, mixed, [claim(item, obs)])
+    assert result.severity_suggestion == "not_assessed"
+    assert result.assessment_status == "insufficient_or_conflicting_evidence"
+
+
 def test_rejects_claim_linked_to_non_impact_or_unrelated_observation():
     q, b, a, item, obs = make_inputs()
     with pytest.raises(ValueError, match="observations"):

@@ -26,6 +26,18 @@ def _sha256(value: str) -> str:
 
 
 def _serialize(record: FindingImpactAssessmentRecord) -> dict:
+    """Validate the stored assessment and its content digests before returning it."""
+    assessment = FindingImpactAssessment.model_validate_json(record.assessment_json)
+    canonical_assessment = _canonical(assessment.model_dump(mode="json"))
+    if _sha256(canonical_assessment) != record.assessment_sha256:
+        raise ValueError("persisted impact assessment digest mismatch")
+
+    claims_json = _canonical([
+        claim.model_dump(mode="json") for claim in assessment.claims
+    ])
+    if _sha256(claims_json) != record.claims_sha256:
+        raise ValueError("persisted impact claims digest mismatch")
+
     return {
         "id": record.id,
         "candidate_id": record.candidate_id,
@@ -35,7 +47,7 @@ def _serialize(record: FindingImpactAssessmentRecord) -> dict:
         "evidence_bundle_sha256": record.evidence_bundle_sha256,
         "claims_sha256": record.claims_sha256,
         "assessment_sha256": record.assessment_sha256,
-        "assessment": json.loads(record.assessment_json),
+        "assessment": assessment.model_dump(mode="json"),
         "final_severity": record.final_severity,
         "cvss_vector": record.cvss_vector,
         "execution_enabled": record.execution_enabled,

@@ -26,15 +26,18 @@ def main() -> int:
         return 2
 
     secret = os.environ.get("SNAKE_WORKER_SIGNING_SECRET", "")
-    worker_id = os.environ.get("SNAKE_WORKER_ID", "local-validator")
-    if len(secret) < 32:
-        print("Dedicated worker signing secret is not configured.", file=sys.stderr)
+    worker_id = os.environ.get("SNAKE_WORKER_ID", "")
+    key_id = os.environ.get("SNAKE_WORKER_KEY_ID", "")
+    if len(secret) < 32 or not worker_id or not key_id:
+        print("Unique worker secret, worker ID, and key ID are required.", file=sys.stderr)
         return 2
 
     try:
         signed = SignedWorkerTask.model_validate_json(raw)
-        if not verify_worker_task(signed, secret):
-            raise ValueError("task signature verification failed")
+        if not verify_worker_task(
+            signed, secret, expected_worker_id=worker_id, expected_key_id=key_id
+        ):
+            raise ValueError("task signature or worker binding verification failed")
         task = signed.envelope
         ensure_not_expired(task)
         result = WorkerValidationResult(
@@ -45,13 +48,12 @@ def main() -> int:
             validated_at=datetime.now(timezone.utc),
             execution_enabled=False,
         )
-        signed_result = sign_worker_validation_result(result, secret)
+        signed_result = sign_worker_validation_result(result, secret, key_id=key_id)
     except (ValidationError, ValueError) as exc:
         print(f"Task rejected: {exc}", file=sys.stderr)
         return 2
 
-    # This validator verifies authenticated metadata only. It has no DB connection,
-    # replay ledger, network access, or scan capability.
+    # Validation-only: no DB, replay ledger, network, or scan capability.
     print(signed_result.model_dump_json())
     return 0
 

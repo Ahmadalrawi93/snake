@@ -630,6 +630,10 @@ def test_human_finding_decisions_are_owner_scoped_and_append_only():
     missing_attestation.pop("reviewer_attested")
     assert client.post(endpoint, json=missing_attestation, headers=owner_headers).status_code == 422
 
+    arbitrary_payload = dict(payload)
+    arbitrary_payload["candidate_fingerprint"] = "d" * 64
+    assert client.post(endpoint, json=arbitrary_payload, headers=owner_headers).status_code == 404
+
     created = client.post(endpoint, json=payload, headers=owner_headers)
     assert created.status_code == 201, created.text
     assert created.json()["evaluator_id"] > 0

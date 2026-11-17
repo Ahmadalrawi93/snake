@@ -12,6 +12,6 @@ SNAKE stores completed AI triage as immutable, evidence-linked analysis history.
 - API keys, authorization headers, raw prompts, raw observations, or unredacted evidence.
 - A model-generated severity or confirmed-vulnerability status.
 
-The analysis service accepts only an already validated `ObservationTriage`. It does not call DeepSeek or any other provider. Provider invocation remains explicit and separate. Reads are restricted to the owning project. Analysis rows are append-only at the database layer on SQLite and PostgreSQL.
+The analysis service accepts only an already validated `ObservationTriage`. `persist_analysis_execution()` connects an explicitly invoked DeepSeek execution result to persistence, carrying through validated usage counts and request ID. It does not call DeepSeek or any other provider; provider invocation remains explicit and separate. Reads are restricted to the owning project. Analysis rows are append-only at the database layer on SQLite and PostgreSQL.
 
 Token and cost metadata are optional because providers may omit usage information. A missing value means unknown, not zero. AI confidence is not independent validation and does not establish impact. Human verification and a separate finding workflow are still required.

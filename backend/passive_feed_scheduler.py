@@ -111,7 +111,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--interval-seconds", type=int, default=6 * 60 * 60)
     parser.add_argument("--lock-file", help="defaults to OUTPUT.scheduler.lock")
     parser.add_argument("--history-db", help="SQLite asset history path; defaults to OUTPUT.history.sqlite3")
-    parser.add_argument("--priority-report", help="separate ranked JSON report; defaults to OUTPUT.priority.json")\n    parser.add_argument("--graph-report", help="passive relationship graph; defaults to OUTPUT.graph.json")
+    parser.add_argument("--priority-report", help="separate ranked JSON report; defaults to OUTPUT.priority.json")
+    parser.add_argument("--graph-report", help="passive relationship graph; defaults to OUTPUT.graph.json")
     args = parser.parse_args(argv)
     if not args.authorization_reference.strip() or len(args.authorization_reference) > 200:
         parser.error("authorization reference must be 1-200 characters")

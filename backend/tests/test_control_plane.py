@@ -67,3 +67,11 @@ def test_missing_project_returns_404():
     response = client.post("/api/v1/projects/99999/targets",
         json={"value": "https://example.org", "target_type": "url"}, headers=headers)
     assert response.status_code == 404
+
+def test_duplicate_registration_and_bad_password_are_rejected():
+    payload = {"email": "auth-edge@example.org", "password": "a-strong-test-password-123"}
+    assert client.post("/api/v1/auth/register", json=payload).status_code == 201
+    assert client.post("/api/v1/auth/register", json=payload).status_code == 409
+    bad_login = client.post("/api/v1/auth/login",
+        json={"email": payload["email"], "password": "wrong-password"})
+    assert bad_login.status_code == 401

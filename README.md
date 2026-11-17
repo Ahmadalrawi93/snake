@@ -29,7 +29,7 @@ AI-assisted security assessment platform for **authorized** bug bounty work.
 - Immutable AI triage history with context/correlation digests, optional provider usage metadata, and owner-scoped read access.
 - Human-only hypothesis evaluation with append-only outcomes and conservative precision/coverage metrics.
 - Target-aware AI analysis history and strictly isolated human-feedback profiles; target associations are explicit and never inferred.
-- Worker currently returns validation-only acknowledgements; it does not perform reconnaissance or vulnerability tests.
+- Worker can consume an optional operator-provisioned offline passive feed, enforce the task's signed hostname allowlist, and return signed observations through the mTLS transport; it performs no target-network collection, active probing, or vulnerability tests.
 
 ## Local setup
 ```bash
@@ -102,4 +102,7 @@ The synchronous service in `backend/app/core/analysis_orchestrator.py` connects 
 
 ## Worker observation provenance
 
-The provenance-safe analysis path rebuilds context from signed worker observations stored in the backend, verifies the original Ed25519 batch signature, binds each observation to its task, target, authorization and scope snapshot, and stores immutable links on the analysis run. Candidate qualification rebuilds that context from the stored links rather than trusting client-provided observations. See [Worker Observation Provenance](docs/WORKER_OBSERVATION_PROVENANCE.md). The worker currently provides validation-only acknowledgements; actual reconnaissance result production and a production ingestion endpoint remain future work.
+The provenance-safe analysis path rebuilds context from signed worker observations stored in the backend, verifies the original Ed25519 batch signature, binds each observation to its task, target, authorization and scope snapshot, and stores immutable links on the analysis run. Candidate qualification rebuilds that context from the stored links rather than trusting client-provided observations. See [Worker Observation Provenance](docs/WORKER_OBSERVATION_PROVENANCE.md). The worker can now produce signed observations from a pre-collected offline feed; it does not harvest feeds or perform target-network reconnaissance. The mTLS ingestion path is an internal transport adapter, not a public result-ingestion API.
+
+
+See [Offline Passive Recon Producer](docs/WORKER_RESULT_INGESTION.md) for the bounded feed format, signed scope filtering, replay behavior, and limitations.

@@ -3,7 +3,7 @@
 This engine evaluates **human-attested evidence records** against one existing manual validation strategy and the exact analysis-context digest.
 
 ## Evidence contract
-Each evidence item records a bounded type, whether it supports, contradicts, or only contextualizes the hypothesis, a short statement, source label, timestamp, and source observation IDs. The schema deliberately has no fields for request payloads, credentials, commands, arbitrary URLs, or state-changing actions.
+Each evidence item records a bounded type, whether it supports, contradicts, or only contextualizes the hypothesis, a short statement, source label, timestamp, and source observation IDs. The `human_attested=true` field is an assertion supplied by the caller, not cryptographic proof of reviewer identity; a future authenticated review API must bind the record to the logged-in reviewer. The schema deliberately has no fields for request payloads, credentials, commands, arbitrary URLs, or state-changing actions.
 
 ## Deterministic gates
 - Strategy ID and context digest must match.

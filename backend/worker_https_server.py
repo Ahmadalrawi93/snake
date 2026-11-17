@@ -185,13 +185,19 @@ def build_handler(*, backend_public_key: str, worker_private_key: str,
             return
 
         def _send(self, status: int, body: bytes):
-            self.send_response(status)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            self.send_header("Connection", "close")
-            self.end_headers()
-            self.wfile.write(body)
-            self.close_connection = True
+            try:
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.wfile.write(body)
+            except (BrokenPipeError, ConnectionResetError, TimeoutError):
+                # A peer may close after sending a request (for example, on a
+                # client timeout). Do not leak a handler traceback at shutdown.
+                pass
+            finally:
+                self.close_connection = True
 
         def do_POST(self):
             # The backend adapter emits HTTP/1.1. Reject legacy/unknown

@@ -262,8 +262,10 @@ def load_verified_analysis_run_context(db: Session, *, run: AIAnalysisRun):
             signed = SignedWorkerObservationBatch.model_validate_json(json.dumps({
                 "batch": json.loads(record.batch_payload_json), "signature": record.batch_signature,
             }))
-            if (observation_batch_digest(signed.batch) != record.batch_sha256
+            if (_utc(signed.batch.collected_at) < _utc(receipt.created_at)
+                    or _utc(signed.batch.collected_at) >= _utc(receipt.expires_at)
                     or signed.batch.task_id != UUID(record.task_id)
+                    or observation_batch_digest(signed.batch) != record.batch_sha256
                     or signed.batch.envelope_sha256 != record.envelope_sha256
                     or signed.batch.worker_id != record.worker_id or signed.batch.key_id != record.key_id
                     or not verify_worker_observation_batch(signed, key.public_key_b64)):

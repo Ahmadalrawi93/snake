@@ -14,6 +14,7 @@ def upgrade():
         batch.add_column(sa.Column("source_observation_count", sa.Integer(), nullable=False, server_default="0"))
     with op.batch_alter_table("worker_observations") as batch:
         batch.add_column(sa.Column("batch_signature", sa.String(length=128), nullable=False, server_default=""))
+        batch.add_column(sa.Column("batch_payload_json", sa.Text(), nullable=False, server_default="{}"))
     op.create_index("ix_ai_analysis_runs_provenance_sha256", "ai_analysis_runs", ["provenance_sha256"])
     op.create_table(
         "analysis_run_observation_links",
@@ -59,6 +60,7 @@ def downgrade():
         op.drop_index(f"ix_analysis_run_observation_links_{col}", table_name="analysis_run_observation_links")
     op.drop_table("analysis_run_observation_links")
     with op.batch_alter_table("worker_observations") as batch:
+        batch.drop_column("batch_payload_json")
         batch.drop_column("batch_signature")
     op.drop_index("ix_ai_analysis_runs_provenance_sha256", table_name="ai_analysis_runs")
     with op.batch_alter_table("ai_analysis_runs") as batch:

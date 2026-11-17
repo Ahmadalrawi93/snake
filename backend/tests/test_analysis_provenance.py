@@ -169,3 +169,13 @@ def test_rejects_tampered_signed_batch_payload(provenance_db):
     db.commit()
     with pytest.raises(ValueError, match="signature or digest"):
         build_persisted_analysis_input(db, project_id=project.id, target_id=target.id, actor=user, now=now)
+
+
+
+def test_rejects_observation_row_not_matching_signed_batch(provenance_db):
+    db, user, project, target, _, now = provenance_db
+    row = db.query(WorkerObservationRecord).one()
+    row.value = "forged.example.test"
+    db.commit()
+    with pytest.raises(ValueError, match="does not match its signed batch"):
+        build_persisted_analysis_input(db, project_id=project.id, target_id=target.id, actor=user, now=now)

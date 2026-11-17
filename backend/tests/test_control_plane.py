@@ -145,6 +145,13 @@ def test_scope_snapshot_requires_approved_matching_authorization():
     assert validation.status_code == 200
     assert validation.json()["valid"] is True
     assert validation.json()["execution_enabled"] is False
+    revoked = client.post(f"/api/v1/admin/scope-snapshots/{snapshot['id']}/revoke",
+        headers=admin_headers)
+    assert revoked.status_code == 200
+    assert revoked.json()["status"] == "revoked"
+    invalidated = client.get(f"/api/v1/scope-snapshots/{snapshot['id']}/validate", headers=headers)
+    assert invalidated.json()["valid"] is False
+    assert "snapshot_not_active" in invalidated.json()["reasons"]
 
 def test_scope_snapshot_rejects_out_of_scope_target():
     from app.db.models import User

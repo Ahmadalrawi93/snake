@@ -168,3 +168,39 @@ class WorkerEndpoint(Base):
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class WorkerObservationRecord(Base):
+    """Immutable passive-recon evidence; never a confirmed vulnerability finding."""
+    __tablename__ = "worker_observations"
+    __table_args__ = (
+        UniqueConstraint("observation_id", name="uq_worker_observation_external_id"),
+        CheckConstraint(
+            "kind IN ('hostname', 'url', 'ip', 'technology', 'http_header', 'dns_record')",
+            name="ck_worker_observation_kind",
+        ),
+        CheckConstraint(
+            "classification = 'unconfirmed_observation'",
+            name="ck_worker_observation_unconfirmed_only",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    observation_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    task_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("worker_task_receipts.task_id"), nullable=False, index=True
+    )
+    worker_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    key_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    envelope_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    batch_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    value: Mapped[str] = mapped_column(String(2048), nullable=False)
+    evidence: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    source: Mapped[str] = mapped_column(String(80), nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    classification: Mapped[str] = mapped_column(
+        String(40), nullable=False, default="unconfirmed_observation"
+    )

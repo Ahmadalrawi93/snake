@@ -16,8 +16,9 @@ The result contract is deliberately limited to `accepted` or `rejected`, include
 the task ID and envelope digest, and fixes `execution_enabled=false`. It cannot
 claim that a scan completed or provide scan findings.
 
-These are cryptographic primitives, not a transport. They do not provide replay
-prevention, job authorization, scope revalidation, worker identity provisioning,
-or network isolation. The current validator container does not load a signing
-secret, exchange signed messages, or connect to the database receipt ledger.
-No worker dispatch or scan execution is enabled.
+These signatures are now used by the isolated stdin/stdout validator prototype.
+That prototype verifies signed task metadata and emits a signed validation-only
+acknowledgement. It is not a network transport and is not connected to the backend
+receipt ledger. The signatures do not provide replay prevention, job authorization,
+scope revalidation, worker identity provisioning, or network isolation. No scan
+execution is enabled.

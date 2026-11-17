@@ -58,3 +58,17 @@ def test_rejects_excessive_input_and_bad_evidence_limit():
         build_analysis_context([item("ip", "8.8.8.8")], max_observations=0)
     with pytest.raises(ValueError):
         build_analysis_context([], max_evidence_chars=9000)
+
+
+def test_deduplication_retains_all_original_observation_ids():
+    first = item("technology", "nginx")
+    second = item("technology", "nginx")
+    result = build_analysis_context([first, second])
+    record = result.ungrouped[0]
+    assert set(record.observation_ids) == {str(first.observation_id), str(second.observation_id)}
+
+
+def test_same_host_group_can_reach_global_input_limit():
+    observations = [item("url", f"https://example.test/path/{i}") for i in range(101)]
+    result = build_analysis_context(observations)
+    assert len(result.groups[0].observations) == 101

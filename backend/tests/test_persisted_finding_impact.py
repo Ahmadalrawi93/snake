@@ -212,3 +212,64 @@ def test_other_owner_cannot_read_or_create_assessments(impact_context):
         service.create_persisted_finding_impact(
             db, candidate_id=foreign_candidate.id, actor=owner, claims=[claim],
         )
+
+def test_impact_api_create_and_read_round_trip(impact_context):
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.api.dependencies import get_current_user
+    from app.db.database import get_db
+
+    db, owner, _other, candidate, _foreign, claim = impact_context
+
+    def override_db():
+        yield db
+
+    app.dependency_overrides[get_current_user] = lambda: owner
+    app.dependency_overrides[get_db] = override_db
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                f"/api/v1/finding-candidates/{candidate.id}/impact-assessments",
+                json={"claims": [claim.model_dump(mode="json")]},
+            )
+            assert response.status_code == 201, response.text
+            created = response.json()
+            assert created["candidate_id"] == candidate.id
+            assert created["final_severity"] == "not_assessed"
+            assert created["cvss_vector"] is None
+            assert created["execution_enabled"] is False
+
+            listed = client.get(
+                f"/api/v1/finding-candidates/{candidate.id}/impact-assessments"
+            )
+            assert listed.status_code == 200, listed.text
+            assert len(listed.json()) == 1
+            assert listed.json()[0]["id"] == created["id"]
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_db, None)
+
+
+def test_impact_api_rejects_foreign_owner(impact_context):
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.api.dependencies import get_current_user
+    from app.db.database import get_db
+
+    db, _owner, other, candidate, _foreign, _claim = impact_context
+
+    def override_db():
+        yield db
+
+    app.dependency_overrides[get_current_user] = lambda: other
+    app.dependency_overrides[get_db] = override_db
+    try:
+        with TestClient(app) as client:
+            response = client.get(
+                f"/api/v1/finding-candidates/{candidate.id}/impact-assessments"
+            )
+            assert response.status_code == 404
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_db, None)
+

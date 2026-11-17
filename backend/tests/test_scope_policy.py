@@ -44,3 +44,10 @@ def test_malformed_port_is_rejected():
 def test_invalid_ipv6_authority_is_rejected():
     result = ScopePolicy(["example.com"]).check_url("https://[not-ipv6]/")
     assert not result.allowed
+
+
+def test_ipv6_literal_normalization_and_matching():
+    assert normalize_host("2001:4860:4860::8888") == "2001:4860:4860::8888"
+    assert ScopePolicy(["2001:4860:4860::8888"]).check_url(
+        "https://[2001:4860:4860::8888]"
+    ).allowed

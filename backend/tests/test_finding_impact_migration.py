@@ -2,6 +2,9 @@
 import importlib.util
 from pathlib import Path
 
+import pytest
+from sqlalchemy.exc import IntegrityError
+
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from sqlalchemy import create_engine, inspect, text
@@ -47,6 +50,30 @@ def test_revision_0022_installs_and_removes_sqlite_immutability_guards():
         assert "finding_impact_assessments_no_update" in trigger_names
         assert "finding_impact_assessments_no_delete" in trigger_names
         assert "finding_impact_assessments" in inspect(connection).get_table_names()
+
+        connection.execute(text("""
+            INSERT INTO finding_impact_assessments (
+                id, candidate_id, analysis_run_id, project_id, reviewer_id,
+                evidence_bundle_sha256, claims_sha256, assessment_sha256,
+                assessment_json, final_severity, cvss_vector, execution_enabled,
+                created_at
+            ) VALUES (
+                1, 1, 1, 1, 1, :evidence, :claims, :assessment,
+                '{}', 'not_assessed', NULL, 0, CURRENT_TIMESTAMP
+            )
+        """), {
+            "evidence": "a" * 64,
+            "claims": "b" * 64,
+            "assessment": "c" * 64,
+        })
+        with pytest.raises(IntegrityError):
+            connection.execute(text(
+                "UPDATE finding_impact_assessments SET assessment_json = '{}' WHERE id = 1"
+            ))
+        with pytest.raises(IntegrityError):
+            connection.execute(text(
+                "DELETE FROM finding_impact_assessments WHERE id = 1"
+            ))
 
         with Operations.context(MigrationContext.configure(connection)):
             revision.downgrade()

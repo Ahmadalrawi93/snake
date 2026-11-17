@@ -11,6 +11,7 @@ from typing import Any
 import httpx
 
 from app.core.analysis_redaction import redact_analysis_context
+from app.core.application_profile import build_application_profile
 from app.core.observation_triage import validate_triage_references
 from app.schemas.analysis_context import AnalysisContext
 from app.schemas.evidence_correlation import CorrelationReport
@@ -58,8 +59,10 @@ def _request_payload(
     model: str,
     feedback_profile: IntelligenceFeedbackProfile | None = None,
 ) -> dict[str, Any]:
+    redacted_context = redact_analysis_context(context)
     evidence = {
-        "analysis_context": redact_analysis_context(context).model_dump(mode="json"),
+        "analysis_context": redacted_context.model_dump(mode="json"),
+        "application_profile": build_application_profile(redacted_context).model_dump(mode="json"),
         "correlations": correlations.model_dump(mode="json"),
     }
     if feedback_profile is not None:

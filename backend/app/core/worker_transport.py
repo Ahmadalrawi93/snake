@@ -24,7 +24,8 @@ def issue_signed_worker_task(
     envelope = prepare_dispatch_envelope(
         db, job_id, now=now, ttl_seconds=ttl_seconds
     )
-    # Reservation is durable and one-shot. If signing fails, the job remains
-    # reserved for manual investigation; silently re-queueing could enable replay.
+    # Validate the secret and construct the signed message before committing the
+    # one-shot reservation, so a misconfigured secret cannot strand a queued job.
+    signed = sign_worker_task(envelope, secret)
     reserve_task_receipt(db, envelope, now=now)
-    return sign_worker_task(envelope, secret)
+    return signed

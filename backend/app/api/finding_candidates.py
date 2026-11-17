@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_user
 from app.db.database import get_db
-from app.db.models import FindingCandidateRecord, Project, User
+from app.db.models import AIAnalysisRun, FindingCandidateRecord, Project, User
 from app.schemas.finding_qualification import FindingQualification
 from app.schemas.validation_evidence import ValidationEvidenceBundle
 from app.core.finding_candidates import list_finding_candidates
@@ -58,13 +58,26 @@ def read_finding_candidate_detail(
         digest = hashlib.sha256(canonical_bundle.encode("utf-8")).hexdigest()
         if digest != candidate.evidence_bundle_sha256:
             raise ValueError("evidence bundle digest mismatch")
+        run = db.query(AIAnalysisRun).filter_by(
+            id=candidate.analysis_run_id, project_id=candidate.project_id
+        ).first()
+        evidence_ids = {str(item.evidence_id) for item in bundle.items}
+        observation_ids = {
+            str(observation_id)
+            for item in bundle.items
+            for observation_id in item.observation_ids
+        }
         if (
-            qualification.candidate_fingerprint != candidate.candidate_fingerprint
+            run is None
+            or bundle.analysis_context_sha256 != run.context_sha256
+            or qualification.candidate_fingerprint != candidate.candidate_fingerprint
             or qualification.qualification != candidate.qualification
             or qualification.finding_status != candidate.finding_status
             or qualification.execution_enabled != candidate.execution_enabled
+            or set(qualification.evidence_ids) != evidence_ids
+            or set(qualification.observation_ids) != observation_ids
         ):
-            raise ValueError("candidate qualification binding mismatch")
+            raise ValueError("candidate qualification or evidence binding mismatch")
         return {
             "id": candidate.id,
             "analysis_run_id": candidate.analysis_run_id,

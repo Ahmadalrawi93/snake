@@ -24,3 +24,9 @@ Patterns with fewer than three reviews or no resolved outcomes remain `insuffici
 This is deterministic aggregation, not machine learning or autonomous self-improvement. Fingerprints are lexical and can merge distinct hypotheses that use similar wording or split equivalent hypotheses phrased differently. Human labels can themselves be mistaken. Evidence digests prove only that a digest was supplied, not that the evidence is independently trustworthy. The profile must be reviewed alongside the underlying evidence and program scope.
 
 The profile is computed from append-only evaluation records on read; no mutable learned state or new database table is introduced. It never changes the required disposition `requires_independent_validation` and never enables execution.
+
+## Optional AI-analysis integration
+
+The DeepSeek adapter accepts an optional, caller-supplied `IntelligenceFeedbackProfile`. When provided, it is included as historical aggregate context in the model request. It is omitted entirely by default. The system instruction explicitly prohibits treating the profile as proof, suppressing reasonable hypotheses, or overriding current evidence. The adapter still validates the returned triage against the current observation IDs and enforces `requires_independent_validation`.
+
+The adapter does not query the database or select a project profile itself. The authenticated application layer must obtain the profile through the owner-scoped API for the same project being analyzed. Do not reuse a profile across unrelated projects or targets. Current aggregation is project-wide, not target-, program-, or model-version-specific, so it is a weak prioritization signal and can be misleading in projects containing unrelated applications. A future iteration should stratify profiles by authorized target/program and model version before using them routinely.

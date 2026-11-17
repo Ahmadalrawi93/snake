@@ -17,6 +17,7 @@ from app.core.worker_signing import (
     sign_worker_task,
     verify_worker_validation_result,
 )
+from app.schemas.worker_transport import WorkerTaskResponse
 from worker_https_server import (
     MAX_BODY_BYTES,
     validate_http_task_headers,
@@ -62,7 +63,9 @@ def test_https_worker_returns_signed_validation_ack():
         worker_id="worker-1",
         key_id="key-1",
     )
-    ack = SignedWorkerValidationResult.model_validate_json(response)
+    worker_response = WorkerTaskResponse.model_validate_json(response)
+    ack = worker_response.acknowledgement
+    assert worker_response.observation_batch is None
     assert ack.result.outcome == "accepted"
     assert ack.result.execution_enabled is False
     assert verify_worker_validation_result(

@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from uuid import UUID
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -39,7 +40,7 @@ def _bundle(digest):
     return ValidationEvidenceBundle(
         strategy_id="auth_strategy", analysis_context_sha256=digest,
         items=[ValidationEvidenceItem(
-            evidence_id="00000000-0000-4000-8000-000000000001",
+            evidence_id=UUID("00000000-0000-4000-8000-000000000001"),
             evidence_type="other", relationship="context_only",
             statement="A contextual note recorded for this orchestration test",
             source_label="reviewer", observation_ids=[],

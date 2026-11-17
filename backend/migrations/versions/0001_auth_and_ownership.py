@@ -4,7 +4,7 @@ import sqlalchemy as sa
 from sqlalchemy import inspect
 
 revision = "0001_auth"
-down_revision = None
+down_revision = "0000_core_schema"
 branch_labels = None
 depends_on = None
 
@@ -28,11 +28,17 @@ def upgrade():
         with op.batch_alter_table("projects") as batch:
             batch.add_column(sa.Column("owner_id", sa.Integer(), nullable=True))
             batch.create_foreign_key("fk_projects_owner_id_users", "users", ["owner_id"], ["id"])
+    project_indexes = {index["name"] for index in inspect(bind).get_indexes("projects")}
+    if "ix_projects_owner_id" not in project_indexes:
+        op.create_index("ix_projects_owner_id", "projects", ["owner_id"])
     audit_columns = {c["name"] for c in inspect(bind).get_columns("audit_events")}
     if "actor_user_id" not in audit_columns:
         with op.batch_alter_table("audit_events") as batch:
             batch.add_column(sa.Column("actor_user_id", sa.Integer(), nullable=True))
             batch.create_foreign_key("fk_audit_actor_user_id_users", "users", ["actor_user_id"], ["id"])
+    audit_indexes = {index["name"] for index in inspect(bind).get_indexes("audit_events")}
+    if "ix_audit_events_actor_user_id" not in audit_indexes:
+        op.create_index("ix_audit_events_actor_user_id", "audit_events", ["actor_user_id"])
 
 def downgrade():
     bind = op.get_bind()

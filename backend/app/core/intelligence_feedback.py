@@ -9,7 +9,7 @@ from collections import defaultdict
 
 from sqlalchemy.orm import Session
 
-from app.db.models import AIAnalysisEvaluation, AIAnalysisRun, Project, User
+from app.db.models import AIAnalysisEvaluation, AIAnalysisRun, Project, Target, User
 from app.schemas.intelligence_feedback import IntelligenceFeedbackProfile
 
 
@@ -30,11 +30,14 @@ def _hypothesis_fingerprint(category: str, hypothesis: str) -> str:
 
 
 def build_intelligence_feedback_profile(
-    db: Session, *, project_id: int, actor: User,
+    db: Session, *, project_id: int, actor: User, target_id: int | None = None,
 ) -> IntelligenceFeedbackProfile:
     project = db.query(Project.id).filter_by(id=project_id, owner_id=actor.id).first()
     if project is None:
         raise LookupError("project not found")
+
+    if target_id is not None and db.query(Target.id).filter_by(id=target_id, project_id=project_id).first() is None:
+        raise LookupError("target not found")
 
     rows = (
         db.query(AIAnalysisEvaluation.analysis_run_id, AIAnalysisEvaluation.outcome, AIAnalysisRun.result_json)
@@ -42,6 +45,7 @@ def build_intelligence_feedback_profile(
         .filter(
             AIAnalysisEvaluation.project_id == project_id,
             AIAnalysisRun.project_id == project_id,
+            AIAnalysisRun.target_id == target_id if target_id is not None else AIAnalysisRun.target_id.is_(None),
         )
         .order_by(AIAnalysisEvaluation.id.asc())
         .all()
@@ -107,6 +111,7 @@ def build_intelligence_feedback_profile(
     patterns.sort(key=lambda item: (-item["reviewed"], item["fingerprint"]))
     return IntelligenceFeedbackProfile(
         project_id=project_id,
+        target_id=target_id,
         evaluated_runs=evaluated_runs,
         patterns=patterns[:2000],
     )

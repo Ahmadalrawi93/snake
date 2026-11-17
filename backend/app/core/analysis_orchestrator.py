@@ -7,6 +7,7 @@ from app.core.deepseek_analysis import AnalysisExecutionResult, analyze_observat
 from app.core.analysis_provenance import (build_persisted_analysis_input, bind_analysis_run_provenance, load_verified_analysis_run_context)
 from app.core.analysis_persistence import persist_analysis_execution
 from app.core.validation_evidence import assess_validation_evidence
+from app.core.evidence_coverage import assess_evidence_coverage
 from app.core.finding_qualification import qualify_finding_candidate
 from app.core.finding_candidates import persist_finding_candidate
 from app.db.models import AIAnalysisRun, FindingCandidateRecord, Project, User
@@ -27,6 +28,7 @@ class AnalysisPipelineResult:
 @dataclass(frozen=True)
 class CandidatePipelineResult:
     assessment: ValidationEvidenceAssessment
+    evidence_coverage: object
     qualification: FindingQualification
     candidate: FindingCandidateRecord | None
 
@@ -99,13 +101,14 @@ def qualify_and_persist_candidate(
     qualification = qualify_finding_candidate(
         strategy, bundle, assessment, prior_candidate_fingerprints=prior,
     )
+    evidence_coverage = assess_evidence_coverage(bundle, assessment)
     candidate = None
     if qualification.qualification == "human_review_candidate":
         candidate = persist_finding_candidate(
             db, analysis_run_id=run.id, actor=actor,
             payload=FindingCandidateCreate(qualification=qualification, evidence_bundle=bundle),
         )
-    return CandidatePipelineResult(assessment, qualification, candidate)
+    return CandidatePipelineResult(assessment, evidence_coverage, qualification, candidate)
 
 
 

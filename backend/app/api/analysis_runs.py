@@ -15,6 +15,7 @@ def _serialize(record: AIAnalysisRun) -> dict:
     return {
         "id": record.id,
         "project_id": record.project_id,
+        "target_id": record.target_id,
         "created_by": record.created_by,
         "context_sha256": record.context_sha256,
         "correlations_sha256": record.correlations_sha256,

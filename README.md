@@ -85,7 +85,9 @@ See [finding qualification engine](docs/FINDING_QUALIFICATION_ENGINE.md) for can
 See [human finding decisions](docs/HUMAN_FINDING_DECISIONS.md) for API behavior, reviewer attestation limits, and remaining hardening.
 
 
-See [persisted finding candidates](docs/FINDING_CANDIDATE_PERSISTENCE.md) for candidate storage and trust boundaries.\n\nSee [Finding Impact & Severity Assessment](docs/FINDING_IMPACT_ASSESSMENT.md) for human-attested impact claims, immutable assessment history, and severity limitations.
+See [persisted finding candidates](docs/FINDING_CANDIDATE_PERSISTENCE.md) for candidate storage and trust boundaries.
+
+See [Finding Impact & Severity Assessment](docs/FINDING_IMPACT_ASSESSMENT.md) for human-attested impact claims, immutable assessment history, and severity limitations.
 
 Finding Intelligence compares persisted candidates using category families, normalized title/evidence tokens, source-observation overlap, and normalized route signatures. Cross-category matching requires strong evidence overlap and a shared route. It labels possible duplicates for human review only; it never merges, suppresses, deletes, or confirms candidates. See [Finding Intelligence](docs/FINDING_INTELLIGENCE.md).
 

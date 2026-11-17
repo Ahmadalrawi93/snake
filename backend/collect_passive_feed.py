@@ -311,13 +311,14 @@ def main() -> int:
     rules = load_scope(args.scope_file)
     providers = list(dict.fromkeys(args.provider or ["ct"]))
     records: list[dict[str, str]] = []
+    per_provider_limit = MAX_FEED_RECORDS if len(providers) == 1 else MAX_FEED_RECORDS // len(providers)
     if "ct" in providers:
-        records.extend(collect_ct_feed(rules))
+        records.extend(collect_ct_feed(rules)[:per_provider_limit])
     if "dnsdb" in providers:
         api_key = os.environ.get("DNSDB_API_KEY", "")
         if not api_key:
             parser.error("DNSDB_API_KEY environment variable is required for --provider dnsdb")
-        records.extend(collect_dnsdb_feed(rules, api_key))
+        records.extend(collect_dnsdb_feed(rules, api_key)[:per_provider_limit])
     records = records[:MAX_FEED_RECORDS]
     write_feed(args.output, records)
     print(json.dumps({

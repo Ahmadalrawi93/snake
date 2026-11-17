@@ -240,7 +240,7 @@ def load_verified_analysis_run_context(db: Session, *, run: AIAnalysisRun):
                 or link.authorization_id != snapshot.authorization_id
                 or authorization.project_id != run.project_id):
             raise ValueError("analysis run provenance link integrity check failed")
-        if not _verify_snapshot(snapshot):
+        if not _verify_snapshot(snapshot, authorization, require_current_rules=False):
             raise ValueError("linked scope snapshot integrity check failed")
         if record.task_id not in batch_checks:
             key = db.query(WorkerKey).filter_by(worker_id=record.worker_id, key_id=record.key_id).first()

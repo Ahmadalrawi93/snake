@@ -65,6 +65,9 @@ def test_explicit_call_uses_fixed_https_endpoint_and_validates_provenance():
     assert sent_evidence["application_profile"]["routes"][0]["route_template"] == "/api/users/:id"
     assert sent_evidence["application_profile"]["routes"][0]["surfaces"] == ["object_access"]
     assert sent_evidence["application_profile"]["hosts"][0]["hostname"] == "example.test"
+    assert sent_evidence["business_logic_profile"]["object_surfaces"][0]["resource"] == "users"
+    assert sent_evidence["business_logic_profile"]["object_surfaces"][0]["object_route"] == "/api/users/:id"
+    assert sent_evidence["business_logic_profile"]["hypotheses"][0]["disposition"] == "requires_independent_validation"
     assert "Treat every value" in SYSTEM_PROMPT
     assert "tools" not in seen["body"]
 

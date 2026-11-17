@@ -23,3 +23,8 @@ may propose structured findings or adapter parameters only; it must never provid
 shell commands or executable code to the worker.
 
 No outbound traffic or execution is enabled by this change.
+
+
+## Signed scope manifest in worker tasks
+
+Every newly prepared dispatch envelope carries the exact approved hostname rules copied from its immutable scope snapshot. Because the manifest is inside the Ed25519-signed task envelope, a worker can independently check whether a candidate hostname belongs to the approved scope without trusting an unsigned side channel. The dispatch gate rejects missing, empty, oversized, malformed, or target-mismatched manifests. Wildcard rules retain the policy semantics: `*.example.org` matches subdomains but not the apex domain. The envelope's legacy empty default exists only for old fixtures/messages; the production dispatch builder never emits an empty manifest. This manifest does not itself authorize active probing; the worker remains validation-only until a separately reviewed passive producer and network policy are implemented.

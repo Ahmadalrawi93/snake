@@ -120,3 +120,8 @@ Investigation memory now stores the candidate fingerprint produced by the same s
 ## Investigation Learning Engine
 
 The persistent investigation-memory report aggregates only reviewer-attested decisions linked to the exact prior candidate fingerprint and analysis run, within the same project and target. Each historical run is counted once; conflicting reviewer outcomes are handled conservatively, with a confirmed outcome taking precedence over false-positive for that run. At least three distinct prior reviewed runs with false-positive outcomes and no confirmed outcomes produce a bounded -10 review-priority adjustment. Mixed outcomes, insufficient history, confirmed history, inconclusive and duplicate-only history do not reduce priority. The adjustment affects ordering only: no strategy is removed, no testing is skipped, and no vulnerability likelihood or confidence is inferred. The model's existing AI-generated hypotheses remain untrusted until human review.
+
+
+## Passive Business Workflow Reasoning
+
+The workflow reasoning engine groups already-verified, in-scope URL observations by canonical host and recognized business resource, then identifies multiple observed action-shaped routes. It emits possible transition pairs as manual review leads only. Pair order is explicitly unknown: route names and passive discovery do not establish actual workflow order, HTTP methods, state preconditions, roles, ownership, or authorization. Evidence is linked to original observation IDs. The report is integrated into candidate pipeline output, does not generate requests or payloads, and never confirms a vulnerability.

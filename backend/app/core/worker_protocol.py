@@ -10,6 +10,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
+from app.core.scope_policy import ScopePolicy, normalize_host
+
 
 class WorkerTaskEnvelope(BaseModel):
     """Allowlisted task metadata; never an instruction to execute arbitrary code."""
@@ -22,6 +24,9 @@ class WorkerTaskEnvelope(BaseModel):
     scope_snapshot_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     profile: Literal["passive_recon"]
     target_url: HttpUrl
+    # Signed scope manifest copied from the immutable approved snapshot.
+    # Empty is retained only for legacy/test envelopes; production dispatch rejects it.
+    approved_scope_rules: list[str] = Field(default_factory=list, max_length=100)
     issued_at: datetime
     expires_at: datetime
     execution_enabled: Literal[False] = False
@@ -32,6 +37,15 @@ class WorkerTaskEnvelope(BaseModel):
             raise ValueError("worker timestamps must be timezone-aware")
         if self.expires_at <= self.issued_at:
             raise ValueError("task expiry must be after issue time")
+        if len(self.approved_scope_rules) != len(set(self.approved_scope_rules)):
+            raise ValueError("scope manifest contains duplicate rules")
+        for rule in self.approved_scope_rules:
+            candidate = rule[2:] if rule.startswith("*.") else rule
+            normalize_host(candidate)
+            if rule.startswith("*.") and candidate.count(".") < 1:
+                raise ValueError("wildcard scope rule must be a DNS suffix")
+        if self.approved_scope_rules and not ScopePolicy(self.approved_scope_rules).check_url(str(self.target_url)).allowed:
+            raise ValueError("task target is not covered by its signed scope manifest")
         return self
 
 

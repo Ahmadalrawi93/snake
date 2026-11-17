@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from pydantic import ValidationError
 
-from app.core.worker_claims import envelope_digest
+from app.core.worker_signing import worker_task_digest
 from app.core.worker_protocol import WorkerValidationResult, ensure_not_expired
 from app.core.worker_signing import (
     SignedWorkerTask,
@@ -40,7 +40,7 @@ def main() -> int:
         ensure_not_expired(task)
         result = WorkerValidationResult(
             task_id=task.task_id,
-            envelope_sha256=envelope_digest(task),
+            envelope_sha256=worker_task_digest(task),
             worker_id=worker_id,
             outcome="accepted",
             validated_at=datetime.now(timezone.utc),

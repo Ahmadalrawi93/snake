@@ -56,7 +56,7 @@ def test_job_cannot_be_reserved_twice_even_with_new_task_id(db):
     make_job(db)
     reserve_task_receipt(db, make_envelope(), worker_id="worker-test", key_id="key-test")
     with pytest.raises(ValueError, match="no longer eligible"):
-        reserve_task_receipt(db, make_envelope())
+        reserve_task_receipt(db, make_envelope(), worker_id="worker-test", key_id="key-test")
 
 
 def test_task_receipt_can_be_consumed_only_once(db):
@@ -82,3 +82,9 @@ def test_reservation_rejects_expired_envelope(db):
     envelope = make_envelope()
     with pytest.raises(ValueError, match="expired"):
         reserve_task_receipt(db, envelope, worker_id="worker-test", key_id="key-test", now=envelope.expires_at + timedelta(seconds=1))
+
+
+def test_reservation_requires_worker_identity(db):
+    make_job(db)
+    with pytest.raises(ValueError, match="worker identity"):
+        reserve_task_receipt(db, make_envelope())

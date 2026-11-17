@@ -20,10 +20,11 @@ def main() -> int:
         return 2
 
     try:
-        payload = json.loads(raw)
-        task = WorkerTaskEnvelope.model_validate(payload)
+        # JSON-mode validation is required because strict Pydantic models accept
+        # ISO-8601 datetime strings from JSON but reject string values in Python dicts.
+        task = WorkerTaskEnvelope.model_validate_json(raw)
         ensure_not_expired(task)
-    except (json.JSONDecodeError, UnicodeDecodeError, ValidationError, ValueError) as exc:
+    except (ValidationError, ValueError) as exc:
         print(f"Task rejected: {exc}", file=sys.stderr)
         return 2
 

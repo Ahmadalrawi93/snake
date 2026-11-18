@@ -88,7 +88,7 @@ def issue_api_token(payload: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.get("/csrf")
-def csrf_token(request: Request, response: Response):
+def csrf_token(request: Request, response: Response, user: User = Depends(get_current_user)):
     settings = get_settings()
     token = request.cookies.get(settings.csrf_cookie_name)
     if not token:

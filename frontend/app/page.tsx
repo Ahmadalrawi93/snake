@@ -285,6 +285,19 @@ export default function Home() {
     }
   }
 
+  function downloadCandidateReport() {
+    if (!reportPreview) return;
+    const blob = new Blob([reportPreview.markdown], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `snake-finding-${selectedCandidate?.id ?? "draft"}.md`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
   async function generateCandidateReport() {
     if (!selectedCandidate) return;
     setBusy(true); setError(""); setMessage(""); setReportPreview(null);
@@ -663,7 +676,7 @@ export default function Home() {
                     <div className="review-card report-draft-panel">
                       <div className="review-meta"><h3>Evidence-bound report draft</h3><button className="primary-button" disabled={busy} onClick={generateCandidateReport}>GENERATE REPORT DRAFT</button></div>
                       <p className="hint">Requires consistent, complete evidence including observed behavior, expected behavior, and impact context. Generation does not submit the report.</p>
-                      {reportPreview && <><div className="review-facts"><span>STATUS: UNCONFIRMED DRAFT</span><span>SEVERITY: NOT ASSESSED</span><span>CVSS: NONE</span><span>EXECUTION: DISABLED</span></div><button className="text-button" onClick={() => navigator.clipboard.writeText(reportPreview.markdown)}>COPY MARKDOWN</button><pre className="report-markdown">{reportPreview.markdown}</pre></>}
+                      {reportPreview && <><div className="review-facts"><span>STATUS: UNCONFIRMED DRAFT</span><span>SEVERITY: NOT ASSESSED</span><span>CVSS: NONE</span><span>EXECUTION: DISABLED</span></div><div className="review-actions"><button className="text-button" onClick={() => navigator.clipboard.writeText(reportPreview.markdown)}>COPY MARKDOWN</button><button className="text-button" onClick={downloadCandidateReport}>DOWNLOAD .MD</button></div><pre className="report-markdown">{reportPreview.markdown}</pre></>}
                     </div>
                     <div className="review-card">
                       <h3>Append-only lifecycle</h3>

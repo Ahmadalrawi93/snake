@@ -1,13 +1,14 @@
 import secrets
+from datetime import datetime, timezone
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.security import decode_access_token
+from app.core.security import decode_access_token_claims, token_id_digest
 from app.db.database import get_db
-from app.db.models import User
+from app.db.models import User, UserSession
 
 bearer = HTTPBearer(auto_error=False)
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
@@ -44,13 +45,22 @@ def get_current_user(
             ):
                 raise HTTPException(status_code=403, detail="CSRF validation failed")
 
-    subject = decode_access_token(token)
-    if subject is None or not subject.isdigit():
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired access token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    claims = decode_access_token_claims(token)
+    subject = claims.get("sub") if claims else None
+    if not isinstance(subject, str) or not subject.isdigit():
+        raise HTTPException(status_code=401, detail="Invalid or expired access token", headers={"WWW-Authenticate": "Bearer"})
+    token_id = claims.get("jti")
+    if token_id is not None:
+        if claims.get("token_use") != "browser_session" or not isinstance(token_id, str):
+            raise HTTPException(status_code=401, detail="Invalid session token")
+        session = db.query(UserSession).filter(
+            UserSession.token_id_sha256 == token_id_digest(token_id),
+            UserSession.user_id == int(subject),
+            UserSession.revoked_at.is_(None),
+            UserSession.expires_at > datetime.now(timezone.utc),
+        ).first()
+        if session is None:
+            raise HTTPException(status_code=401, detail="Session expired or revoked")
     user = db.get(User, int(subject))
     if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="User is unavailable")

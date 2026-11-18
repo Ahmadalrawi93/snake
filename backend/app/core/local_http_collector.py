@@ -132,6 +132,8 @@ def _safe_url(url: str, policy: ScopePolicy) -> tuple[str, str, int, str]:
     scheme = parsed.scheme.lower()
     host = decision.hostname
     port = parsed.port or (443 if scheme == "https" else 80)
+    if port not in {80, 443}:
+        raise CollectionError("unsupported_target_port")
     path = parsed.path or "/"
     if parsed.query:
         path += "?" + parsed.query

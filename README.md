@@ -142,3 +142,5 @@ The provenance-safe analysis path rebuilds context from signed worker observatio
 
 
 See [Offline Passive Recon Producer](docs/WORKER_RESULT_INGESTION.md) for the bounded feed format, signed scope filtering, replay behavior, and limitations.
+
+Tenant isolation rules and regression coverage: [Tenant Isolation](docs/TENANT_ISOLATION.md).

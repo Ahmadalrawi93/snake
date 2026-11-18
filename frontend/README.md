@@ -59,9 +59,9 @@ are disabled. Keep `SNAKE_SESSION_COOKIE_SAMESITE=lax` when the frontend and API
 are same-site; a genuinely cross-site deployment needs `none` plus Secure and
 a carefully reviewed origin/CSRF configuration.
 
-Bearer authentication remains supported for existing non-browser API clients.
-The login response still includes the legacy token during this compatibility
-period; browser code ignores it and uses the HttpOnly cookie. This compatibility
-response should be removed in a later breaking API version.
+Bearer authentication remains supported for non-browser API clients through
+the separate `POST /api/v1/auth/token` endpoint. Browser `POST /login` never
+returns the access token in JSON; it returns only the in-memory CSRF value while
+the HttpOnly session cookie carries authentication.
 
 - Project-scoped candidate similarity is shown as a human-review aid. Possible duplicates can be linked through the append-only lifecycle only after a reviewer records a matching `duplicate` decision; no automatic merge occurs.

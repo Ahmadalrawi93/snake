@@ -33,7 +33,7 @@ AI-assisted security assessment platform for **authorized** bug bounty work.
 - Human-only hypothesis evaluation with append-only outcomes and conservative precision/coverage metrics.
 - Target-aware AI analysis history and strictly isolated human-feedback profiles; target associations are explicit and never inferred.
 - Worker can consume an optional operator-provisioned offline passive feed, enforce the task's signed hostname allowlist, and return signed observations through the mTLS transport; it performs no target-network collection, active probing, or vulnerability tests.
-- Read-only local MCP server for OpenCode over stdio, with operator-scoped project/target/job/evidence reads and deterministic security-signal access; no live target collection is exposed yet. See [OpenCode Local MCP Integration](docs/OPENCODE_MCP_INTEGRATION.md).
+- Local OpenCode MCP server over stdio with operator-scoped project/evidence tools and a bounded HTTP GET collector for targets backed by currently valid scope snapshots. Collection is same-origin, limited to public DNS and ports 80/443, rate-limited, response-size bounded, cookie-redacted, audited, and stored as unconfirmed metadata only; it is not a vulnerability scanner. See [OpenCode Local MCP Integration](docs/OPENCODE_MCP_INTEGRATION.md).
 
 ## Local setup
 ```bash

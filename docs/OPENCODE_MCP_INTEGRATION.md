@@ -22,6 +22,8 @@ The initial tools are deliberately limited:
   target ID and active scope-snapshot ID; the model cannot supply a URL.
 - `snake_get_local_recon_evidence`: read persisted, redacted metadata and
   deterministic security signals from a local collection run.
+- `snake_list_local_recon_runs`: list recent collection history for an owned
+  project.
 
 All project, job, and evidence reads are constrained to the operator ID
 configured for this local MCP process. The process fails closed if

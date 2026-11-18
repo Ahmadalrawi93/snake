@@ -3,14 +3,15 @@ services:
     build:
       context: ../backend
     environment:
-      SNAKE_ENV: production
+      SNAKE_ENVIRONMENT: production
       SNAKE_API_HOST: 0.0.0.0
       SNAKE_DATABASE_URL: sqlite:////data/snake.db
       SNAKE_JWT_SECRET_KEY: ${SNAKE_JWT_SECRET_KEY:?Set SNAKE_JWT_SECRET_KEY to a random secret of at least 32 characters}
-      SNAKE_ALLOWED_ORIGINS: ${SNAKE_ALLOWED_ORIGINS:-http://localhost:3000}
+      SNAKE_ALLOWED_ORIGINS: ${SNAKE_ALLOWED_ORIGINS:?Set SNAKE_ALLOWED_ORIGINS to exact HTTPS frontend origins}
+      SNAKE_SESSION_COOKIE_SECURE: "true"
       SNAKE_BACKEND_ED25519_PRIVATE_KEY_B64: ${SNAKE_BACKEND_ED25519_PRIVATE_KEY_B64:-}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - snake-data:/data
     restart: unless-stopped

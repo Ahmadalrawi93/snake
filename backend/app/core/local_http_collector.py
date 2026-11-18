@@ -122,7 +122,7 @@ def _origin(url: str) -> tuple[str, str, int]:
     return scheme, host, port
 
 
-def _safe_url(url: str, policy: ScopePolicy) -> tuple[str, str, int, str]:
+def _safe_url(url: str, policy: ScopePolicy, *, allow_nonstandard_ports: bool = False) -> tuple[str, str, int, str]:
     decision = policy.check_url(url)
     if not decision.allowed or not decision.hostname:
         raise CollectionError("url_out_of_scope")
@@ -132,7 +132,7 @@ def _safe_url(url: str, policy: ScopePolicy) -> tuple[str, str, int, str]:
     scheme = parsed.scheme.lower()
     host = decision.hostname
     port = parsed.port or (443 if scheme == "https" else 80)
-    if port not in {80, 443}:
+    if port not in {80, 443} and not allow_nonstandard_ports:
         raise CollectionError("unsupported_target_port")
     path = parsed.path or "/"
     if parsed.query:
@@ -151,8 +151,11 @@ def _redact_cookie(value: str) -> str:
 
 
 def _request_once(url: str, policy: ScopePolicy, *, timeout: float,
-                  max_body_bytes: int, allow_private_networks: bool) -> tuple[HttpObservation, bytes, str | None]:
-    normalized, host, port, path = _safe_url(url, policy)
+                  max_body_bytes: int, allow_private_networks: bool,
+                  allow_nonstandard_ports: bool) -> tuple[HttpObservation, bytes, str | None]:
+    normalized, host, port, path = _safe_url(
+        url, policy, allow_nonstandard_ports=allow_nonstandard_ports
+    )
     parsed = urlsplit(normalized)
     addresses = _resolve_public(host, port, allow_private_networks=allow_private_networks)
     last_error: Exception | None = None
@@ -176,18 +179,16 @@ def _request_once(url: str, policy: ScopePolicy, *, timeout: float,
             connection.endheaders()
             response = connection.getresponse()
             body = response.read(max_body_bytes + 1)
-            if len(body) > max_body_bytes:
-                body = body[:max_body_bytes]
-                truncated = True
-            else:
-                truncated = False
+            body = body[:max_body_bytes]
+            response_headers = response.getheaders()
+            location = next((v for k, v in response_headers if k.lower() == "location"), None)
             headers = tuple(
                 (name.lower(), value[:2048])
-                for name, value in response.getheaders()
+                for name, value in response_headers
                 if name.lower() in {
                     "server", "x-powered-by", "x-aspnet-version", "x-generator",
                     "access-control-allow-origin", "access-control-allow-credentials",
-                    "set-cookie", "content-type", "content-length", "location",
+                    "set-cookie", "content-type", "content-length",
                     "strict-transport-security", "content-security-policy",
                 }
             )
@@ -196,7 +197,6 @@ def _request_once(url: str, policy: ScopePolicy, *, timeout: float,
                 for name, value in headers
             )
             content_type = next((v for k, v in headers if k == "content-type"), "")
-            location = next((v for k, v in headers if k == "location"), None)
             observation = HttpObservation(
                 url=normalized,
                 status_code=response.status,
@@ -220,6 +220,7 @@ def collect_http(
     max_body_bytes: int = MAX_BODY_BYTES,
     timeout: float = REQUEST_TIMEOUT_SECONDS,
     allow_private_networks: bool = False,
+    allow_nonstandard_ports: bool = False,
 ) -> CollectionReport:
     """Collect a small same-host link graph without retaining response bodies."""
     if not 1 <= max_pages <= MAX_PAGES:
@@ -229,7 +230,9 @@ def collect_http(
     if not 1 <= timeout <= 10:
         raise ValueError("timeout must be between 1 and 10 seconds")
     policy = ScopePolicy(approved_scope_rules)
-    initial, initial_host, _port, _path = _safe_url(target_url, policy)
+    initial, initial_host, _port, _path = _safe_url(
+        target_url, policy, allow_nonstandard_ports=allow_nonstandard_ports
+    )
     queue = [initial]
     visited: set[str] = set()
     redirect_hops = 0
@@ -246,6 +249,7 @@ def collect_http(
             observation, body, location = _request_once(
                 current, policy, timeout=timeout, max_body_bytes=max_body_bytes,
                 allow_private_networks=allow_private_networks,
+                allow_nonstandard_ports=allow_nonstandard_ports,
             )
         except CollectionError as exc:
             skipped.append((current, str(exc)))
@@ -255,7 +259,9 @@ def collect_http(
         if location and observation.status_code in {301, 302, 303, 307, 308}:
             redirect = urljoin(current, location)
             try:
-                _normalized, redirect_host, _p, _path = _safe_url(redirect, policy)
+                _normalized, redirect_host, _p, _path = _safe_url(
+                    redirect, policy, allow_nonstandard_ports=allow_nonstandard_ports
+                )
                 if _origin(redirect) != initial_origin:
                     skipped.append((redirect, "cross_origin_redirect_skipped"))
                 elif redirect_hops < MAX_REDIRECTS:
@@ -276,7 +282,9 @@ def collect_http(
             for href in parser.hrefs:
                 candidate = urljoin(current, href)
                 try:
-                    normalized, candidate_host, _p, _path = _safe_url(candidate, policy)
+                    normalized, candidate_host, _p, _path = _safe_url(
+                        candidate, policy, allow_nonstandard_ports=allow_nonstandard_ports
+                    )
                 except CollectionError:
                     continue
                 parsed_candidate = urlsplit(normalized)

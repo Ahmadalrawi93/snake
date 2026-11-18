@@ -71,6 +71,8 @@ def _snapshot_status(db: Session, snapshot: ScopeSnapshot, operator_id: int) -> 
         return {"valid": False, "reasons": ["project_not_owned"]}
     try:
         data = json.loads(snapshot.snapshot_json)
+        if not isinstance(data, dict):
+            raise ValueError("snapshot payload must be an object")
         canonical = json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
         import hashlib
         if hashlib.sha256(canonical.encode("utf-8")).hexdigest() != snapshot.sha256:

@@ -44,7 +44,11 @@ def get_project_evaluation_metrics(db: Session, *, project_id: int, actor: User)
     counts = {
         row[0]: row[1]
         for row in db.query(AIAnalysisEvaluation.outcome, func.count(AIAnalysisEvaluation.id))
-        .filter(AIAnalysisEvaluation.project_id == project_id)
+        .join(AIAnalysisRun, AIAnalysisRun.id == AIAnalysisEvaluation.analysis_run_id)
+        .filter(
+            AIAnalysisEvaluation.project_id == project_id,
+            AIAnalysisRun.project_id == project_id,
+        )
         .group_by(AIAnalysisEvaluation.outcome)
         .all()
     }

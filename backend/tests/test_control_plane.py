@@ -74,6 +74,47 @@ def test_auth_and_project_authorization_target_audit_flow():
     assert [e["action"] for e in events][:3] == [
         "target.registered", "authorization.recorded", "project.created"]
 
+def test_expired_browser_and_api_credentials_are_rejected():
+    from datetime import datetime, timedelta, timezone
+    from app.core.config import get_settings
+    from app.core.security import decode_access_token_claims, token_id_digest
+    from app.db.models import UserSession, ApiAccessToken
+
+    payload = {"email": "expired-credentials@example.org", "password": "a-strong-test-password-123"}
+    assert client.post("/api/v1/auth/register", json=payload).status_code == 201
+    settings = get_settings()
+
+    browser_login = client.post("/api/v1/auth/login", json=payload)
+    browser_cookie = browser_login.cookies.get(settings.session_cookie_name)
+    browser_claims = decode_access_token_claims(browser_cookie)
+    assert browser_claims and isinstance(browser_claims.get("jti"), str)
+    browser_digest = token_id_digest(browser_claims["jti"])
+    client.cookies.clear()
+
+    api_login = client.post("/api/v1/auth/token", json=payload)
+    api_claims = decode_access_token_claims(api_login.json()["access_token"])
+    assert api_claims and isinstance(api_claims.get("jti"), str)
+    api_digest = token_id_digest(api_claims["jti"])
+
+    db = TestingSession()
+    try:
+        expired_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        browser_record = db.query(UserSession).filter_by(token_id_sha256=browser_digest).one()
+        api_record = db.query(ApiAccessToken).filter_by(token_id_sha256=api_digest).one()
+        browser_record.expires_at = expired_at
+        api_record.expires_at = expired_at
+        db.commit()
+    finally:
+        db.close()
+
+    client.cookies.set(settings.session_cookie_name, browser_cookie)
+    assert client.get("/api/v1/auth/me").status_code == 401
+    client.cookies.clear()
+    assert client.get("/api/v1/auth/me", headers={
+        "Authorization": f"Bearer {api_login.json()['access_token']}"
+    }).status_code == 401
+
+
 def test_legacy_stateless_jwt_is_rejected_after_token_registry_cutover():
     from app.core.security import create_access_token
 

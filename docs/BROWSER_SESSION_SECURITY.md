@@ -122,3 +122,19 @@ credential-stuffing detection, or trusted-proxy IP throttling. Deployments
 should add network-level rate limits at their reverse proxy and must not trust
 client-supplied forwarding headers unless they are overwritten by a trusted
 proxy.
+
+
+## Production origin and network boundary
+
+Production startup rejects wildcard, HTTP, localhost, path-bearing, credential-
+bearing, query-bearing, fragment-bearing, and malformed CORS origins. Configure
+only exact HTTPS frontend origins. The Compose deployment sets
+`SNAKE_ENVIRONMENT=production` (the setting name consumed by the backend),
+requires `SNAKE_ALLOWED_ORIGINS`, and enables secure session cookies.
+
+Compose binds the API to host loopback at `127.0.0.1:8000`; it is not intended
+to be exposed directly to the public internet. A separately configured HTTPS
+reverse proxy must terminate TLS and proxy to that loopback address. The
+repository does not yet include a TLS proxy configuration. See
+[deployment security](../infrastructure/DEPLOYMENT_SECURITY.md) for required
+proxy controls and limitations.

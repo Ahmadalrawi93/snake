@@ -1,14 +1,16 @@
 import secrets
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_user
 from app.core.config import get_settings
-from app.core.security import hash_password, verify_password, create_access_token
+from app.core.security import (hash_password, verify_password, create_access_token, create_browser_session_token, token_id_digest, decode_access_token_claims)
 from app.db.database import get_db
-from app.db.models import User
+from app.db.models import User, UserSession
 
 router = APIRouter(prefix="/api/v1/auth", tags=["authentication"])
 
@@ -51,8 +53,10 @@ def login(payload: LoginRequest, response: Response, db: Session = Depends(get_d
         raise HTTPException(status_code=401, detail="Incorrect email or password",
                             headers={"WWW-Authenticate": "Bearer"})
     settings = get_settings()
-    access_token = create_access_token(str(user.id))
+    access_token, token_id, expires_at = create_browser_session_token(str(user.id))
     csrf_token = secrets.token_urlsafe(32)
+    db.add(UserSession(user_id=user.id, token_id_sha256=token_id_digest(token_id), expires_at=expires_at))
+    db.commit()
     cookie_options = {
         "httponly": True,
         "secure": settings.session_cookie_secure,
@@ -93,8 +97,7 @@ def csrf_token(request: Request, response: Response):
     return {"csrf_token": token}
 
 
-@router.post("/logout", status_code=204)
-def logout(response: Response, user: User = Depends(get_current_user)):
+def _clear_session_cookies(response: Response) -> None:
     settings = get_settings()
     for cookie_name in (settings.session_cookie_name, settings.csrf_cookie_name):
         response.delete_cookie(
@@ -104,6 +107,38 @@ def logout(response: Response, user: User = Depends(get_current_user)):
             httponly=(cookie_name == settings.session_cookie_name),
             samesite=settings.session_cookie_samesite.lower(),
         )
+
+
+@router.post("/logout", status_code=204)
+def logout(request: Request, response: Response, user: User = Depends(get_current_user),
+           db: Session = Depends(get_db)):
+    settings = get_settings()
+    token = request.cookies.get(settings.session_cookie_name)
+    claims = decode_access_token_claims(token) if token else None
+    token_id = claims.get("jti") if claims else None
+    if isinstance(token_id, str):
+        session = db.query(UserSession).filter(
+            UserSession.user_id == user.id,
+            UserSession.token_id_sha256 == token_id_digest(token_id),
+            UserSession.revoked_at.is_(None),
+        ).first()
+        if session is not None:
+            session.revoked_at = datetime.now(timezone.utc)
+            db.commit()
+    _clear_session_cookies(response)
+    response.status_code = 204
+    return response
+
+
+@router.post("/logout-all", status_code=204)
+def logout_all(response: Response, user: User = Depends(get_current_user),
+                db: Session = Depends(get_db)):
+    db.query(UserSession).filter(
+        UserSession.user_id == user.id,
+        UserSession.revoked_at.is_(None),
+    ).update({UserSession.revoked_at: datetime.now(timezone.utc)}, synchronize_session=False)
+    db.commit()
+    _clear_session_cookies(response)
     response.status_code = 204
     return response
 

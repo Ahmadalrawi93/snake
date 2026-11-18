@@ -39,7 +39,10 @@ export default function Home() {
   const [decisionEvidenceSha, setDecisionEvidenceSha] = useState("");
   const [impactEvidenceId, setImpactEvidenceId] = useState("");
   const [impactDimension, setImpactDimension] = useState("confidentiality");
-  const [impactLevel, setImpactLevel] = useState("moderate");\n  const [impactVerification, setImpactVerification] = useState("observed");\n  const [impactScope, setImpactScope] = useState("unknown");\n  const [impactSensitivity, setImpactSensitivity] = useState("unknown");
+  const [impactLevel, setImpactLevel] = useState("moderate");
+  const [impactVerification, setImpactVerification] = useState("observed");
+  const [impactScope, setImpactScope] = useState("unknown");
+  const [impactSensitivity, setImpactSensitivity] = useState("unknown");
   const [impactStatement, setImpactStatement] = useState("");
   const [reportPreview, setReportPreview] = useState<ReportPreview | null>(null);
   const [decisionOutcome, setDecisionOutcome] = useState("inconclusive");

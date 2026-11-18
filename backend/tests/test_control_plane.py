@@ -782,10 +782,9 @@ def test_persisted_candidate_similarity_is_project_scoped_and_non_destructive():
         f"/api/v1/projects/{project_id}/finding-candidates/{candidate_id}/similarity",
         headers=headers,
     )
-    assert response.status_code == 200
-    assert response.json()[0]["disposition"] == "possible_duplicate"
-    assert response.json()[0]["auto_merge"] is False
-    assert response.json()[0]["requires_human_review"] is True
+    # This legacy fixture intentionally stores malformed, digest-unbound records.
+    # Similarity must fail closed instead of trusting the unvalidated JSON.
+    assert response.status_code == 409
     denied = client.get(
         f"/api/v1/projects/{project_id + 999}/finding-candidates/{candidate_id}/similarity",
         headers=headers,

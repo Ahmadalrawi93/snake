@@ -20,10 +20,10 @@ BLOCK_DURATION = timedelta(minutes=15)
 RETENTION = timedelta(days=7)
 
 
-def auth_attempt_key(email: str) -> str:
-    """Return an HMAC digest; raw email addresses are never persisted."""
+def auth_attempt_key(email: str, client_host: str) -> str:
+    """Return an HMAC digest; neither email nor client address is persisted."""
     secret = get_settings().jwt_secret_key.encode("utf-8")
-    message = f"auth-failed:{email.strip().lower()}".encode("utf-8")
+    message = f"auth-failed:{email.strip().lower()}:{client_host}".encode("utf-8")
     return hmac.new(secret, message, hashlib.sha256).hexdigest()
 
 
@@ -31,8 +31,8 @@ def _utc(value: datetime) -> datetime:
     return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
 
 
-def assert_auth_not_blocked(db: Session, email: str) -> None:
-    key = auth_attempt_key(email)
+def assert_auth_not_blocked(db: Session, email: str, client_host: str) -> None:
+    key = auth_attempt_key(email, client_host)
     record = db.get(AuthFailedAttemptBucket, key)
     if record is None or record.blocked_until is None:
         return
@@ -47,10 +47,10 @@ def assert_auth_not_blocked(db: Session, email: str) -> None:
         )
 
 
-def record_failed_auth_attempt(db: Session, email: str) -> None:
+def record_failed_auth_attempt(db: Session, email: str, client_host: str) -> None:
     now = datetime.now(timezone.utc)
     cutoff = now - WINDOW
-    key = auth_attempt_key(email)
+    key = auth_attempt_key(email, client_host)
     dialect = db.get_bind().dialect.name
     if dialect == "sqlite":
         insert_statement = sqlite_insert(AuthFailedAttemptBucket)
@@ -95,10 +95,10 @@ def record_failed_auth_attempt(db: Session, email: str) -> None:
     db.commit()
 
 
-def clear_auth_failures(db: Session, email: str) -> None:
+def clear_auth_failures(db: Session, email: str, client_host: str) -> None:
     db.execute(
         delete(AuthFailedAttemptBucket).where(
-            AuthFailedAttemptBucket.key_sha256 == auth_attempt_key(email)
+            AuthFailedAttemptBucket.key_sha256 == auth_attempt_key(email, client_host)
         )
     )
     db.commit()

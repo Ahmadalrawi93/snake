@@ -58,6 +58,15 @@ Open `http://localhost:3000`. The frontend defaults to the API at
 [frontend setup and security notes](frontend/README.md).
 
 
+## Account authentication security
+
+Browser sessions and API bearer tokens are individually revocable and owner
+managed. Password changes revoke all active credentials. Failed password
+attempts are persistently throttled per account and server-observed source.
+See [browser session and account security](docs/BROWSER_SESSION_SECURITY.md)
+for cookie/CSRF requirements, credential lifecycle endpoints, migration order,
+rate-limit behavior, and production deployment boundaries.
+
 ## Security boundary
 
 The backend private signing key must never leave the backend. A worker receives

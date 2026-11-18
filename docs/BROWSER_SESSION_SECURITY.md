@@ -88,3 +88,11 @@ This endpoint is a password-change flow for an already authenticated user;
 it is not an email-based forgotten-password reset. A reset flow must not be
 exposed until a verified email-delivery channel, single-use expiring reset
 tokens, and abuse controls are implemented.
+
+
+## Audit trail
+
+Credential lifecycle operations write append-only audit events without storing
+passwords, raw JWTs, CSRF values, or token digests. Events cover password
+changes, current/all-session revocation, and individual/all-API-token
+revocation. Bulk events include only the number of records revoked.

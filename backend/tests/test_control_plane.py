@@ -1095,6 +1095,11 @@ def test_failed_password_attempts_are_throttled_across_browser_and_api_login():
     blocked_api = client.post("/api/v1/auth/token", json=payload)
     assert blocked_api.status_code == 429
 
+    # A failed-attempt bucket from one source must not lock the account globally.
+    alternate_client = TestClient(app, client=("198.51.100.25", 43120))
+    alternate_source_login = alternate_client.post("/api/v1/auth/login", json=payload)
+    assert alternate_source_login.status_code == 200
+
     db = TestingSession()
     try:
         bucket = db.get(AuthFailedAttemptBucket, auth_attempt_key(email, "testclient"))

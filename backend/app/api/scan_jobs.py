@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
 from app.core.scope_policy import ScopePolicy, normalize_host
+from app.core.security_signal_engine import SecuritySignalReport, analyze_security_signals
 from app.db.database import get_db
 from app.db.models import (
     AuditEvent, Authorization, Project, ScanJob, ScopeSnapshot, Target, User,
@@ -281,3 +282,46 @@ def list_scan_job_observations(
         limit=limit,
         offset=offset,
     )
+
+
+
+@router.get("/scan-jobs/{job_id}/security-signals", response_model=SecuritySignalReport)
+def get_scan_job_security_signals(
+    job_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+):
+    """Analyze only persisted worker-signed observations for the owned scan job."""
+    job = db.query(ScanJob).join(
+        Project, Project.id == ScanJob.project_id
+    ).filter(
+        ScanJob.id == job_id,
+        Project.owner_id == actor.id,
+    ).first()
+    if job is None:
+        raise HTTPException(status_code=404, detail="Scan job not found")
+
+    rows = db.query(WorkerObservationRecord).join(
+        WorkerTaskReceipt,
+        WorkerTaskReceipt.task_id == WorkerObservationRecord.task_id,
+    ).filter(
+        WorkerTaskReceipt.job_id == job.id,
+        WorkerObservationRecord.classification == "unconfirmed_observation",
+    ).order_by(
+        WorkerObservationRecord.received_at.asc(),
+        WorkerObservationRecord.id.asc(),
+    ).limit(5000).all()
+
+    observations = []
+    for row in rows:
+        host_key = ""
+        if row.kind == "http_header" and row.evidence.startswith("hostname="):
+            host_key = row.evidence.split(";", 1)[0].partition("=")[2]
+        observations.append({
+            "observation_id": row.observation_id,
+            "kind": row.kind,
+            "value": row.value,
+            "evidence": row.evidence,
+            "host_key": host_key,
+        })
+    return analyze_security_signals(observations)

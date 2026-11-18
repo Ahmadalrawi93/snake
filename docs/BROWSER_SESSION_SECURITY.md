@@ -138,3 +138,31 @@ reverse proxy must terminate TLS and proxy to that loopback address. The
 repository does not yet include a TLS proxy configuration. See
 [deployment security](../infrastructure/DEPLOYMENT_SECURITY.md) for required
 proxy controls and limitations.
+
+
+## JWT signing-key rotation
+
+New browser-session and API bearer JWTs are always signed with the active
+`SNAKE_JWT_SECRET_KEY`. During a planned rotation, the backend can temporarily
+verify tokens signed by up to five previous keys configured through the
+comma-separated `SNAKE_JWT_PREVIOUS_SECRET_KEYS` setting. Previous keys are
+verification-only; they are never used to sign new tokens. Production requires
+each previous key to be at least 32 characters, rejects duplicates, and
+rejects repeating the active key.
+
+Use a staged deployment:
+
+1. Generate a new cryptographically random secret (at least 32 characters).
+2. Deploy the new secret as `SNAKE_JWT_SECRET_KEY` and the old secret as the
+   only entry in `SNAKE_JWT_PREVIOUS_SECRET_KEYS`.
+3. Confirm all application instances use the same active and previous key
+   configuration before sending traffic.
+4. Wait at least the maximum configured access-token lifetime, plus clock-skew
+   and deployment overlap, so all tokens signed by the old key have expired.
+5. Remove the old key from `SNAKE_JWT_PREVIOUS_SECRET_KEYS` and redeploy.
+
+If an active key is suspected compromised, do not retain it as a previous key:
+remove it from all verification key rings and revoke affected credentials.
+This intentionally invalidates outstanding tokens. Coordinate key configuration
+across all instances; inconsistent rings can cause intermittent authentication
+failures. Keep secrets in the deployment secret manager, never in Git.

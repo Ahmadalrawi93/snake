@@ -478,5 +478,40 @@ def snake_get_local_recon_evidence(run_id: int, limit: int = 200) -> str:
         })
 
 
+@mcp.tool()
+def snake_list_local_recon_runs(project_id: int, limit: int = 50) -> str:
+    """List recent local recon runs for an owned project."""
+    if not 1 <= limit <= 100:
+        return _json({"error": "limit_must_be_between_1_and_100"})
+    with SessionLocal() as db:
+        operator = _owned_user(db)
+        project = db.query(Project).filter_by(
+            id=project_id,
+            owner_id=operator.id,
+        ).first()
+        if project is None:
+            return _json({"error": "project_not_found"})
+        rows = db.query(LocalReconRun).filter_by(
+            project_id=project.id,
+            created_by=operator.id,
+        ).order_by(LocalReconRun.id.desc()).limit(limit).all()
+        result = []
+        for row in rows:
+            target = db.get(Target, row.target_id)
+            result.append({
+                "run_id": row.id,
+                "target_id": row.target_id,
+                "target": _redact_url_query(target.value) if target and target.target_type == "url" else (target.value if target else None),
+                "scope_snapshot_id": row.scope_snapshot_id,
+                "status": row.status,
+                "pages_requested": row.pages_requested,
+                "observation_count": row.observation_count,
+                "started_at": row.started_at.isoformat(),
+                "completed_at": row.completed_at.isoformat(),
+                "execution_enabled": row.execution_enabled,
+            })
+        return _json(result)
+
+
 if __name__ == "__main__":
     mcp.run(transport="stdio")

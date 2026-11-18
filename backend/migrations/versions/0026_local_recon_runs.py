@@ -35,6 +35,10 @@ def upgrade() -> None:
             "observation_count >= 0 AND observation_count <= 250",
             name="ck_local_recon_observation_count",
         ),
+        sa.CheckConstraint(
+            "execution_enabled = false",
+            name="ck_local_recon_execution_disabled",
+        ),
     )
     for column in ("project_id", "target_id", "scope_snapshot_id", "created_by"):
         op.create_index(f"ix_local_recon_runs_{column}", "local_recon_runs", [column])

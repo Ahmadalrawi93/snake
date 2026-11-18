@@ -808,6 +808,10 @@ def test_cookie_session_requires_csrf_for_state_changes_and_supports_logout():
     assert session_cookie
     assert csrf_cookie
     assert settings.session_cookie_name in login.headers.get("set-cookie", "")
+    csrf_bootstrap = client.get("/api/v1/auth/csrf")
+    assert csrf_bootstrap.status_code == 200
+    assert csrf_bootstrap.headers["cache-control"] == "no-store"
+    assert csrf_bootstrap.json()["csrf_token"] == csrf_cookie
     assert client.get("/api/v1/auth/me").status_code == 200
 
     denied = client.post("/api/v1/projects", json={"name": "Cookie Project"})

@@ -14,6 +14,21 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, password_hash: str) -> bool:
     return _password_hash.verify(password, password_hash)
 
+def _verification_keys() -> list[str]:
+    settings = get_settings()
+    return [settings.jwt_secret_key, *settings.jwt_previous_secret_list]
+
+
+def _decode_with_rotation(token: str) -> dict | None:
+    for key in _verification_keys():
+        try:
+            payload = jwt.decode(token, key, algorithms=[ALGORITHM])
+            return payload if isinstance(payload, dict) else None
+        except jwt.PyJWTError:
+            continue
+    return None
+
+
 def create_access_token(subject: str) -> str:
     settings = get_settings()
     now = datetime.now(timezone.utc)
@@ -21,12 +36,9 @@ def create_access_token(subject: str) -> str:
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=ALGORITHM)
 
 def decode_access_token(token: str) -> str | None:
-    try:
-        payload = jwt.decode(token, get_settings().jwt_secret_key, algorithms=[ALGORITHM])
-        subject = payload.get("sub")
-        return subject if isinstance(subject, str) else None
-    except jwt.PyJWTError:
-        return None
+    payload = _decode_with_rotation(token)
+    subject = payload.get("sub") if payload else None
+    return subject if isinstance(subject, str) else None
 
 
 def create_browser_session_token(subject: str) -> tuple[str, str, datetime]:
@@ -46,13 +58,7 @@ def create_browser_session_token(subject: str) -> tuple[str, str, datetime]:
 
 
 def decode_access_token_claims(token: str) -> dict | None:
-    try:
-        payload = jwt.decode(token, get_settings().jwt_secret_key, algorithms=[ALGORITHM])
-        if not isinstance(payload, dict):
-            return None
-        return payload
-    except jwt.PyJWTError:
-        return None
+    return _decode_with_rotation(token)
 
 
 def token_id_digest(token_id: str) -> str:

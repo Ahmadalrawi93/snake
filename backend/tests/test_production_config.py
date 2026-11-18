@@ -78,3 +78,29 @@ def test_production_configuration_rejects_unsafe_api_hosts(host):
 def test_request_body_limit_must_be_within_safe_bounds(limit):
     with pytest.raises(ValidationError, match="MAX_REQUEST_BODY_BYTES"):
         production_settings(max_request_body_bytes=limit)
+
+
+def test_production_configuration_accepts_previous_jwt_rotation_key():
+    settings = production_settings(
+        jwt_previous_secret_keys="previous-production-secret-at-least-32-chars"
+    )
+    assert settings.jwt_previous_secret_list == ["previous-production-secret-at-least-32-chars"]
+
+
+@pytest.mark.parametrize(
+    "previous",
+    [
+        "short",
+        "duplicate-production-secret-at-least-32-chars,duplicate-production-secret-at-least-32-chars",
+        ",".join([f"previous-production-secret-key-number-{i:02d}-long-enough" for i in range(6)]),
+    ],
+)
+def test_production_configuration_rejects_invalid_previous_jwt_keys(previous):
+    with pytest.raises(ValidationError):
+        production_settings(jwt_previous_secret_keys=previous)
+
+
+def test_production_configuration_rejects_active_key_repeated_as_previous():
+    active = "production-secret-that-is-at-least-32-bytes-long"
+    with pytest.raises(ValidationError, match="repeat the active key"):
+        production_settings(jwt_secret_key=active, jwt_previous_secret_keys=active)

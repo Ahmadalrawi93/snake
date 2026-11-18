@@ -71,7 +71,7 @@ def login(payload: LoginRequest, response: Response, db: Session = Depends(get_d
     return TokenResponse(access_token=access_token)
 
 @router.post("/logout", status_code=204)
-def logout(response: Response):
+def logout(response: Response, user: User = Depends(get_current_user)):
     settings = get_settings()
     for cookie_name in (settings.session_cookie_name, settings.csrf_cookie_name):
         response.delete_cookie(

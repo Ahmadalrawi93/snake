@@ -1232,3 +1232,83 @@ def test_evaluation_listing_requires_owned_run_even_when_rows_exist_elsewhere():
         f"/api/v1/analysis-runs/{run_id}/evaluations", headers=owner_headers
     )
     assert response.status_code == 404
+
+
+
+def test_scan_job_security_signals_use_only_owned_persisted_observations():
+    from datetime import datetime, timedelta, timezone
+    from uuid import uuid4
+    from app.db.models import (
+        Authorization, Project, ScanJob, ScopeSnapshot, Target, User,
+        WorkerObservationRecord, WorkerTaskReceipt,
+    )
+
+    owner_headers = register_and_auth("signals-owner@example.org")
+    outsider_headers = register_and_auth("signals-outsider@example.org")
+    db = TestingSession()
+    try:
+        owner = db.query(User).filter_by(email="signals-owner@example.org").one()
+        project = Project(owner_id=owner.id, name="Signals Project", description="")
+        db.add(project)
+        db.flush()
+        target = Target(project_id=project.id, value="https://app.example.test", target_type="url")
+        authorization = Authorization(
+            project_id=project.id, reference="https://app.example.test/program",
+            status="approved", scope_rules='["app.example.test"]',
+        )
+        db.add_all([target, authorization])
+        db.flush()
+        snapshot = ScopeSnapshot(
+            project_id=project.id, target_id=target.id,
+            authorization_id=authorization.id, created_by=owner.id,
+            snapshot_json="{}", sha256="d" * 64, status="active",
+        )
+        db.add(snapshot)
+        db.flush()
+        job = ScanJob(
+            project_id=project.id, target_id=target.id,
+            scope_snapshot_id=snapshot.id, created_by=owner.id,
+            profile="passive_recon", status="queued", execution_enabled=False,
+        )
+        db.add(job)
+        db.flush()
+        task_id = str(uuid4())
+        now = datetime.now(timezone.utc)
+        db.add(WorkerTaskReceipt(
+            task_id=task_id, job_id=job.id, envelope_sha256="e" * 64,
+            worker_id="signals-worker", key_id="signals-key",
+            expires_at=now + timedelta(minutes=2), consumed_at=now,
+            created_at=now - timedelta(seconds=5),
+        ))
+        db.flush()
+        for value in (
+            "Access-Control-Allow-Origin: *",
+            "Access-Control-Allow-Credentials: true",
+        ):
+            db.add(WorkerObservationRecord(
+                observation_id=str(uuid4()), task_id=task_id,
+                worker_id="signals-worker", key_id="signals-key",
+                envelope_sha256="e" * 64, batch_sha256="f" * 64,
+                kind="http_header", value=value,
+                evidence="hostname=app.example.test; captured response header",
+                source="passive_feed", observed_at=now, collected_at=now,
+                received_at=now, classification="unconfirmed_observation",
+            ))
+        db.commit()
+        job_id = job.id
+    finally:
+        db.close()
+
+    response = client.get(
+        f"/api/v1/scan-jobs/{job_id}/security-signals", headers=owner_headers
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["signal_count"] == 1
+    assert payload["signals"][0]["category"] == "cors_configuration"
+    assert payload["signals"][0]["severity"] == "not_assessed"
+
+    hidden = client.get(
+        f"/api/v1/scan-jobs/{job_id}/security-signals", headers=outsider_headers
+    )
+    assert hidden.status_code == 404

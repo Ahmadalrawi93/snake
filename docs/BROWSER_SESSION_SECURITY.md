@@ -48,3 +48,12 @@ does not retroactively terminate work already authorized and executing.
 
 Apply Alembic revision `0024_revocable_api_tokens` after revision
 `0023_revocable_user_sessions` before deploying this change.
+
+
+## Credential cutover
+
+JWTs without a registered `jti` and recognized `token_use` are rejected.
+This intentionally invalidates stateless bearer tokens issued by older
+versions of `/auth/token`; API clients must authenticate again to obtain a
+registered token. This prevents an untracked legacy credential from bypassing
+server-side revocation.

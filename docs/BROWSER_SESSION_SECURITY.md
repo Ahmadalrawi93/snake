@@ -30,3 +30,21 @@ logout endpoints. They need independent credential lifecycle controls.
 
 For production, use HTTPS, a strong random `SNAKE_JWT_SECRET_KEY`,
 `SNAKE_ENVIRONMENT=production`, and `SNAKE_SESSION_COOKIE_SECURE=true`.
+
+
+## API bearer token lifecycle
+
+`POST /api/v1/auth/token` issues a bearer JWT with a unique `jti` and
+`token_use=api_access`. Only SHA-256(`jti`) is stored in
+`api_access_tokens`; every authenticated bearer request checks that the
+record is active and unexpired.
+
+- `POST /api/v1/auth/api-tokens/revoke` revokes the bearer token used for the request.
+- `POST /api/v1/auth/api-tokens/revoke-all` revokes every active API token for that user, including the token used for that request.
+
+These endpoints require an API bearer token. Browser cookies cannot invoke
+them as a substitute. Token revocation is enforced on the next request; it
+does not retroactively terminate work already authorized and executing.
+
+Apply Alembic revision `0024_revocable_api_tokens` after revision
+`0023_revocable_user_sessions` before deploying this change.

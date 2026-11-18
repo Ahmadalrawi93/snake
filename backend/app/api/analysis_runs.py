@@ -5,7 +5,10 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
 from app.db.database import get_db
-from app.db.models import AIAnalysisRun, AnalysisRunObservationLink, WorkerObservationRecord, Project, User
+from app.db.models import (
+    AIAnalysisRun, AnalysisRunObservationLink, WorkerObservationRecord,
+    WorkerTaskReceipt, ScanJob, Project, User,
+)
 from app.schemas.analysis_runs import AnalysisRunRead
 
 router = APIRouter(prefix="/api/v1")
@@ -73,8 +76,20 @@ def read_analysis_run_provenance(
         raise HTTPException(status_code=404, detail="Analysis run not found")
     links = (
         db.query(AnalysisRunObservationLink, WorkerObservationRecord)
-        .join(WorkerObservationRecord, WorkerObservationRecord.id == AnalysisRunObservationLink.observation_record_id)
-        .filter(AnalysisRunObservationLink.analysis_run_id == run.id)
+        .join(
+            WorkerObservationRecord,
+            (WorkerObservationRecord.id == AnalysisRunObservationLink.observation_record_id)
+            & (WorkerObservationRecord.task_id == AnalysisRunObservationLink.task_id),
+        )
+        .join(
+            WorkerTaskReceipt,
+            WorkerTaskReceipt.task_id == AnalysisRunObservationLink.task_id,
+        )
+        .join(ScanJob, ScanJob.id == WorkerTaskReceipt.job_id)
+        .filter(
+            AnalysisRunObservationLink.analysis_run_id == run.id,
+            ScanJob.project_id == run.project_id,
+        )
         .order_by(AnalysisRunObservationLink.id.asc())
         .all()
     )

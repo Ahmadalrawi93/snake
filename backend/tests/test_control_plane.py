@@ -175,6 +175,54 @@ def test_expired_browser_and_api_credentials_are_rejected():
     }).status_code == 401
 
 
+def test_password_change_revokes_all_sessions_and_api_tokens():
+    from app.core.config import get_settings
+
+    old_password = "a-strong-test-password-123"
+    new_password = "a-different-strong-password-456"
+    payload = {"email": "password-rotation@example.org", "password": old_password}
+    assert client.post("/api/v1/auth/register", json=payload).status_code == 201
+    settings = get_settings()
+
+    first_login = client.post("/api/v1/auth/login", json=payload)
+    first_cookie = first_login.cookies.get(settings.session_cookie_name)
+    second_login = client.post("/api/v1/auth/login", json=payload)
+    second_cookie = second_login.cookies.get(settings.session_cookie_name)
+    second_csrf = second_login.json()["csrf_token"]
+    api_token = client.post("/api/v1/auth/token", json=payload).json()["access_token"]
+    api_headers = {"Authorization": f"Bearer {api_token}"}
+    client.cookies.set(settings.session_cookie_name, second_cookie)
+
+    wrong_current = client.post(
+        "/api/v1/auth/password/change",
+        json={"current_password": "wrong-password", "new_password": new_password},
+        headers={"Origin": settings.allowed_origin_list[0], settings.csrf_header_name: second_csrf},
+    )
+    assert wrong_current.status_code == 400
+    assert client.get("/api/v1/auth/me").status_code == 200
+
+    changed = client.post(
+        "/api/v1/auth/password/change",
+        json={"current_password": old_password, "new_password": new_password},
+        headers={"Origin": settings.allowed_origin_list[0], settings.csrf_header_name: second_csrf},
+    )
+    assert changed.status_code == 204
+    assert client.get("/api/v1/auth/me").status_code == 401
+
+    client.cookies.set(settings.session_cookie_name, first_cookie)
+    assert client.get("/api/v1/auth/me").status_code == 401
+    client.cookies.clear()
+    assert client.get("/api/v1/auth/me", headers=api_headers).status_code == 401
+
+    assert client.post("/api/v1/auth/token", json=payload).status_code == 401
+    new_login = client.post(
+        "/api/v1/auth/login",
+        json={"email": payload["email"], "password": new_password},
+    )
+    assert new_login.status_code == 200
+    client.cookies.clear()
+
+
 def test_legacy_stateless_jwt_is_rejected_after_token_registry_cutover():
     from app.core.security import create_access_token
 

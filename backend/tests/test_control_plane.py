@@ -352,6 +352,11 @@ def test_scope_snapshot_requires_approved_matching_authorization():
         headers=admin_headers)
     assert revoked.status_code == 200
     assert revoked.json()["status"] == "revoked"
+    duplicate_revoke = client.post(
+        f"/api/v1/admin/scope-snapshots/{snapshot['id']}/revoke",
+        headers=admin_headers,
+    )
+    assert duplicate_revoke.status_code == 409
     invalidated = client.get(f"/api/v1/scope-snapshots/{snapshot['id']}/validate", headers=headers)
     assert invalidated.json()["valid"] is False
     assert "snapshot_not_active" in invalidated.json()["reasons"]

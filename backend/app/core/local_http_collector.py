@@ -9,6 +9,8 @@ import http.client
 import ipaddress
 import socket
 import ssl
+import time
+from threading import Lock
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit, urlunsplit
@@ -21,6 +23,8 @@ MAX_PAGES = 10
 MAX_REDIRECTS = 3
 REQUEST_TIMEOUT_SECONDS = 5.0
 USER_AGENT = "SNAKE-Local-Recon/0.1"
+_HOST_REQUEST_LOCK = Lock()
+_HOST_LAST_REQUEST: dict[str, float] = {}
 
 
 class CollectionError(ValueError):
@@ -150,6 +154,18 @@ def _redact_cookie(value: str) -> str:
     return "; ".join([f"{safe_name}=<redacted>"] + [part.strip()[:120] for part in parts[1:]])
 
 
+def _throttle_host(host: str) -> None:
+    """Enforce at least one second between requests to the same host per MCP process."""
+    with _HOST_REQUEST_LOCK:
+        now = time.monotonic()
+        previous = _HOST_LAST_REQUEST.get(host)
+        if previous is not None:
+            delay = 1.0 - (now - previous)
+            if delay > 0:
+                time.sleep(delay)
+        _HOST_LAST_REQUEST[host] = time.monotonic()
+
+
 def _request_once(url: str, policy: ScopePolicy, *, timeout: float,
                   max_body_bytes: int, allow_private_networks: bool,
                   allow_nonstandard_ports: bool) -> tuple[HttpObservation, bytes, str | None]:
@@ -158,6 +174,7 @@ def _request_once(url: str, policy: ScopePolicy, *, timeout: float,
     )
     parsed = urlsplit(normalized)
     addresses = _resolve_public(host, port, allow_private_networks=allow_private_networks)
+    _throttle_host(host)
     last_error: Exception | None = None
     for sockaddr in addresses:
         connection: http.client.HTTPConnection

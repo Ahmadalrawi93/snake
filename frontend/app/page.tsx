@@ -39,7 +39,7 @@ export default function Home() {
   const [decisionEvidenceSha, setDecisionEvidenceSha] = useState("");
   const [impactEvidenceId, setImpactEvidenceId] = useState("");
   const [impactDimension, setImpactDimension] = useState("confidentiality");
-  const [impactLevel, setImpactLevel] = useState("moderate");
+  const [impactLevel, setImpactLevel] = useState("moderate");\n  const [impactVerification, setImpactVerification] = useState("observed");\n  const [impactScope, setImpactScope] = useState("unknown");\n  const [impactSensitivity, setImpactSensitivity] = useState("unknown");
   const [impactStatement, setImpactStatement] = useState("");
   const [reportPreview, setReportPreview] = useState<ReportPreview | null>(null);
   const [decisionOutcome, setDecisionOutcome] = useState("inconclusive");
@@ -633,8 +633,11 @@ export default function Home() {
                       <p className="hint">Only impact-context evidence with linked source observations can support a claim. This is a human annotation, not a final severity decision.</p>
                       <label>Impact evidence<select required value={impactEvidenceId} onChange={e => setImpactEvidenceId(e.target.value)}><option value="">Select impact-context evidence</option>{selectedCandidate.evidence_bundle.items.filter(item => item.evidence_type === "impact_context").map(item => <option key={item.evidence_id} value={item.evidence_id}>{item.source_label} · {item.observation_ids.length} observations</option>)}</select></label>
                       <label>Dimension<select value={impactDimension} onChange={e => setImpactDimension(e.target.value)}>{["confidentiality","integrity","availability","authentication","authorization","privilege_escalation","financial","privacy","operational"].map(item => <option key={item} value={item}>{item}</option>)}</select></label>
-                      <label>Observed level<select value={impactLevel} onChange={e => setImpactLevel(e.target.value)}><option value="low">Low</option><option value="moderate">Moderate</option><option value="high">High</option></select></label>
-                      <label>What was observed?<textarea required minLength={8} maxLength={1200} rows={3} value={impactStatement} onChange={e => setImpactStatement(e.target.value)} /></label>
+                      <label>Impact level<select value={impactLevel} onChange={e => setImpactLevel(e.target.value)}><option value="none">None</option><option value="low">Low</option><option value="moderate">Moderate</option><option value="high">High</option></select></label>
+                      <label>Verification<select value={impactVerification} onChange={e => setImpactVerification(e.target.value)}><option value="observed">Directly observed</option><option value="potential">Potential only</option></select></label>
+                      <label>Impact scope<select value={impactScope} onChange={e => setImpactScope(e.target.value)}><option value="single_test_record">Single test record</option><option value="multiple_records">Multiple records</option><option value="tenant_wide">Tenant-wide</option><option value="service_wide">Service-wide</option><option value="unknown">Unknown</option></select></label>
+                      <label>Data sensitivity<select value={impactSensitivity} onChange={e => setImpactSensitivity(e.target.value)}><option value="synthetic_test_data">Synthetic test data</option><option value="low_sensitivity">Low sensitivity</option><option value="sensitive_data">Sensitive data</option><option value="critical_system">Critical system</option><option value="unknown">Unknown</option></select></label>
+                      <label>What was observed or hypothesized?<textarea required minLength={8} maxLength={1200} rows={3} value={impactStatement} onChange={e => setImpactStatement(e.target.value)} /></label>
                       <button className="primary-button" disabled={busy || !impactEvidenceId || impactStatement.trim().length < 8}>SAVE IMPACT ANNOTATION</button>
                       {impactAssessments.map(item => <div className="record-row" key={item.id}><div><b>{item.assessment.assessment_status.replaceAll("_", " ").toUpperCase()}</b><small>Suggested: {item.assessment.severity_suggestion.toUpperCase()} · Final: NOT ASSESSED · CVSS: NONE</small><small>{item.assessment.rationale.join(" · ")}</small><small>SHA-256 {item.assessment_sha256.slice(0, 16)}…</small></div><time>#{item.id}</time></div>)}
                     </form>

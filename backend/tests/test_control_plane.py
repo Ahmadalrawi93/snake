@@ -790,3 +790,55 @@ def test_persisted_candidate_similarity_is_project_scoped_and_non_destructive():
         headers=headers,
     )
     assert denied.status_code == 404
+
+
+def test_cookie_session_requires_csrf_for_state_changes_and_supports_logout():
+    from app.core.config import get_settings
+
+    client.cookies.clear()
+    payload = {"email": "cookie-session@example.org", "password": "a-strong-test-password-123"}
+    assert client.post("/api/v1/auth/register", json=payload).status_code == 201
+    login = client.post("/api/v1/auth/login", json=payload)
+    assert login.status_code == 200
+    settings = get_settings()
+    session_cookie = login.cookies.get(settings.session_cookie_name)
+    csrf_cookie = login.cookies.get(settings.csrf_cookie_name)
+    assert session_cookie
+    assert csrf_cookie
+    assert settings.session_cookie_name in login.headers.get("set-cookie", "")
+    assert client.get("/api/v1/auth/me").status_code == 200
+
+    denied = client.post("/api/v1/projects", json={"name": "Cookie Project"})
+    assert denied.status_code == 403
+    assert denied.json()["detail"] == "CSRF validation failed"
+
+    created = client.post(
+        "/api/v1/projects",
+        json={"name": "Cookie Project"},
+        headers={
+            "Origin": settings.allowed_origin_list[0],
+            settings.csrf_header_name: csrf_cookie,
+        },
+    )
+    assert created.status_code == 201
+
+    rejected_origin = client.post(
+        "/api/v1/projects",
+        json={"name": "Bad Origin"},
+        headers={
+            "Origin": "https://attacker.invalid",
+            settings.csrf_header_name: csrf_cookie,
+        },
+    )
+    assert rejected_origin.status_code == 403
+
+    logout = client.post(
+        "/api/v1/auth/logout",
+        headers={
+            "Origin": settings.allowed_origin_list[0],
+            settings.csrf_header_name: csrf_cookie,
+        },
+    )
+    assert logout.status_code == 204
+    assert client.get("/api/v1/auth/me").status_code == 401
+    client.cookies.clear()

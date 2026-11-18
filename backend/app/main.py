@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.routes import router as scope_router
 from app.api.auth import router as auth_router
@@ -16,10 +17,18 @@ from app.api.finding_reports import router as finding_reports_router
 from app.api.finding_lifecycle import router as finding_lifecycle_router
 from app.api.intelligence_feedback import router as intelligence_feedback_router
 from app.core.config import get_settings
+from app.core.http_security import RequestBodyLimitMiddleware, SecurityHeadersMiddleware
 
 settings = get_settings()
-app = FastAPI(title=settings.app_name, version="0.3.0",
-              description="SNAKE authenticated control plane. Scanning is not enabled.")
+production = settings.environment.lower() in {"production", "prod"}
+app = FastAPI(
+    title=settings.app_name,
+    version="0.3.0",
+    description="SNAKE authenticated control plane. Scanning is not enabled.",
+    docs_url=None if production else "/docs",
+    redoc_url=None if production else "/redoc",
+    openapi_url=None if production else "/openapi.json",
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,6 +36,19 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type", "Authorization", settings.csrf_header_name],
+)
+
+app.add_middleware(
+    SecurityHeadersMiddleware,
+    production=production,
+)
+app.add_middleware(
+    RequestBodyLimitMiddleware,
+    max_bytes=settings.max_request_body_bytes,
+)
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=settings.allowed_host_list,
 )
 app.include_router(scope_router)
 app.include_router(auth_router)

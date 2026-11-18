@@ -173,3 +173,24 @@ def test_candidate_detail_rejects_qualification_evidence_mismatch(candidate_deta
     with TestClient(app) as client:
         response = client.get(f"/api/v1/finding-candidates/{candidate.id}")
     assert response.status_code == 409
+
+
+def test_candidate_similarity_returns_empty_for_single_candidate(candidate_detail_context):
+    _db, _owner, _other, candidate = candidate_detail_context
+    with TestClient(app) as client:
+        response = client.get(
+            f"/api/v1/projects/{candidate.project_id}/finding-candidates/{candidate.id}/similarity"
+        )
+    assert response.status_code == 200, response.text
+    assert response.json() == []
+
+
+def test_candidate_similarity_rejects_tampered_candidate_evidence(candidate_detail_context):
+    db, _owner, _other, candidate = candidate_detail_context
+    candidate.evidence_bundle_json = "{}"
+    db.commit()
+    with TestClient(app) as client:
+        response = client.get(
+            f"/api/v1/projects/{candidate.project_id}/finding-candidates/{candidate.id}/similarity"
+        )
+    assert response.status_code == 409

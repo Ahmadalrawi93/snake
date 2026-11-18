@@ -170,7 +170,7 @@ def list_active_sessions(user: User = Depends(get_current_user), db: Session = D
         UserSession.user_id == user.id,
         UserSession.revoked_at.is_(None),
         UserSession.expires_at > now,
-    ).order_by(UserSession.created_at.desc()).limit(100).all()
+    ).order_by(UserSession.created_at.desc(), UserSession.id.desc()).limit(100).all()
     return [{
         "id": record.id,
         "created_at": record.created_at,
@@ -207,7 +207,7 @@ def list_active_api_tokens(user: User = Depends(get_current_user), db: Session =
         ApiAccessToken.user_id == user.id,
         ApiAccessToken.revoked_at.is_(None),
         ApiAccessToken.expires_at > now,
-    ).order_by(ApiAccessToken.created_at.desc()).limit(100).all()
+    ).order_by(ApiAccessToken.created_at.desc(), ApiAccessToken.id.desc()).limit(100).all()
     return [{
         "id": record.id,
         "created_at": record.created_at,

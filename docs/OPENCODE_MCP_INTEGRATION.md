@@ -33,26 +33,28 @@ OpenCode configuration (adjust the absolute paths and operator ID):
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "snake": {
-      "type": "local",
-      "command": [
-        "/absolute/path/to/snake/backend/.venv/bin/python",
-        "-m",
-        "app.mcp_server"
-      ],
-      "environment": {
-        "SNAKE_MCP_USER_ID": "1"
-      },
-      "enabled": true
+    "servers": {
+      "snake": {
+        "type": "local",
+        "command": [
+          "/absolute/path/to/snake/backend/.venv/bin/python",
+          "-m",
+          "app.mcp_server"
+        ],
+        "cwd": "/absolute/path/to/snake/backend",
+        "environment": {
+          "SNAKE_MCP_USER_ID": "1"
+        }
+      }
     }
   }
 }
 ```
 
-Set the MCP server working directory to `backend` using the working-directory
-facility supported by the installed OpenCode version, or launch it through a
-small local wrapper that changes directory before executing Python. Never put
-database passwords, API keys, or model credentials in tool arguments.
+OpenCode's local MCP configuration uses `mcp.servers`, `type: "local"`,
+`command`, `cwd`, and `environment`. Keep the configured path absolute for
+a stable local installation. Never put database passwords, API keys, or model
+credentials in tool arguments.
 
 ## Security boundaries
 

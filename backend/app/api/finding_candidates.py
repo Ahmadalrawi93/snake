@@ -108,3 +108,5 @@ def read_candidate_similarity(
         )
     except LookupError:
         raise HTTPException(status_code=404, detail="Project or candidate not found")
+    except (ValueError, TypeError, json.JSONDecodeError):
+        raise HTTPException(status_code=409, detail="Candidate integrity check failed during similarity comparison")

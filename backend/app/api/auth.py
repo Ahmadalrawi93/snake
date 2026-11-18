@@ -25,9 +25,11 @@ class UserResponse(BaseModel):
     email: EmailStr
     role: str
 
+class SessionResponse(BaseModel):
+    csrf_token: str
+
 class TokenResponse(BaseModel):
     access_token: str
-    csrf_token: str
     token_type: str = "bearer"
 
 @router.post("/register", response_model=UserResponse, status_code=201)
@@ -41,7 +43,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     db.refresh(user)
     return UserResponse(id=user.id, email=user.email, role=user.role)
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=SessionResponse)
 def login(payload: LoginRequest, response: Response, db: Session = Depends(get_db)):
     email = str(payload.email).lower()
     user = db.scalar(select(User).where(User.email == email))
@@ -68,8 +70,18 @@ def login(payload: LoginRequest, response: Response, db: Session = Depends(get_d
         path="/",
         max_age=settings.access_token_minutes * 60,
     )
-    # Keep the token response temporarily for existing API clients; the web app will use cookies.
-    return TokenResponse(access_token=access_token, csrf_token=csrf_token)
+    return SessionResponse(csrf_token=csrf_token)
+
+@router.post("/token", response_model=TokenResponse)
+def issue_api_token(payload: LoginRequest, db: Session = Depends(get_db)):
+    """Issue a bearer token for non-browser API clients; browser login uses HttpOnly cookies."""
+    email = str(payload.email).lower()
+    user = db.scalar(select(User).where(User.email == email))
+    if user is None or not user.is_active or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Incorrect email or password",
+                            headers={"WWW-Authenticate": "Bearer"})
+    return TokenResponse(access_token=create_access_token(str(user.id)))
+
 
 @router.get("/csrf")
 def csrf_token(request: Request, response: Response):

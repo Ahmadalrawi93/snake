@@ -317,6 +317,21 @@ def snake_collect_http(target_id: int, scope_snapshot_id: int, max_pages: int = 
                 "error": "scope_snapshot_not_valid",
                 "reasons": validation["reasons"],
             })
+        latest_run = db.query(LocalReconRun).filter_by(
+            target_id=target.id,
+            created_by=operator.id,
+        ).order_by(LocalReconRun.id.desc()).first()
+        if latest_run is not None:
+            last_completed = latest_run.completed_at
+            if last_completed.tzinfo is None:
+                last_completed = last_completed.replace(tzinfo=timezone.utc)
+            elapsed = (datetime.now(timezone.utc) - last_completed.astimezone(timezone.utc)).total_seconds()
+            if elapsed < 30:
+                return _json({
+                    "error": "target_cooldown_active",
+                    "retry_after_seconds": max(1, int(30 - elapsed) + 1),
+                })
+
         snapshot_data = json.loads(snapshot.snapshot_json)
         approved_rules = snapshot_data.get("approved_scope_rules")
         target_url = snapshot_data.get("target")

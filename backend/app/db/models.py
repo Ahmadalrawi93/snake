@@ -6,6 +6,19 @@ from app.db.database import Base
 def utcnow():
     return datetime.now(timezone.utc)
 
+class AuthFailedAttemptBucket(Base):
+    """Persistent, privacy-preserving failed-authentication rate-limit bucket."""
+    __tablename__ = "auth_failed_attempt_buckets"
+    __table_args__ = (
+        CheckConstraint("attempts >= 1", name="ck_auth_failed_attempts_positive"),
+    )
+    key_sha256: Mapped[str] = mapped_column(String(64), primary_key=True)
+    window_started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    blocked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
 class ApiAccessToken(Base):
     """Revocable non-browser bearer token; only a digest of its JWT jti is stored."""
     __tablename__ = "api_access_tokens"

@@ -14,7 +14,8 @@ type CandidateDetail = { id: number; analysis_run_id: number; project_id: number
 type LifecycleEvent = { id: number; from_status: string; to_status: string; rationale: string; created_at: string };
 type EvidenceArtifact = { id: number; filename: string; media_type: string; content_sha256: string; size_bytes: number; description: string; created_at: string };
 type HumanDecision = { id: number; candidate_fingerprint: string; outcome: string; evidence_sha256: string | null; validation_method: string; notes: string; created_at: string };
-type ImpactAssessmentRecord = { id: number; assessment_sha256: string; final_severity: "not_assessed"; cvss_vector: null; execution_enabled: false; assessment: { assessment_status: string; severity_suggestion: string; blockers: string[]; rationale: string[] }; created_at: string };\ntype ReportPreview = { report: { title: string; severity: "not_assessed"; cvss_vector: null; confirmation_status: string; execution_enabled: false; requires_human_edit_and_independent_validation: true }; markdown: string };
+type ImpactAssessmentRecord = { id: number; assessment_sha256: string; final_severity: "not_assessed"; cvss_vector: null; execution_enabled: false; assessment: { assessment_status: string; severity_suggestion: string; blockers: string[]; rationale: string[] }; created_at: string };
+type ReportPreview = { report: { title: string; severity: "not_assessed"; cvss_vector: null; confirmation_status: string; execution_enabled: false; requires_human_edit_and_independent_validation: true }; markdown: string };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
@@ -39,7 +40,8 @@ export default function Home() {
   const [impactEvidenceId, setImpactEvidenceId] = useState("");
   const [impactDimension, setImpactDimension] = useState("confidentiality");
   const [impactLevel, setImpactLevel] = useState("moderate");
-  const [impactStatement, setImpactStatement] = useState("");\n  const [reportPreview, setReportPreview] = useState<ReportPreview | null>(null);
+  const [impactStatement, setImpactStatement] = useState("");
+  const [reportPreview, setReportPreview] = useState<ReportPreview | null>(null);
   const [decisionOutcome, setDecisionOutcome] = useState("inconclusive");
   const [decisionMethod, setDecisionMethod] = useState("manual_reproduction");
   const [decisionNotes, setDecisionNotes] = useState("");

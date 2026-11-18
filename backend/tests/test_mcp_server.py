@@ -23,3 +23,10 @@ def test_mcp_operator_identity_accepts_positive_integer(monkeypatch):
 
 def test_mcp_json_output_is_compact_and_preserves_unicode():
     assert mcp_server._json({"target": "مثال.test"}) == '{"target":"مثال.test"}'
+
+
+
+def test_mcp_url_output_redacts_query_and_fragment():
+    assert mcp_server._redact_url_query(
+        "https://example.test/path?token=secret#section"
+    ) == "https://example.test/path"

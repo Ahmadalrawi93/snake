@@ -8,7 +8,7 @@ AI-assisted security assessment platform for **authorized** bug bounty work.
 - FastAPI authentication, user-owned projects, and admin-reviewed authorization records.
 - Next.js dashboard connected to registration/login, owner-scoped project management, target registration, authorization references, admin review, and immutable scope snapshot creation/validation; scan execution and AI analysis controls are not exposed as working UI actions.
 - Immutable SHA-256 scope snapshots and scope revalidation before dispatch preparation.
-- DNS/IP destination policy and redirect-hop validation foundations; no outbound requests.
+- Separate local MCP HTTP collector with per-request scope revalidation, public-DNS filtering, pinned-IP sockets, strict TLS hostname verification, exact-origin redirect checks, GET-only collection, request/body/page bounds, redaction, audit records, and persisted unconfirmed evidence. The validation-only worker remains network-isolated.
 - Persistent scan jobs that remain queued with execution disabled.
 - Strict worker task envelope with a fixed passive profile, expiry, and no arbitrary commands.
 - Validation-only Docker worker: non-root, read-only, resource-limited, and network-isolated.
@@ -87,11 +87,13 @@ Administrators can register, list, and revoke worker public keys through the
 admin API. Replacing a key requires a new key ID and keypair. KMS-backed storage,
 automated provisioning, and automated rotation are not implemented.
 
-The validator reads one signed message from stdin and emits a signed validation
-acknowledgement. It has no network, database receipt access, queue consumer, or
-scan adapter. This is not production-ready. Socket-level IP pinning, per-request
-scope checks, egress enforcement, real transport, and scan execution remain
-unimplemented.
+The validation-only worker reads one signed message from stdin and emits a
+signed validation acknowledgement. It has no network, database receipt access,
+queue consumer, or scan adapter. Separately, the local MCP collector performs
+bounded GET-only metadata collection with socket-level IP pinning and per-hop
+scope checks; it does not provide exploit testing or vulnerability confirmation.
+Worker egress enforcement, worker transport deployment, and worker scan
+execution remain unimplemented. The overall platform is not production-ready.
 
 See [architecture](docs/ARCHITECTURE.md), [roadmap](docs/ROADMAP.md),
 [worker communication](docs/WORKER_COMMUNICATION.md),

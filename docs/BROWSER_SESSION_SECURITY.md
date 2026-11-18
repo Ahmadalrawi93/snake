@@ -70,3 +70,21 @@ Inventory responses expose only record IDs and timestamps; they never return
 JWTs, raw token identifiers, or stored digests. Lists are limited to the
 100 most recently created active records. Ownership is enforced in each
 database query.
+
+
+## Password changes
+
+Authenticated users can change their password with
+`POST /api/v1/auth/password/change`, supplying `current_password` and a
+new password of at least 12 characters. The current password is verified
+before any mutation. Reusing the current password is rejected.
+
+A successful change updates the password hash and revokes every active
+browser session and API bearer token for that user in the same database
+transaction. The response clears browser cookies. The user must authenticate
+again with the new password on each client.
+
+This endpoint is a password-change flow for an already authenticated user;
+it is not an email-based forgotten-password reset. A reset flow must not be
+exposed until a verified email-delivery channel, single-use expiring reset
+tokens, and abuse controls are implemented.

@@ -14,7 +14,7 @@ type CandidateDetail = { id: number; analysis_run_id: number; project_id: number
 type LifecycleEvent = { id: number; from_status: string; to_status: string; rationale: string; created_at: string };
 type EvidenceArtifact = { id: number; filename: string; media_type: string; content_sha256: string; size_bytes: number; description: string; created_at: string };
 type HumanDecision = { id: number; candidate_fingerprint: string; outcome: string; evidence_sha256: string | null; validation_method: string; notes: string; created_at: string };
-type ImpactAssessmentRecord = { id: number; assessment_sha256: string; final_severity: "not_assessed"; cvss_vector: null; execution_enabled: false; assessment: { assessment_status: string; severity_suggestion: string; blockers: string[]; rationale: string[] }; created_at: string };
+type ImpactAssessmentRecord = { id: number; assessment_sha256: string; final_severity: "not_assessed"; cvss_vector: null; execution_enabled: false; assessment: { assessment_status: string; severity_suggestion: string; blockers: string[]; rationale: string[] }; created_at: string };\ntype ReportPreview = { report: { title: string; severity: "not_assessed"; cvss_vector: null; confirmation_status: string; execution_enabled: false; requires_human_edit_and_independent_validation: true }; markdown: string };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
@@ -39,7 +39,7 @@ export default function Home() {
   const [impactEvidenceId, setImpactEvidenceId] = useState("");
   const [impactDimension, setImpactDimension] = useState("confidentiality");
   const [impactLevel, setImpactLevel] = useState("moderate");
-  const [impactStatement, setImpactStatement] = useState("");
+  const [impactStatement, setImpactStatement] = useState("");\n  const [reportPreview, setReportPreview] = useState<ReportPreview | null>(null);
   const [decisionOutcome, setDecisionOutcome] = useState("inconclusive");
   const [decisionMethod, setDecisionMethod] = useState("manual_reproduction");
   const [decisionNotes, setDecisionNotes] = useState("");
@@ -264,6 +264,20 @@ export default function Home() {
       setMessage("Impact annotation saved. Final severity remains not assessed and requires independent validation.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Impact assessment could not be saved");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function generateCandidateReport() {
+    if (!selectedCandidate) return;
+    setBusy(true); setError(""); setMessage(""); setReportPreview(null);
+    try {
+      const result = await api(`/api/v1/finding-candidates/${selectedCandidate.id}/report-draft`, { method: "POST" });
+      setReportPreview(result);
+      setMessage("Report draft generated from verified persisted evidence. It has not been submitted or independently validated.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Report draft requirements are not satisfied");
     } finally {
       setBusy(false);
     }
@@ -622,6 +636,11 @@ export default function Home() {
                       <button className="primary-button" disabled={busy || !impactEvidenceId || impactStatement.trim().length < 8}>SAVE IMPACT ANNOTATION</button>
                       {impactAssessments.map(item => <div className="record-row" key={item.id}><div><b>{item.assessment.assessment_status.replaceAll("_", " ").toUpperCase()}</b><small>Suggested: {item.assessment.severity_suggestion.toUpperCase()} · Final: NOT ASSESSED · CVSS: NONE</small><small>{item.assessment.rationale.join(" · ")}</small><small>SHA-256 {item.assessment_sha256.slice(0, 16)}…</small></div><time>#{item.id}</time></div>)}
                     </form>
+                    <div className="review-card report-draft-panel">
+                      <div className="review-meta"><h3>Evidence-bound report draft</h3><button className="primary-button" disabled={busy} onClick={generateCandidateReport}>GENERATE REPORT DRAFT</button></div>
+                      <p className="hint">Requires consistent, complete evidence including observed behavior, expected behavior, and impact context. Generation does not submit the report.</p>
+                      {reportPreview && <><div className="review-facts"><span>STATUS: UNCONFIRMED DRAFT</span><span>SEVERITY: NOT ASSESSED</span><span>CVSS: NONE</span><span>EXECUTION: DISABLED</span></div><button className="text-button" onClick={() => navigator.clipboard.writeText(reportPreview.markdown)}>COPY MARKDOWN</button><pre className="report-markdown">{reportPreview.markdown}</pre></>}
+                    </div>
                     <div className="review-card">
                       <h3>Append-only lifecycle</h3>
                       <div className="review-actions">

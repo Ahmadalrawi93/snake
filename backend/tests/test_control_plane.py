@@ -74,6 +74,14 @@ def test_auth_and_project_authorization_target_audit_flow():
     assert [e["action"] for e in events][:3] == [
         "target.registered", "authorization.recorded", "project.created"]
 
+def test_legacy_stateless_jwt_is_rejected_after_token_registry_cutover():
+    from app.core.security import create_access_token
+
+    legacy = create_access_token("1")
+    response = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {legacy}"})
+    assert response.status_code == 401
+
+
 def test_project_api_requires_authentication():
     response = client.get("/api/v1/projects")
     assert response.status_code == 401

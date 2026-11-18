@@ -116,7 +116,12 @@ def _snapshot_status(db: Session, snapshot: ScopeSnapshot, operator_id: int) -> 
         try:
             current_rules = json.loads(auth.scope_rules or "[]")
             saved_rules = data.get("approved_scope_rules")
-            if not isinstance(current_rules, list) or not isinstance(saved_rules, list):
+            if (
+                not isinstance(current_rules, list)
+                or not all(isinstance(rule, str) and rule.strip() for rule in current_rules)
+                or not isinstance(saved_rules, list)
+                or not all(isinstance(rule, str) and rule.strip() for rule in saved_rules)
+            ):
                 reasons.append("invalid_authorization_scope_rules")
             elif sorted(current_rules) != sorted(saved_rules):
                 reasons.append("authorization_scope_rules_changed")
@@ -140,7 +145,12 @@ def _snapshot_status(db: Session, snapshot: ScopeSnapshot, operator_id: int) -> 
         if current_target != data.get("target"):
             reasons.append("target_changed")
         rules = data.get("approved_scope_rules")
-        if not isinstance(rules, list) or not current_target or not ScopePolicy(rules).check_url(current_target).allowed:
+        if (
+            not isinstance(rules, list)
+            or not all(isinstance(rule, str) and rule.strip() for rule in rules)
+            or not current_target
+            or not ScopePolicy(rules).check_url(current_target).allowed
+        ):
             reasons.append("target_no_longer_matches_snapshot_scope")
 
     if data.get("project_id") != snapshot.project_id or data.get("target_id") != snapshot.target_id:

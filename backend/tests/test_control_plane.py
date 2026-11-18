@@ -802,6 +802,8 @@ def test_cookie_session_requires_csrf_for_state_changes_and_supports_logout():
     assert client.post("/api/v1/auth/register", json=payload).status_code == 201
     login = client.post("/api/v1/auth/login", json=payload)
     assert login.status_code == 200
+    assert "access_token" not in login.json()
+    assert "csrf_token" in login.json()
     settings = get_settings()
     session_cookie = login.cookies.get(settings.session_cookie_name)
     csrf_cookie = login.cookies.get(settings.csrf_cookie_name)

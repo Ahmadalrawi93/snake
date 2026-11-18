@@ -8,16 +8,22 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime, timezone
+from uuid import uuid4
 from typing import Any
+from urllib.parse import urlsplit
 
 from mcp.server.fastmcp import FastMCP
 from sqlalchemy.orm import Session
 
 from app.core.scope_policy import ScopePolicy
 from app.core.security_signal_engine import analyze_security_signals
+from app.core.local_http_collector import CollectionError, collect_http
 from app.db.database import SessionLocal
 from app.db.models import (
+    AuditEvent,
     Authorization,
+    LocalReconObservation,
+    LocalReconRun,
     Project,
     ScanJob,
     ScopeSnapshot,
@@ -276,6 +282,180 @@ def snake_get_security_signals(job_id: int) -> str:
                 "host_key": host_key,
             })
         return _json(analyze_security_signals(observations).model_dump())
+
+
+@mcp.tool()
+def snake_collect_http(target_id: int, scope_snapshot_id: int, max_pages: int = 5) -> str:
+    """Run bounded, unauthenticated HTTP GET collection for an approved target.
+
+    The model supplies target and snapshot IDs only, never a URL. Collection
+    is limited to public DNS destinations, the approved hostname scope, at
+    most 10 pages, 256 KiB per response, and three redirects.
+    """
+    if not 1 <= max_pages <= 10:
+        return _json({"error": "max_pages_must_be_between_1_and_10"})
+    with SessionLocal() as db:
+        operator = _owned_user(db)
+        target = db.query(Target).join(
+            Project, Project.id == Target.project_id
+        ).filter(
+            Target.id == target_id,
+            Project.owner_id == operator.id,
+        ).first()
+        if target is None:
+            return _json({"error": "target_not_found"})
+        snapshot = db.query(ScopeSnapshot).filter_by(
+            id=scope_snapshot_id,
+            target_id=target.id,
+            project_id=target.project_id,
+        ).first()
+        if snapshot is None:
+            return _json({"error": "scope_snapshot_not_found"})
+        validation = _snapshot_status(db, snapshot, operator.id)
+        if not validation["valid"]:
+            return _json({
+                "error": "scope_snapshot_not_valid",
+                "reasons": validation["reasons"],
+            })
+        snapshot_data = json.loads(snapshot.snapshot_json)
+        approved_rules = snapshot_data.get("approved_scope_rules")
+        target_url = snapshot_data.get("target")
+        if not isinstance(approved_rules, list) or not target_url:
+            return _json({"error": "invalid_scope_snapshot_payload"})
+
+        started = datetime.now(timezone.utc)
+        report = None
+        collection_error = None
+        try:
+            report = collect_http(
+                target_url,
+                approved_rules,
+                max_pages=max_pages,
+                allow_private_networks=False,
+            )
+        except (CollectionError, ValueError) as exc:
+            collection_error = str(exc)[:160]
+        completed = datetime.now(timezone.utc)
+
+        status = "failed" if report is None or report.pages_requested == 0 else (
+            "partial" if report.skipped else "completed"
+        )
+        observation_rows = []
+        if report is not None:
+            for page in report.observations:
+                host = (urlsplit(page.url).hostname or "").lower().rstrip(".")
+                metadata = (
+                    f"status={page.status_code};content_type={page.content_type[:120]};"
+                    f"body_bytes={page.body_bytes};body_limit={report.body_limit_bytes}"
+                )
+                observation_rows.append(LocalReconObservation(
+                    observation_id=str(uuid4()),
+                    kind="url",
+                    value=page.url[:2048],
+                    evidence=metadata,
+                    host_key=host,
+                    observed_at=completed,
+                    classification="unconfirmed_observation",
+                ))
+                for name, value in page.headers:
+                    observation_rows.append(LocalReconObservation(
+                        observation_id=str(uuid4()),
+                        kind="http_header",
+                        value=f"{name}: {value}"[:2048],
+                        evidence=metadata,
+                        host_key=host,
+                        observed_at=completed,
+                        classification="unconfirmed_observation",
+                    ))
+
+        if len(observation_rows) > 250:
+            observation_rows = observation_rows[:250]
+            status = "partial"
+        run = LocalReconRun(
+            project_id=target.project_id,
+            target_id=target.id,
+            scope_snapshot_id=snapshot.id,
+            created_by=operator.id,
+            status=status,
+            pages_requested=report.pages_requested if report else 0,
+            observation_count=len(observation_rows),
+            started_at=started,
+            completed_at=completed,
+            execution_enabled=False,
+        )
+        db.add(run)
+        db.flush()
+        for item in observation_rows:
+            item.run_id = run.id
+            db.add(item)
+        skipped_count = len(report.skipped) if report else 0
+        db.add(AuditEvent(
+            actor_user_id=operator.id,
+            action="local_recon.completed" if status != "failed" else "local_recon.failed",
+            resource_type="local_recon_run",
+            resource_id=str(run.id),
+            details=(
+                f"target_id={target.id};scope_snapshot_id={snapshot.id};"
+                f"pages={run.pages_requested};observations={run.observation_count};"
+                f"skipped={skipped_count};execution_enabled=false"
+            ),
+        ))
+        db.commit()
+        db.refresh(run)
+        return _json({
+            "run_id": run.id,
+            "status": run.status,
+            "target_id": run.target_id,
+            "scope_snapshot_id": run.scope_snapshot_id,
+            "pages_requested": run.pages_requested,
+            "observation_count": run.observation_count,
+            "skipped": list(report.skipped)[:20] if report else [],
+            "error": collection_error,
+            "execution_enabled": False,
+            "note": "Metadata-only evidence; response bodies and cookie values are never stored.",
+        })
+
+
+@mcp.tool()
+def snake_get_local_recon_evidence(run_id: int, limit: int = 200) -> str:
+    """Read redacted HTTP observations and deterministic signals from an owned local recon run."""
+    if not 1 <= limit <= 250:
+        return _json({"error": "limit_must_be_between_1_and_250"})
+    with SessionLocal() as db:
+        operator = _owned_user(db)
+        run = db.query(LocalReconRun).join(
+            Project, Project.id == LocalReconRun.project_id
+        ).filter(
+            LocalReconRun.id == run_id,
+            Project.owner_id == operator.id,
+        ).first()
+        if run is None:
+            return _json({"error": "local_recon_run_not_found"})
+        rows = db.query(LocalReconObservation).filter_by(
+            run_id=run.id,
+            classification="unconfirmed_observation",
+        ).order_by(LocalReconObservation.id.asc()).limit(limit).all()
+        observations = [{
+            "observation_id": row.observation_id,
+            "kind": row.kind,
+            "value": row.value,
+            "evidence": row.evidence,
+            "host_key": row.host_key,
+            "classification": row.classification,
+        } for row in rows]
+        signals = analyze_security_signals(observations).model_dump()
+        return _json({
+            "run_id": run.id,
+            "status": run.status,
+            "target_id": run.target_id,
+            "scope_snapshot_id": run.scope_snapshot_id,
+            "pages_requested": run.pages_requested,
+            "observation_count": run.observation_count,
+            "returned_observation_count": len(observations),
+            "observations": observations,
+            "security_signals": signals,
+            "execution_enabled": False,
+        })
 
 
 if __name__ == "__main__":

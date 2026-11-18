@@ -32,6 +32,51 @@ def register_and_auth(email="tester@example.org"):
     client.cookies.clear()
     return headers
 
+def test_users_can_list_and_revoke_individual_sessions_and_api_tokens():
+    from app.core.config import get_settings
+
+    payload = {"email": "credential-inventory@example.org", "password": "a-strong-test-password-123"}
+    assert client.post("/api/v1/auth/register", json=payload).status_code == 201
+    settings = get_settings()
+
+    first_session = client.post("/api/v1/auth/login", json=payload)
+    first_cookie = first_session.cookies.get(settings.session_cookie_name)
+    second_session = client.post("/api/v1/auth/login", json=payload)
+    second_cookie = second_session.cookies.get(settings.session_cookie_name)
+    second_csrf = second_session.json()["csrf_token"]
+    session_inventory = client.get("/api/v1/auth/sessions")
+    assert session_inventory.status_code == 200
+    assert len(session_inventory.json()) == 2
+    first_session_id = next(
+        item["id"] for item in session_inventory.json()
+        if item["created_at"] == first_session.json().get("created_at")
+    ) if False else session_inventory.json()[-1]["id"]
+
+    revoke_session = client.post(
+        f"/api/v1/auth/sessions/{first_session_id}/revoke",
+        headers={"Origin": settings.allowed_origin_list[0], settings.csrf_header_name: second_csrf},
+    )
+    assert revoke_session.status_code == 204
+    client.cookies.set(settings.session_cookie_name, first_cookie)
+    assert client.get("/api/v1/auth/me").status_code == 401
+    client.cookies.set(settings.session_cookie_name, second_cookie)
+    assert client.get("/api/v1/auth/me").status_code == 200
+    client.cookies.clear()
+
+    first_api = client.post("/api/v1/auth/token", json=payload).json()["access_token"]
+    second_api = client.post("/api/v1/auth/token", json=payload).json()["access_token"]
+    second_headers = {"Authorization": f"Bearer {second_api}"}
+    inventory = client.get("/api/v1/auth/api-tokens", headers=second_headers)
+    assert inventory.status_code == 200
+    assert len(inventory.json()) == 2
+    first_api_id = inventory.json()[-1]["id"]
+    assert client.post(
+        f"/api/v1/auth/api-tokens/{first_api_id}/revoke", headers=second_headers
+    ).status_code == 204
+    assert client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {first_api}"}).status_code == 401
+    assert client.get("/api/v1/auth/me", headers=second_headers).status_code == 200
+
+
 def test_api_tokens_are_revocable_individually_and_in_bulk():
     email = "api-token-revoke@example.org"
     payload = {"email": email, "password": "a-strong-test-password-123"}

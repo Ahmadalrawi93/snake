@@ -93,6 +93,7 @@ def test_collector_does_not_follow_out_of_scope_redirect(local_server):
     assert len(report.observations) == 1
     assert report.observations[0].status_code == 302
     assert report.skipped == (("http://example.com/escape", "cross_origin_redirect_skipped"),)
+    assert all(name != "location" for name, _ in report.observations[0].headers)
 
 
 def test_collector_caps_response_body(local_server):
@@ -132,3 +133,15 @@ def test_collector_rejects_nonstandard_ports_by_default():
 
     with pytest.raises(CollectionError, match="unsupported_target_port"):
         collect_http("https://example.com:8443", ["example.com"], max_pages=1)
+
+
+def test_collector_does_not_persist_query_values(local_server):
+    report = collect_http(
+        local_server + "/about?token=top-secret",
+        ["127.0.0.1"],
+        max_pages=1,
+        allow_private_networks=True,
+        allow_nonstandard_ports=True,
+    )
+    assert report.observations[0].url.endswith("/about")
+    assert "top-secret" not in report.observations[0].url

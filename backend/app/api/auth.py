@@ -169,8 +169,14 @@ def _current_api_token(request: Request, user: User) -> str:
 
 
 @router.get("/sessions")
-def list_active_sessions(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def list_active_sessions(request: Request, user: User = Depends(get_current_user),
+                         db: Session = Depends(get_db)):
     now = datetime.now(timezone.utc)
+    settings = get_settings()
+    cookie_token = request.cookies.get(settings.session_cookie_name)
+    claims = decode_access_token_claims(cookie_token) if cookie_token else None
+    current_jti = claims.get("jti") if claims and claims.get("token_use") == "browser_session" else None
+    current_digest = token_id_digest(current_jti) if isinstance(current_jti, str) else None
     records = db.query(UserSession).filter(
         UserSession.user_id == user.id,
         UserSession.revoked_at.is_(None),
@@ -180,6 +186,7 @@ def list_active_sessions(user: User = Depends(get_current_user), db: Session = D
         "id": record.id,
         "created_at": record.created_at,
         "expires_at": record.expires_at,
+        "is_current": record.token_id_sha256 == current_digest,
     } for record in records]
 
 

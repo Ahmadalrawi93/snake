@@ -1088,7 +1088,7 @@ def test_failed_password_attempts_are_throttled_across_browser_and_api_login():
         })
         assert failed.status_code == 401
 
-    # The browser and non-browser login routes share one account-level bucket.
+    # The browser and non-browser login routes share one account-and-source bucket.
     blocked_browser = client.post("/api/v1/auth/login", json=payload)
     assert blocked_browser.status_code == 429
     assert int(blocked_browser.headers["retry-after"]) > 0
@@ -1118,7 +1118,7 @@ def test_failed_password_attempts_are_throttled_across_browser_and_api_login():
     assert recovered_login.status_code == 200
     db = TestingSession()
     try:
-        assert db.get(AuthFailedAttemptBucket, auth_attempt_key(email)) is None
+        assert db.get(AuthFailedAttemptBucket, auth_attempt_key(email, "testclient")) is None
     finally:
         db.close()
 

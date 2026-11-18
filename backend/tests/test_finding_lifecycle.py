@@ -113,7 +113,7 @@ def test_evidence_rejects_oversized_content(vault_context, monkeypatch):
 def test_evidence_filename_rejects_header_control_characters():
     with pytest.raises(ValueError):
         EvidenceArtifactCreate(
-            filename="proof.txt\\r\\nX-Injected: yes",
+            filename="proof.txt\r\nX-Injected: yes",
             media_type="text/plain",
             content_base64=base64.b64encode(b"proof").decode(),
         )

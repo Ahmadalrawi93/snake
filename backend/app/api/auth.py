@@ -10,7 +10,7 @@ from app.api.dependencies import get_current_user
 from app.core.config import get_settings
 from app.core.security import (hash_password, verify_password, create_browser_session_token, create_api_access_token, token_id_digest, decode_access_token_claims)
 from app.db.database import get_db
-from app.db.models import User, UserSession, ApiAccessToken
+from app.db.models import User, UserSession, ApiAccessToken, AuditEvent
 
 router = APIRouter(prefix="/api/v1/auth", tags=["authentication"])
 
@@ -136,6 +136,11 @@ def logout(request: Request, response: Response, user: User = Depends(get_curren
         ).first()
         if session is not None:
             session.revoked_at = datetime.now(timezone.utc)
+            db.add(AuditEvent(
+                actor_user_id=user.id, action="auth.browser_session.revoked",
+                resource_type="browser_session", resource_id=str(session.id),
+                details="Current browser session revoked by logout",
+            ))
             db.commit()
     _clear_session_cookies(response)
     response.status_code = 204
@@ -145,10 +150,15 @@ def logout(request: Request, response: Response, user: User = Depends(get_curren
 @router.post("/logout-all", status_code=204)
 def logout_all(response: Response, user: User = Depends(get_current_user),
                 db: Session = Depends(get_db)):
-    db.query(UserSession).filter(
+    revoked_count = db.query(UserSession).filter(
         UserSession.user_id == user.id,
         UserSession.revoked_at.is_(None),
     ).update({UserSession.revoked_at: datetime.now(timezone.utc)}, synchronize_session=False)
+    db.add(AuditEvent(
+        actor_user_id=user.id, action="auth.browser_sessions.revoked_all",
+        resource_type="user", resource_id=str(user.id),
+        details=f"revoked_count={revoked_count}",
+    ))
     db.commit()
     _clear_session_cookies(response)
     response.status_code = 204
@@ -201,6 +211,11 @@ def revoke_session_by_id(session_record_id: int, request: Request, response: Res
     if record is None:
         raise HTTPException(status_code=404, detail="Active session not found")
     record.revoked_at = datetime.now(timezone.utc)
+    db.add(AuditEvent(
+        actor_user_id=user.id, action="auth.browser_session.revoked",
+        resource_type="browser_session", resource_id=str(record.id),
+        details="Browser session revoked from account security settings",
+    ))
     db.commit()
     cookie_token = request.cookies.get(get_settings().session_cookie_name)
     claims = decode_access_token_claims(cookie_token) if cookie_token else None
@@ -238,6 +253,11 @@ def revoke_api_token_by_id(token_record_id: int, user: User = Depends(get_curren
     if record is None:
         raise HTTPException(status_code=404, detail="Active API token not found")
     record.revoked_at = datetime.now(timezone.utc)
+    db.add(AuditEvent(
+        actor_user_id=user.id, action="auth.api_token.revoked",
+        resource_type="api_token", resource_id=str(record.id),
+        details="API token revoked from account security settings",
+    ))
     db.commit()
     return Response(status_code=204)
 
@@ -253,6 +273,11 @@ def revoke_api_token(request: Request, user: User = Depends(get_current_user),
     ).first()
     if record is not None:
         record.revoked_at = datetime.now(timezone.utc)
+        db.add(AuditEvent(
+            actor_user_id=user.id, action="auth.api_token.revoked",
+            resource_type="api_token", resource_id=str(record.id),
+            details="Current API token revoked by its owner",
+        ))
         db.commit()
     return Response(status_code=204)
 
@@ -261,10 +286,15 @@ def revoke_api_token(request: Request, user: User = Depends(get_current_user),
 def revoke_all_api_tokens(request: Request, user: User = Depends(get_current_user),
                           db: Session = Depends(get_db)):
     _current_api_token(request, user)
-    db.query(ApiAccessToken).filter(
+    revoked_count = db.query(ApiAccessToken).filter(
         ApiAccessToken.user_id == user.id,
         ApiAccessToken.revoked_at.is_(None),
     ).update({ApiAccessToken.revoked_at: datetime.now(timezone.utc)}, synchronize_session=False)
+    db.add(AuditEvent(
+        actor_user_id=user.id, action="auth.api_tokens.revoked_all",
+        resource_type="user", resource_id=str(user.id),
+        details=f"revoked_count={revoked_count}",
+    ))
     db.commit()
     return Response(status_code=204)
 
@@ -292,6 +322,11 @@ def change_password(
         ApiAccessToken.user_id == user.id,
         ApiAccessToken.revoked_at.is_(None),
     ).update({ApiAccessToken.revoked_at: now}, synchronize_session=False)
+    db.add(AuditEvent(
+        actor_user_id=user.id, action="auth.password.changed",
+        resource_type="user", resource_id=str(user.id),
+        details="Password changed; all active browser sessions and API tokens revoked",
+    ))
     db.commit()
 
     # The credential used for this request is revoked with every other credential.

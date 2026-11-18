@@ -94,7 +94,7 @@ def download_evidence(artifact_id: int, db: Session = Depends(get_db),
         content=raw,
         media_type="application/octet-stream",
         headers={
-            "Content-Disposition": f"attachment; filename=\\\"evidence\\\"; filename*=UTF-8''{encoded_filename}",
+            "Content-Disposition": "attachment; filename=\"evidence\"; filename*=UTF-8''" + encoded_filename,
             "X-Content-SHA256": row.content_sha256,
             "X-Content-Type-Options": "nosniff",
             "Cache-Control": "no-store",

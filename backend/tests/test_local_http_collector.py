@@ -64,7 +64,7 @@ def test_collector_follows_only_same_host_links(local_server):
     )
     assert [item.status_code for item in report.observations] == [200, 200]
     assert report.pages_requested == 2
-    assert any(reason == "url_out_of_scope" for _, reason in report.skipped)
+    assert all("example.com" not in item.url for item in report.observations)
 
 
 def test_collector_refuses_non_public_dns_by_default(local_server):

@@ -3,6 +3,8 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
 type User = { id: number; email: string; role: string };
+type BrowserSessionRecord = { id: number; created_at: string; expires_at: string; is_current: boolean };
+type ApiTokenRecord = { id: number; created_at: string; expires_at: string };
 type Project = { id: number; name: string; description: string; created_at: string };
 type Target = { id: number; value: string; target_type: string; status: string };
 type Authorization = { id: number; reference: string; starts_at: string | null; expires_at: string | null; status: string; notes: string };
@@ -67,6 +69,8 @@ export default function Home() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [browserSessions, setBrowserSessions] = useState<BrowserSessionRecord[]>([]);
+  const [apiTokens, setApiTokens] = useState<ApiTokenRecord[]>([]);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
@@ -96,12 +100,16 @@ export default function Home() {
   }, [csrfToken]);
 
   const loadWorkspace = useCallback(async (accessToken: string) => {
-    const [currentUser, projectList] = await Promise.all([
+    const [currentUser, projectList, sessionList, apiTokenList] = await Promise.all([
       api("/api/v1/auth/me", {}, accessToken),
-      api("/api/v1/projects", {}, accessToken)
+      api("/api/v1/projects", {}, accessToken),
+      api("/api/v1/auth/sessions", {}, accessToken),
+      api("/api/v1/auth/api-tokens", {}, accessToken)
     ]);
     setUser(currentUser);
     setProjects(projectList);
+    setBrowserSessions(sessionList);
+    setApiTokens(apiTokenList);
     if (currentUser.role === "admin") {
       setPendingAuthorizations(await api("/api/v1/admin/authorizations/pending", {}, accessToken));
     } else {
@@ -479,6 +487,41 @@ export default function Home() {
     }
   }
 
+  async function revokeBrowserSession(sessionId: number, isCurrent: boolean) {
+    setBusy(true); setError(""); setMessage("");
+    try {
+      await api(`/api/v1/auth/sessions/${sessionId}/revoke`, { method: "POST" });
+      if (isCurrent) {
+        setCsrfToken(""); setToken(""); setUser(null); setProjects([]);
+        setSelectedProjectId(null); setTargets([]); setAuthorizations([]); setSnapshots([]);
+        setSnapshotValidity({}); setAnalysisRuns([]); setSelectedAnalysisRunId(null);
+        setCandidates([]); setPendingAuthorizations([]); setBrowserSessions([]);
+        setApiTokens([]);
+        setMessage("This browser session was revoked. Sign in again to continue.");
+      } else {
+        setBrowserSessions(current => current.filter(item => item.id !== sessionId));
+        setMessage("Selected browser session revoked.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not revoke browser session");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function revokeApiToken(tokenId: number) {
+    setBusy(true); setError(""); setMessage("");
+    try {
+      await api(`/api/v1/auth/api-tokens/${tokenId}/revoke`, { method: "POST" });
+      setApiTokens(current => current.filter(item => item.id !== tokenId));
+      setMessage("Selected API token revoked.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not revoke API token");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function changeAccountPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (newPassword !== confirmNewPassword) {
@@ -499,7 +542,7 @@ export default function Home() {
       setCsrfToken(""); setToken(""); setUser(null); setProjects([]);
       setSelectedProjectId(null); setTargets([]); setAuthorizations([]); setSnapshots([]);
       setSnapshotValidity({}); setAnalysisRuns([]); setSelectedAnalysisRunId(null);
-      setCandidates([]); setPendingAuthorizations([]);
+      setCandidates([]); setPendingAuthorizations([]); setBrowserSessions([]); setApiTokens([]);
       setMessage("Password changed. All browser sessions and API tokens were revoked. Sign in again with your new password.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Password change failed");
@@ -535,7 +578,7 @@ export default function Home() {
     } catch {
       // Clear local workspace even if the server-side logout request fails.
     }
-    setCsrfToken(""); setToken(""); setUser(null); setProjects([]); setSelectedProjectId(null); setTargets([]); setAuthorizations([]); setSnapshots([]); setSnapshotValidity({}); setAnalysisRuns([]); setSelectedAnalysisRunId(null); setCandidates([]); setPendingAuthorizations([]); setReviewNotes({}); setReviewScopes({}); setMessage(""); setError("");
+    setCsrfToken(""); setToken(""); setUser(null); setProjects([]); setSelectedProjectId(null); setTargets([]); setAuthorizations([]); setSnapshots([]); setSnapshotValidity({}); setAnalysisRuns([]); setSelectedAnalysisRunId(null); setCandidates([]); setPendingAuthorizations([]); setBrowserSessions([]); setApiTokens([]); setReviewNotes({}); setReviewScopes({}); setMessage(""); setError("");
   }
 
   return (
@@ -592,6 +635,24 @@ export default function Home() {
                 <button className="primary-button" disabled={busy || !currentPassword || !newPassword || !confirmNewPassword}>{busy ? "PLEASE WAIT..." : "CHANGE PASSWORD & REVOKE SESSIONS"}</button>
               </form>
               <p className="hint">A successful password change immediately revokes every active browser session and API token. You will need to sign in again on all devices.</p>
+              <div className="credential-inventory">
+                <div className="review-meta"><b>ACTIVE BROWSER SESSIONS</b><small>{browserSessions.length} SHOWN · MAX 100</small></div>
+                {browserSessions.length === 0 ? <p className="hint">No active browser sessions found.</p> : browserSessions.map(item => (
+                  <div className="record-row" key={item.id}>
+                    <div><b>SESSION #{item.id} {item.is_current ? "· THIS DEVICE" : ""}</b><small>Created {new Date(item.created_at).toLocaleString()}</small><small>Expires {new Date(item.expires_at).toLocaleString()}</small></div>
+                    <button className="danger-button" disabled={busy} onClick={() => revokeBrowserSession(item.id, item.is_current)}>REVOKE</button>
+                  </div>
+                ))}
+              </div>
+              <div className="credential-inventory">
+                <div className="review-meta"><b>ACTIVE API TOKENS</b><small>{apiTokens.length} SHOWN · MAX 100</small></div>
+                {apiTokens.length === 0 ? <p className="hint">No active API tokens found.</p> : apiTokens.map(item => (
+                  <div className="record-row" key={item.id}>
+                    <div><b>API TOKEN RECORD #{item.id}</b><small>Created {new Date(item.created_at).toLocaleString()}</small><small>Expires {new Date(item.expires_at).toLocaleString()}</small></div>
+                    <button className="danger-button" disabled={busy} onClick={() => revokeApiToken(item.id)}>REVOKE</button>
+                  </div>
+                ))}
+              </div>
             </section>
 
             {user.role === "admin" && (

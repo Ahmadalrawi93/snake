@@ -1,27 +1,61 @@
-from fastapi import Depends, HTTPException, status
+import secrets
+
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
+
+from app.core.config import get_settings
+from app.core.security import decode_access_token
 from app.db.database import get_db
 from app.db.models import User
-from app.core.security import decode_access_token
 
 bearer = HTTPBearer(auto_error=False)
+UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
 
 def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
     db: Session = Depends(get_db),
 ) -> User:
-    if credentials is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required",
-                            headers={"WWW-Authenticate": "Bearer"})
-    subject = decode_access_token(credentials.credentials)
+    settings = get_settings()
+    cookie_token = request.cookies.get(settings.session_cookie_name)
+    # Explicit bearer credentials take precedence for API clients and legacy integrations.
+    token = credentials.credentials if credentials is not None else cookie_token
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if credentials is None and cookie_token:
+        if request.method.upper() in UNSAFE_METHODS:
+            origin = request.headers.get("origin")
+            allowed_origins = set(settings.allowed_origin_list)
+            csrf_cookie = request.cookies.get(settings.csrf_cookie_name)
+            csrf_header = request.headers.get(settings.csrf_header_name)
+            if (
+                not origin
+                or origin not in allowed_origins
+                or not csrf_cookie
+                or not csrf_header
+                or not secrets.compare_digest(csrf_cookie, csrf_header)
+            ):
+                raise HTTPException(status_code=403, detail="CSRF validation failed")
+
+    subject = decode_access_token(token)
     if subject is None or not subject.isdigit():
-        raise HTTPException(status_code=401, detail="Invalid or expired access token",
-                            headers={"WWW-Authenticate": "Bearer"})
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired access token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     user = db.get(User, int(subject))
     if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="User is unavailable")
     return user
+
 
 def require_admin(user: User = Depends(get_current_user)) -> User:
     if user.role != "admin":

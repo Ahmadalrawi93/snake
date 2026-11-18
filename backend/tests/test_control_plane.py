@@ -1097,7 +1097,7 @@ def test_failed_password_attempts_are_throttled_across_browser_and_api_login():
 
     db = TestingSession()
     try:
-        bucket = db.get(AuthFailedAttemptBucket, auth_attempt_key(email))
+        bucket = db.get(AuthFailedAttemptBucket, auth_attempt_key(email, "testclient"))
         assert bucket is not None
         assert bucket.attempts == 8
         assert len(bucket.key_sha256) == 64

@@ -27,6 +27,7 @@ class UserResponse(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
+    csrf_token: str
     token_type: str = "bearer"
 
 @router.post("/register", response_model=UserResponse, status_code=201)
@@ -68,7 +69,17 @@ def login(payload: LoginRequest, response: Response, db: Session = Depends(get_d
         max_age=settings.access_token_minutes * 60,
     )
     # Keep the token response temporarily for existing API clients; the web app will use cookies.
-    return TokenResponse(access_token=access_token)
+    return TokenResponse(access_token=access_token, csrf_token=csrf_token)
+
+@router.get("/csrf")
+def csrf_token(request: Request, response: Response):
+    settings = get_settings()
+    token = request.cookies.get(settings.csrf_cookie_name)
+    if not token:
+        raise HTTPException(status_code=401, detail="No active session")
+    response.headers["Cache-Control"] = "no-store"
+    return {"csrf_token": token}
+
 
 @router.post("/logout", status_code=204)
 def logout(response: Response, user: User = Depends(get_current_user)):

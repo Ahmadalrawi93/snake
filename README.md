@@ -69,9 +69,10 @@ rate-limit behavior, and production deployment boundaries.
 
 ## Production deployment boundary
 
-The production Compose configuration activates the backend's production
-validators, requires exact HTTPS frontend origins, enables secure session
-cookies, and binds the API only to host loopback. A separately configured TLS
+The production Compose configuration activates strict settings, requires
+exact HTTPS frontend origins and API hostnames, enables secure session cookies,
+limits request bodies, applies API security headers, disables interactive API
+docs, and binds the API only to host loopback. A separately configured TLS
 reverse proxy is mandatory; this repository does not yet ship that proxy.
 See [deployment security requirements](infrastructure/DEPLOYMENT_SECURITY.md).
 

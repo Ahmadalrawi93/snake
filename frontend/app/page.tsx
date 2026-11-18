@@ -140,7 +140,7 @@ export default function Home() {
   }
 
   async function openCandidate(candidateId: number) {
-    setBusy(true); setError(""); setSelectedCandidate(null);
+    setBusy(true); setError(""); setSelectedCandidate(null); setReportPreview(null);
     try {
       const detail = await api(`/api/v1/finding-candidates/${candidateId}`);
       const [lifecycle, artifacts, impacts] = await Promise.all([

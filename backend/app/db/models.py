@@ -10,6 +10,7 @@ class AuthFailedAttemptBucket(Base):
     """Persistent, privacy-preserving failed-authentication rate-limit bucket."""
     __tablename__ = "auth_failed_attempt_buckets"
     __table_args__ = (
+        CheckConstraint("length(key_sha256) = 64", name="ck_auth_failed_bucket_digest_length"),
         CheckConstraint("attempts >= 1", name="ck_auth_failed_attempts_positive"),
     )
     key_sha256: Mapped[str] = mapped_column(String(64), primary_key=True)

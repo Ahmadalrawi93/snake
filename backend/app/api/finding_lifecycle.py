@@ -1,6 +1,5 @@
 """Authenticated lifecycle and evidence-vault APIs."""
 import base64
-from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
@@ -9,7 +8,7 @@ from app.db.database import get_db
 from app.db.models import User
 from app.core.finding_lifecycle import (
     append_lifecycle_event, store_evidence_artifact, read_evidence_artifact,
-    current_finding_status,
+    current_finding_status, evidence_content_disposition,
 )
 from app.schemas.finding_lifecycle import (
     FindingLifecycleCreate, FindingLifecycleRead, EvidenceArtifactCreate,
@@ -89,12 +88,11 @@ def download_evidence(artifact_id: int, db: Session = Depends(get_db),
     except RuntimeError:
         raise HTTPException(status_code=503, detail="Evidence integrity or encryption check failed")
     db.commit()
-    encoded_filename = quote(row.filename, safe="")
     return Response(
         content=raw,
         media_type="application/octet-stream",
         headers={
-            "Content-Disposition": "attachment; filename=\"evidence\"; filename*=UTF-8''" + encoded_filename,
+            "Content-Disposition": evidence_content_disposition(row.filename),
             "X-Content-SHA256": row.content_sha256,
             "X-Content-Type-Options": "nosniff",
             "Cache-Control": "no-store",

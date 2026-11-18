@@ -49,6 +49,7 @@ jobs:
           assert environment["SNAKE_SESSION_COOKIE_SECURE"] == "true"
           assert environment["SNAKE_ALLOWED_ORIGINS"] == "https://app.example.com"
           assert environment["SNAKE_ALLOWED_HOSTS"] == "api.example.com"
+          assert environment["SNAKE_MAX_REQUEST_BODY_BYTES"] == "2097152"
           assert backend["ports"][0]["host_ip"] == "127.0.0.1"
           assert backend["ports"][0]["published"] == "8000"
           print("production Compose security settings OK")

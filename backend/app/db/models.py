@@ -517,6 +517,10 @@ class LocalReconRun(Base):
             "observation_count >= 0 AND observation_count <= 250",
             name="ck_local_recon_observation_count",
         ),
+        CheckConstraint(
+            "execution_enabled = false",
+            name="ck_local_recon_execution_disabled",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

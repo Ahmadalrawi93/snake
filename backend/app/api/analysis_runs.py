@@ -88,6 +88,8 @@ def read_analysis_run_provenance(
         .join(ScanJob, ScanJob.id == WorkerTaskReceipt.job_id)
         .filter(
             AnalysisRunObservationLink.analysis_run_id == run.id,
+            AnalysisRunObservationLink.project_id == run.project_id,
+            AnalysisRunObservationLink.target_id == run.target_id,
             ScanJob.project_id == run.project_id,
         )
         .order_by(AnalysisRunObservationLink.id.asc())

@@ -1147,3 +1147,88 @@ def test_unknown_email_failed_attempts_use_the_same_generic_lockout():
     })
     assert blocked.status_code == 429
 
+
+
+def test_evaluation_metrics_ignore_rows_bound_to_another_projects_run():
+    from app.db.models import AIAnalysisEvaluation, AIAnalysisRun, Project
+
+    owner_headers = register_and_auth("tenant-metrics-owner@example.org")
+    foreign_headers = register_and_auth("tenant-metrics-foreign@example.org")
+    owner_project = client.post(
+        "/api/v1/projects", json={"name": "Metrics owner"}, headers=owner_headers
+    ).json()
+    foreign_project = client.post(
+        "/api/v1/projects", json={"name": "Foreign run"}, headers=foreign_headers
+    ).json()
+
+    db = TestingSession()
+    try:
+        owner = db.query(Project).filter_by(id=owner_project["id"]).one()
+        foreign = db.query(Project).filter_by(id=foreign_project["id"]).one()
+        run = AIAnalysisRun(
+            project_id=foreign.id, created_by=foreign.owner_id,
+            context_sha256="a" * 64, correlations_sha256="b" * 64,
+            provider="test", model="test", status="completed",
+            disposition="requires_independent_validation", result_json="{}",
+            execution_enabled=False,
+        )
+        db.add(run)
+        db.flush()
+        db.add(AIAnalysisEvaluation(
+            analysis_run_id=run.id, project_id=owner.id,
+            evaluator_id=owner.owner_id, outcome="confirmed",
+            evidence_sha256="c" * 64, validation_method="manual_reproduction",
+            notes="deliberately inconsistent legacy row",
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    metrics = client.get(
+        f"/api/v1/projects/{owner_project['id']}/analysis-evaluation-metrics",
+        headers=owner_headers,
+    )
+    assert metrics.status_code == 200
+    assert metrics.json()["reviewed"] == 0
+    assert metrics.json()["confirmed"] == 0
+
+
+def test_evaluation_listing_requires_owned_run_even_when_rows_exist_elsewhere():
+    from app.db.models import AIAnalysisEvaluation, AIAnalysisRun, Project
+
+    owner_headers = register_and_auth("tenant-list-owner@example.org")
+    foreign_headers = register_and_auth("tenant-list-foreign@example.org")
+    owner_project = client.post(
+        "/api/v1/projects", json={"name": "Listing owner"}, headers=owner_headers
+    ).json()
+    foreign_project = client.post(
+        "/api/v1/projects", json={"name": "Listing foreign"}, headers=foreign_headers
+    ).json()
+
+    db = TestingSession()
+    try:
+        owner = db.query(Project).filter_by(id=owner_project["id"]).one()
+        foreign = db.query(Project).filter_by(id=foreign_project["id"]).one()
+        run = AIAnalysisRun(
+            project_id=foreign.id, created_by=foreign.owner_id,
+            context_sha256="d" * 64, correlations_sha256="e" * 64,
+            provider="test", model="test", status="completed",
+            disposition="requires_independent_validation", result_json="{}",
+            execution_enabled=False,
+        )
+        db.add(run)
+        db.flush()
+        db.add(AIAnalysisEvaluation(
+            analysis_run_id=run.id, project_id=owner.id,
+            evaluator_id=owner.owner_id, outcome="confirmed",
+            evidence_sha256="f" * 64, validation_method="manual_reproduction",
+        ))
+        db.commit()
+        run_id = run.id
+    finally:
+        db.close()
+
+    response = client.get(
+        f"/api/v1/analysis-runs/{run_id}/evaluations", headers=owner_headers
+    )
+    assert response.status_code == 404

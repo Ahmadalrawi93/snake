@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./snake.db"
     jwt_secret_key: str = "CHANGE_ME_FOR_LOCAL_DEVELOPMENT_ONLY"
     access_token_minutes: int = 30
+    session_cookie_name: str = "snake_session"
+    csrf_cookie_name: str = "snake_csrf"
+    csrf_header_name: str = "X-SNAKE-CSRF"
+    session_cookie_secure: bool = False
+    session_cookie_samesite: str = "lax"
 
     model_config = SettingsConfigDict(env_prefix="SNAKE_", env_file=".env", extra="ignore")
 
@@ -20,6 +25,16 @@ class Settings(BaseSettings):
         if self.environment.lower() in {"production", "prod"}:
             if self.jwt_secret_key == "CHANGE_ME_FOR_LOCAL_DEVELOPMENT_ONLY" or len(self.jwt_secret_key) < 32:
                 raise ValueError("SNAKE_JWT_SECRET_KEY must be a random secret of at least 32 characters in production")
+        return self
+
+    @model_validator(mode="after")
+    def validate_session_cookie_settings(self):
+        if self.session_cookie_samesite.lower() not in {"lax", "strict", "none"}:
+            raise ValueError("SNAKE_SESSION_COOKIE_SAMESITE must be lax, strict, or none")
+        if self.session_cookie_samesite.lower() == "none" and not self.session_cookie_secure:
+            raise ValueError("SameSite=None requires secure session cookies")
+        if self.environment.lower() in {"production", "prod"} and not self.session_cookie_secure:
+            raise ValueError("SNAKE_SESSION_COOKIE_SECURE must be true in production")
         return self
 
     @property

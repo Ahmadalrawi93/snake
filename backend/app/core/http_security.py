@@ -88,10 +88,12 @@ class SecurityHeadersMiddleware:
                     (b"x-frame-options", b"DENY"),
                     (b"referrer-policy", b"no-referrer"),
                     (b"permissions-policy", b"camera=(), microphone=(), geolocation=()"),
-                    (b"content-security-policy", b"default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"),
                 ]
                 if self.production:
-                    additions.append((b"strict-transport-security", b"max-age=63072000; includeSubDomains"))
+                    additions.extend([
+                        (b"content-security-policy", b"default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"),
+                        (b"strict-transport-security", b"max-age=63072000; includeSubDomains"),
+                    ])
                 for key, value in additions:
                     if key not in present:
                         headers.append((key, value))

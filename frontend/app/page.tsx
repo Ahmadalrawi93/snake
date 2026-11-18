@@ -15,7 +15,7 @@ type LifecycleEvent = { id: number; from_status: string; to_status: string; rati
 type EvidenceArtifact = { id: number; filename: string; media_type: string; content_sha256: string; size_bytes: number; description: string; created_at: string };
 type HumanDecision = { id: number; candidate_fingerprint: string; outcome: string; evidence_sha256: string | null; validation_method: string; notes: string; created_at: string };
 type ImpactAssessmentRecord = { id: number; assessment_sha256: string; final_severity: "not_assessed"; cvss_vector: null; execution_enabled: false; assessment: { assessment_status: string; severity_suggestion: string; blockers: string[]; rationale: string[] }; created_at: string };
-type ReportPreview = { report: { title: string; severity: "not_assessed"; cvss_vector: null; confirmation_status: string; execution_enabled: false; requires_human_edit_and_independent_validation: true }; markdown: string };
+type CandidateSimilarity = { candidate_fingerprint: string; compared_fingerprint: string; disposition: "exact_duplicate" | "possible_duplicate" | "distinct"; category_match: boolean; category_family_match: boolean; title_similarity: number; evidence_similarity: number; shared_observation_count: number; shared_route_count: number; rationale: string[]; requires_human_review: true; auto_merge: false };\ntype ReportPreview = { report: { title: string; severity: "not_assessed"; cvss_vector: null; confirmation_status: string; execution_enabled: false; requires_human_edit_and_independent_validation: true }; markdown: string };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
@@ -44,7 +44,7 @@ export default function Home() {
   const [impactScope, setImpactScope] = useState("unknown");
   const [impactSensitivity, setImpactSensitivity] = useState("unknown");
   const [impactStatement, setImpactStatement] = useState("");
-  const [reportPreview, setReportPreview] = useState<ReportPreview | null>(null);
+  const [reportPreview, setReportPreview] = useState<ReportPreview | null>(null);\n  const [candidateSimilarities, setCandidateSimilarities] = useState<CandidateSimilarity[]>([]);
   const [decisionOutcome, setDecisionOutcome] = useState("inconclusive");
   const [decisionMethod, setDecisionMethod] = useState("manual_reproduction");
   const [decisionNotes, setDecisionNotes] = useState("");
@@ -644,6 +644,11 @@ export default function Home() {
                       <button className="primary-button" disabled={busy || !impactEvidenceId || impactStatement.trim().length < 8}>SAVE IMPACT ANNOTATION</button>
                       {impactAssessments.map(item => <div className="record-row" key={item.id}><div><b>{item.assessment.assessment_status.replaceAll("_", " ").toUpperCase()}</b><small>Suggested: {item.assessment.severity_suggestion.toUpperCase()} · Final: NOT ASSESSED · CVSS: NONE</small><small>{item.assessment.rationale.join(" · ")}</small><small>SHA-256 {item.assessment_sha256.slice(0, 16)}…</small></div><time>#{item.id}</time></div>)}
                     </form>
+                    <div className="review-card similarity-panel">
+                      <h3>Project duplicate intelligence</h3>
+                      <p className="hint">Similarity is a review aid, not proof of duplication. No candidate is merged or changed automatically.</p>
+                      {candidateSimilarities.length === 0 ? <p className="hint">No other persisted candidates were found in this project.</p> : candidateSimilarities.map(item => <div className="record-row" key={item.compared_fingerprint}><div><b>{item.disposition.replaceAll("_", " ").toUpperCase()}</b><small>Candidate {item.compared_fingerprint.slice(0, 16)}…</small><small>Title similarity {(item.title_similarity * 100).toFixed(0)}% · Evidence similarity {(item.evidence_similarity * 100).toFixed(0)}%</small><small>Shared observations: {item.shared_observation_count} · Shared routes: {item.shared_route_count}</small><small>{item.rationale.join(" · ")}</small></div><time>{item.category_match ? "CATEGORY MATCH" : "CATEGORY DIFF"}</time></div>)}
+                    </div>
                     <div className="review-card report-draft-panel">
                       <div className="review-meta"><h3>Evidence-bound report draft</h3><button className="primary-button" disabled={busy} onClick={generateCandidateReport}>GENERATE REPORT DRAFT</button></div>
                       <p className="hint">Requires consistent, complete evidence including observed behavior, expected behavior, and impact context. Generation does not submit the report.</p>

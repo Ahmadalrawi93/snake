@@ -74,7 +74,7 @@ exact HTTPS frontend origins and API hostnames, enables secure session cookies,
 limits request bodies, applies API security headers, disables interactive API
 docs, and binds the API only to host loopback. A separately configured TLS
 reverse proxy is mandatory; this repository does not yet ship that proxy.
-See [deployment security requirements](infrastructure/DEPLOYMENT_SECURITY.md).
+See [deployment security requirements](infrastructure/DEPLOYMENT_SECURITY.md). Administrator approval and provisioning controls are documented in [admin security](docs/ADMIN_SECURITY.md), and JWT key rotation is covered in [browser session security](docs/BROWSER_SESSION_SECURITY.md).
 
 ## Security boundary
 

@@ -52,15 +52,16 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     return UserResponse(id=user.id, email=user.email, role=user.role)
 
 @router.post("/login", response_model=SessionResponse)
-def login(payload: LoginRequest, response: Response, db: Session = Depends(get_db)):
+def login(payload: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
     email = str(payload.email).lower()
-    assert_auth_not_blocked(db, email)
+    client_host = request.client.host if request.client is not None else "unknown"
+    assert_auth_not_blocked(db, email, client_host)
     user = db.scalar(select(User).where(User.email == email))
     if user is None or not user.is_active or not verify_password(payload.password, user.password_hash):
-        record_failed_auth_attempt(db, email)
+        record_failed_auth_attempt(db, email, client_host)
         raise HTTPException(status_code=401, detail="Incorrect email or password",
                             headers={"WWW-Authenticate": "Bearer"})
-    clear_auth_failures(db, email)
+    clear_auth_failures(db, email, client_host)
     settings = get_settings()
     access_token, token_id, expires_at = create_browser_session_token(str(user.id))
     csrf_token = secrets.token_urlsafe(32)
@@ -86,16 +87,17 @@ def login(payload: LoginRequest, response: Response, db: Session = Depends(get_d
     return SessionResponse(csrf_token=csrf_token)
 
 @router.post("/token", response_model=TokenResponse)
-def issue_api_token(payload: LoginRequest, db: Session = Depends(get_db)):
+def issue_api_token(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
     """Issue a bearer token for non-browser API clients; browser login uses HttpOnly cookies."""
     email = str(payload.email).lower()
-    assert_auth_not_blocked(db, email)
+    client_host = request.client.host if request.client is not None else "unknown"
+    assert_auth_not_blocked(db, email, client_host)
     user = db.scalar(select(User).where(User.email == email))
     if user is None or not user.is_active or not verify_password(payload.password, user.password_hash):
-        record_failed_auth_attempt(db, email)
+        record_failed_auth_attempt(db, email, client_host)
         raise HTTPException(status_code=401, detail="Incorrect email or password",
                             headers={"WWW-Authenticate": "Bearer"})
-    clear_auth_failures(db, email)
+    clear_auth_failures(db, email, client_host)
     access_token, token_id, expires_at = create_api_access_token(str(user.id))
     db.add(ApiAccessToken(
         user_id=user.id,

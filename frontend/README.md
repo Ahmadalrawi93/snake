@@ -62,8 +62,17 @@ are same-site; a genuinely cross-site deployment needs `none` plus Secure and
 a carefully reviewed origin/CSRF configuration.
 
 Bearer authentication remains supported for non-browser API clients through
-the separate `POST /api/v1/auth/token` endpoint. Browser `POST /login` never
+the separate `POST /api/v1/auth/token` endpoint. API bearer tokens are
+registered server-side and checked on every request. API clients can revoke
+the current token with `POST /api/v1/auth/api-tokens/revoke`, or all their
+active API tokens with `POST /api/v1/auth/api-tokens/revoke-all`; both
+endpoints require the bearer token being revoked. Browser `POST /login` never
 returns the access token in JSON; it returns only the in-memory CSRF value while
 the HttpOnly session cookie carries authentication.
+
+Browser sessions can be revoked with `POST /api/v1/auth/logout` or all at
+once with `POST /api/v1/auth/logout-all`. The API token and browser session
+registries are separate. Tokens issued before the server-side registry cutover
+are rejected; API clients must authenticate again to obtain a registered token.
 
 - Project-scoped candidate similarity is shown as a human-review aid. Possible duplicates can be linked through the append-only lifecycle only after a reviewer records a matching `duplicate` decision; no automatic merge occurs.

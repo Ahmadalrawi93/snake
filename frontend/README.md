@@ -31,6 +31,7 @@ The default backend setting allows `http://localhost:3000`.
 - Analysis runs expose persisted finding candidates with integrity-checked qualification and evidence details.
 - Candidate review supports encrypted evidence upload, append-only human decisions, evidence-bound impact annotations, and guarded lifecycle transitions. Confirming a finding requires a matching human decision and an evidence artifact stored in the encrypted vault.
 - Impact annotations never set final severity or CVSS; final severity remains `not_assessed` and independent validation is required.
+- Report drafts can be generated on demand from the persisted candidate evidence after server-side provenance, integrity, and evidence-readiness checks. Drafts are not submitted or stored as final reports; the dashboard can copy the Markdown for human editing.
 - URL/domain targets can request a scope snapshot; the backend requires a currently valid, administrator-approved authorization whose hostname rules cover the target. Snapshot validation checks that the authorization, target, scope rules, expiry, and digest remain valid.
 - Users with the administrator role can review pending authorization references and must enter explicit hostname rules and review notes before approval. Public registration never grants administrator privileges.
 - Target registration stores a value only. It does not resolve DNS, send HTTP

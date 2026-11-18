@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.security import decode_access_token_claims, token_id_digest
 from app.db.database import get_db
-from app.db.models import User, UserSession
+from app.db.models import User, UserSession, ApiAccessToken
 
 bearer = HTTPBearer(auto_error=False)
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
@@ -51,16 +51,22 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="Invalid or expired access token", headers={"WWW-Authenticate": "Bearer"})
     token_id = claims.get("jti")
     if token_id is not None:
-        if claims.get("token_use") != "browser_session" or not isinstance(token_id, str):
-            raise HTTPException(status_code=401, detail="Invalid session token")
-        session = db.query(UserSession).filter(
-            UserSession.token_id_sha256 == token_id_digest(token_id),
-            UserSession.user_id == int(subject),
-            UserSession.revoked_at.is_(None),
-            UserSession.expires_at > datetime.now(timezone.utc),
+        token_use = claims.get("token_use")
+        if not isinstance(token_id, str):
+            raise HTTPException(status_code=401, detail="Invalid token identifier")
+        token_model = UserSession if token_use == "browser_session" else (
+            ApiAccessToken if token_use == "api_access" else None
+        )
+        if token_model is None:
+            raise HTTPException(status_code=401, detail="Invalid token type")
+        token_record = db.query(token_model).filter(
+            token_model.token_id_sha256 == token_id_digest(token_id),
+            token_model.user_id == int(subject),
+            token_model.revoked_at.is_(None),
+            token_model.expires_at > datetime.now(timezone.utc),
         ).first()
-        if session is None:
-            raise HTTPException(status_code=401, detail="Session expired or revoked")
+        if token_record is None:
+            raise HTTPException(status_code=401, detail="Token expired or revoked")
     user = db.get(User, int(subject))
     if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="User is unavailable")

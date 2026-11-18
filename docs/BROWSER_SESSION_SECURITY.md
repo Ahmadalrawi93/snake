@@ -3,7 +3,7 @@
 ## Authentication paths
 
 - Browser clients use `POST /api/v1/auth/login`. The response contains a CSRF token only; the access JWT is set in an HttpOnly cookie.
-- Non-browser API clients use `POST /api/v1/auth/token` and receive a stateless bearer token.
+- Non-browser API clients use `POST /api/v1/auth/token` and receive a revocable bearer token registered server-side.
 - Cookie-authenticated state-changing requests require the CSRF cookie value in the configured header and an exact allowed Origin.
 
 ## Revocable browser sessions
@@ -20,9 +20,10 @@ expired, or revoked sessions. The raw JWT and raw `jti` are never stored.
 
 ## Migration and operational boundaries
 
-Apply Alembic revision `0023_revocable_user_sessions` before deploying this
-backend to an existing database. Do not use `Base.metadata.create_all` as a
-production migration mechanism.
+Apply Alembic revisions `0023_revocable_user_sessions`,
+`0024_revocable_api_tokens`, and `0025_auth_failed_attempt_buckets` in order
+before deploying this backend to an existing database. Do not use
+`Base.metadata.create_all` as a production migration mechanism.
 
 Revocation applies to browser-session JWTs. Stateless bearer tokens issued by
 `/api/v1/auth/token` are separate credentials and are not revoked by browser
@@ -47,7 +48,8 @@ them as a substitute. Token revocation is enforced on the next request; it
 does not retroactively terminate work already authorized and executing.
 
 Apply Alembic revision `0024_revocable_api_tokens` after revision
-`0023_revocable_user_sessions` before deploying this change.
+`0023_revocable_user_sessions`, then apply `0025_auth_failed_attempt_buckets`
+for persistent failed-password throttling.
 
 
 ## Credential cutover
@@ -106,12 +108,13 @@ client address. Eight failed password checks within a
 15-minute window trigger a 15-minute temporary block. The same generic
 credential error is returned for unknown email addresses and incorrect
 passwords; an active block returns HTTP 429 with a `Retry-After` header.
-A successful password authentication clears the account's failure bucket.
+A successful password authentication clears the matching account-and-source failure bucket.
 
 The bucket key is an HMAC digest derived from the normalized email, the
 server-observed client address, and the server secret. Raw email addresses,
-client addresses, and passwords are not stored in the throttling table. Updates use database-native atomic upserts for SQLite and
-PostgreSQL, so counters are not dependent on a single application process.
+client addresses, and passwords are not stored in the throttling table. Updates
+use database-native atomic upserts for SQLite and PostgreSQL, so counters are
+not dependent on a single application process.
 Old buckets are opportunistically pruned after seven days.
 
 This per-account/per-source control is not a substitute for edge/WAF controls,

@@ -64,6 +64,9 @@ export default function Home() {
   const [authNotes, setAuthNotes] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
@@ -476,6 +479,35 @@ export default function Home() {
     }
   }
 
+  async function changeAccountPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (newPassword !== confirmNewPassword) {
+      setError("New password confirmation does not match.");
+      return;
+    }
+    if (newPassword.length < 12) {
+      setError("New password must contain at least 12 characters.");
+      return;
+    }
+    setBusy(true); setError(""); setMessage("");
+    try {
+      await api("/api/v1/auth/password/change", {
+        method: "POST",
+        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+      });
+      setCurrentPassword(""); setNewPassword(""); setConfirmNewPassword("");
+      setCsrfToken(""); setToken(""); setUser(null); setProjects([]);
+      setSelectedProjectId(null); setTargets([]); setAuthorizations([]); setSnapshots([]);
+      setSnapshotValidity({}); setAnalysisRuns([]); setSelectedAnalysisRunId(null);
+      setCandidates([]); setPendingAuthorizations([]);
+      setMessage("Password changed. All browser sessions and API tokens were revoked. Sign in again with your new password.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Password change failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function createProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!projectName.trim()) return;
@@ -550,6 +582,17 @@ export default function Home() {
               <article><small>OPEN FINDINGS</small><strong>0</strong><span>Not loaded in dashboard yet</span></article>
               <article><small>ACCOUNT ROLE</small><strong className="pending">{user.role.toUpperCase()}</strong><span>Authenticated session</span></article>
             </div>
+
+            <section className="account-security-panel">
+              <div className="section-heading"><div><p className="eyebrow">ACCOUNT SECURITY</p><h2>Change password</h2></div></div>
+              <form className="stack-form" onSubmit={changeAccountPassword}>
+                <label>Current password<input type="password" autoComplete="current-password" required maxLength={128} value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} /></label>
+                <label>New password<input type="password" autoComplete="new-password" required minLength={12} maxLength={128} value={newPassword} onChange={e => setNewPassword(e.target.value)} /></label>
+                <label>Confirm new password<input type="password" autoComplete="new-password" required minLength={12} maxLength={128} value={confirmNewPassword} onChange={e => setConfirmNewPassword(e.target.value)} /></label>
+                <button className="primary-button" disabled={busy || !currentPassword || !newPassword || !confirmNewPassword}>{busy ? "PLEASE WAIT..." : "CHANGE PASSWORD & REVOKE SESSIONS"}</button>
+              </form>
+              <p className="hint">A successful password change immediately revokes every active browser session and API token. You will need to sign in again on all devices.</p>
+            </section>
 
             {user.role === "admin" && (
               <section className="admin-review">

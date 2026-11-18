@@ -38,6 +38,10 @@ class Settings(BaseSettings):
                 if origin == "*" or "*" in origin:
                     raise ValueError("Wildcard CORS origins are forbidden in production")
                 parsed = urlsplit(origin)
+                try:
+                    parsed.port
+                except ValueError as exc:
+                    raise ValueError("Production CORS origins must use a valid port") from exc
                 if (
                     parsed.scheme != "https"
                     or not parsed.netloc

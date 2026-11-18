@@ -51,10 +51,13 @@ def _owned_candidate(db: Session, candidate_id: int, actor: User):
     return row
 
 
-def current_finding_status(db: Session, candidate_id: int) -> str:
-    event = db.query(FindingLifecycleEvent).filter_by(
-        candidate_id=candidate_id
-    ).order_by(FindingLifecycleEvent.id.desc()).first()
+def current_finding_status(
+    db: Session, candidate_id: int, *, project_id: int | None = None
+) -> str:
+    query = db.query(FindingLifecycleEvent).filter_by(candidate_id=candidate_id)
+    if project_id is not None:
+        query = query.filter_by(project_id=project_id)
+    event = query.order_by(FindingLifecycleEvent.id.desc()).first()
     return event.to_status if event else "new"
 
 
@@ -62,7 +65,7 @@ def append_lifecycle_event(
     db: Session, *, candidate_id: int, actor: User, payload: FindingLifecycleCreate
 ):
     candidate = _owned_candidate(db, candidate_id, actor)
-    current = current_finding_status(db, candidate.id)
+    current = current_finding_status(db, candidate.id, project_id=candidate.project_id)
     if payload.expected_status != current:
         raise ValueError("stale lifecycle state")
     if payload.new_status not in _ALLOWED_TRANSITIONS[current]:

@@ -50,7 +50,7 @@ def read_candidate_lifecycle(candidate_id: int, db: Session = Depends(get_db),
         FindingLifecycleEvent.project_id == candidate.project_id,
         Project.owner_id == actor.id,
     ).order_by(FindingLifecycleEvent.id.asc()).all()
-    return {"candidate_id": candidate.id, "current_status": current_finding_status(db, candidate.id), "events": [FindingLifecycleRead.model_validate(e) for e in events]}
+    return {"candidate_id": candidate.id, "current_status": current_finding_status(db, candidate.id, project_id=candidate.project_id), "events": [FindingLifecycleRead.model_validate(e) for e in events]}
 
 
 @router.post("/finding-candidates/{candidate_id}/evidence", response_model=EvidenceArtifactRead, status_code=201)

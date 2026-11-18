@@ -133,6 +133,13 @@ def _safe_url(url: str, policy: ScopePolicy) -> tuple[str, str, int, str]:
     return normalized, host, port, path
 
 
+def _redact_cookie(value: str) -> str:
+    parts = value.split(";")
+    first = parts[0].split("=", 1)[0].strip() if "=" in parts[0] else "cookie"
+    safe_name = first[:80] if first and all(ch.isalnum() or ch in "_.-" for ch in first) else "cookie"
+    return "; ".join([f"{safe_name}=<redacted>"] + [part.strip()[:120] for part in parts[1:]])
+
+
 def _request_once(url: str, policy: ScopePolicy, *, timeout: float,
                   max_body_bytes: int, allow_private_networks: bool) -> tuple[HttpObservation, bytes, str | None]:
     normalized, host, port, path = _safe_url(url, policy)
@@ -173,6 +180,10 @@ def _request_once(url: str, policy: ScopePolicy, *, timeout: float,
                     "set-cookie", "content-type", "content-length", "location",
                     "strict-transport-security", "content-security-policy",
                 }
+            )
+            headers = tuple(
+                (name, _redact_cookie(value) if name == "set-cookie" else value)
+                for name, value in headers
             )
             content_type = next((v for k, v in headers if k == "content-type"), "")
             location = next((v for k, v in headers if k == "location"), None)

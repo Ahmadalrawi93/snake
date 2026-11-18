@@ -92,7 +92,7 @@ def test_collector_does_not_follow_out_of_scope_redirect(local_server):
     )
     assert len(report.observations) == 1
     assert report.observations[0].status_code == 302
-    assert report.skipped == (("http://example.com/escape", "cross_origin_redirect_skipped"),)
+    assert report.skipped == (("http://example.com/escape", "url_out_of_scope"),)
     assert all(name != "location" for name, _ in report.observations[0].headers)
 
 

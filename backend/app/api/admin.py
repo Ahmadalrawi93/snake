@@ -3,6 +3,7 @@ import json
 from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from sqlalchemy import update
 from app.core.worker_signing import SignedWorkerValidationResult
 from sqlalchemy.orm import Session
 from app.api.dependencies import require_admin
@@ -43,6 +44,7 @@ def review_authorization(
         raise HTTPException(status_code=409, detail="Only pending records can be reviewed")
     if payload.decision == "approved" and not payload.scope_rules:
         raise HTTPException(status_code=422, detail="At least one explicit hostname scope rule is required")
+    normalized_scope_json = record.scope_rules
     if payload.decision == "approved":
         from app.core.scope_policy import normalize_host
         normalized_rules = []
@@ -57,14 +59,24 @@ def review_authorization(
                     normalized_rules.append(normalize_host(rule))
             except ValueError:
                 raise HTTPException(status_code=422, detail=f"Invalid scope rule: {rule}")
-        record.scope_rules = __import__("json").dumps(sorted(set(normalized_rules)))
-    record.status = payload.decision
+        normalized_scope_json = json.dumps(sorted(set(normalized_rules)))
+
+    # Conditional update makes the pending -> reviewed transition atomic.
+    # Two administrators cannot both approve/reject the same pending record.
+    changed = db.execute(
+        update(Authorization)
+        .where(Authorization.id == authorization_id, Authorization.status == "pending")
+        .values(status=payload.decision, scope_rules=normalized_scope_json)
+    )
+    if changed.rowcount != 1:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Authorization was already reviewed")
     db.add(AuditEvent(
         actor_user_id=admin.id,
         action=f"authorization.{payload.decision}",
         resource_type="authorization",
         resource_id=str(record.id),
-        details=payload.review_notes + ("; scope=" + record.scope_rules if payload.decision == "approved" else ""),
+        details=payload.review_notes + ("; scope=" + normalized_scope_json if payload.decision == "approved" else ""),
     ))
     db.commit()
     db.refresh(record)
@@ -83,8 +95,15 @@ def revoke_scope_snapshot(
         raise HTTPException(status_code=404, detail="Scope snapshot not found")
     if row.status != "active":
         raise HTTPException(status_code=409, detail="Only active snapshots can be revoked")
-    row.status = "revoked"
-    row.revoked_at = datetime.now(timezone.utc)
+    revoked_at = datetime.now(timezone.utc)
+    changed = db.execute(
+        update(ScopeSnapshot)
+        .where(ScopeSnapshot.id == snapshot_id, ScopeSnapshot.status == "active")
+        .values(status="revoked", revoked_at=revoked_at)
+    )
+    if changed.rowcount != 1:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Scope snapshot was already revoked")
     db.add(AuditEvent(
         actor_user_id=admin.id,
         action="scope_snapshot.revoked",
@@ -93,7 +112,7 @@ def revoke_scope_snapshot(
         details=f"sha256={row.sha256}",
     ))
     db.commit()
-    return {"id": row.id, "status": row.status}
+    return {"id": row.id, "status": "revoked"}
 
 
 class WorkerPublicKeyCreate(BaseModel):

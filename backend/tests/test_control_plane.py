@@ -32,6 +32,24 @@ def register_and_auth(email="tester@example.org"):
     client.cookies.clear()
     return headers
 
+def test_api_token_records_cannot_be_revoked_by_another_user():
+    first_payload = {"email": "token-owner@example.org", "password": "a-strong-test-password-123"}
+    second_payload = {"email": "token-outsider@example.org", "password": "a-strong-test-password-123"}
+    assert client.post("/api/v1/auth/register", json=first_payload).status_code == 201
+    assert client.post("/api/v1/auth/register", json=second_payload).status_code == 201
+    owner_token = client.post("/api/v1/auth/token", json=first_payload).json()["access_token"]
+    outsider_token = client.post("/api/v1/auth/token", json=second_payload).json()["access_token"]
+    owner_headers = {"Authorization": f"Bearer {owner_token}"}
+    outsider_headers = {"Authorization": f"Bearer {outsider_token}"}
+    client.cookies.clear()
+    record_id = client.get("/api/v1/auth/api-tokens", headers=owner_headers).json()[0]["id"]
+    denied = client.post(
+        f"/api/v1/auth/api-tokens/{record_id}/revoke", headers=outsider_headers
+    )
+    assert denied.status_code == 404
+    assert client.get("/api/v1/auth/me", headers=owner_headers).status_code == 200
+
+
 def test_users_can_list_and_revoke_individual_sessions_and_api_tokens():
     from app.core.config import get_settings
 

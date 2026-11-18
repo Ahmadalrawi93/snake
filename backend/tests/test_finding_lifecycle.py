@@ -9,6 +9,7 @@ from app.db.database import Base
 from app.db.models import User, Project, AIAnalysisRun, FindingCandidateRecord, HumanFindingDecision
 from app.core.finding_lifecycle import (
     append_lifecycle_event, current_finding_status, store_evidence_artifact, read_evidence_artifact,
+    evidence_content_disposition,
 )
 from app.schemas.finding_lifecycle import FindingLifecycleCreate, EvidenceArtifactCreate
 
@@ -117,3 +118,12 @@ def test_evidence_filename_rejects_header_control_characters():
             media_type="text/plain",
             content_base64=base64.b64encode(b"proof").decode(),
         )
+
+
+def test_evidence_content_disposition_uses_safe_rfc5987_filename():
+    header = evidence_content_disposition('résumé \"proof\".pdf')
+    assert header.startswith('attachment; filename="evidence"; filename*=UTF-8\'\'')
+    assert "r%C3%A9sum%C3%A9" in header
+    assert "\r" not in header
+    assert "\n" not in header
+    assert "proof" in header

@@ -48,6 +48,13 @@ class EvidenceArtifactCreate(BaseModel):
             raise ValueError("control characters are not allowed")
         return value.strip()
 
+    @field_validator("filename")
+    @classmethod
+    def safe_filename_header(cls, value: str) -> str:
+        if any(ord(char) < 32 or ord(char) == 127 for char in value):
+            raise ValueError("filename cannot contain control characters")
+        return value
+
 
 class EvidenceArtifactRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)

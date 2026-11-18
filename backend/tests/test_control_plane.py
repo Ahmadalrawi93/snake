@@ -32,6 +32,29 @@ def register_and_auth(email="tester@example.org"):
     client.cookies.clear()
     return headers
 
+def test_api_tokens_are_revocable_individually_and_in_bulk():
+    email = "api-token-revoke@example.org"
+    payload = {"email": email, "password": "a-strong-test-password-123"}
+    assert client.post("/api/v1/auth/register", json=payload).status_code == 201
+    first = client.post("/api/v1/auth/token", json=payload)
+    second = client.post("/api/v1/auth/token", json=payload)
+    assert first.status_code == second.status_code == 200
+    first_headers = {"Authorization": f"Bearer {first.json()['access_token']}"}
+    second_headers = {"Authorization": f"Bearer {second.json()['access_token']}"}
+    client.cookies.clear()
+
+    assert client.get("/api/v1/auth/me", headers=first_headers).status_code == 200
+    assert client.post("/api/v1/auth/api-tokens/revoke", headers=first_headers).status_code == 204
+    assert client.get("/api/v1/auth/me", headers=first_headers).status_code == 401
+    assert client.get("/api/v1/auth/me", headers=second_headers).status_code == 200
+
+    third = client.post("/api/v1/auth/token", json=payload)
+    third_headers = {"Authorization": f"Bearer {third.json()['access_token']}"}
+    assert client.post("/api/v1/auth/api-tokens/revoke-all", headers=third_headers).status_code == 204
+    assert client.get("/api/v1/auth/me", headers=third_headers).status_code == 401
+    assert client.get("/api/v1/auth/me", headers=second_headers).status_code == 401
+
+
 def test_auth_and_project_authorization_target_audit_flow():
     headers = register_and_auth()
     me = client.get("/api/v1/auth/me", headers=headers)

@@ -1,4 +1,5 @@
 from functools import lru_cache
+from urllib.parse import urlsplit
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -25,6 +26,29 @@ class Settings(BaseSettings):
         if self.environment.lower() in {"production", "prod"}:
             if self.jwt_secret_key == "CHANGE_ME_FOR_LOCAL_DEVELOPMENT_ONLY" or len(self.jwt_secret_key) < 32:
                 raise ValueError("SNAKE_JWT_SECRET_KEY must be a random secret of at least 32 characters in production")
+        return self
+
+    @model_validator(mode="after")
+    def validate_production_origins(self):
+        if self.environment.lower() in {"production", "prod"}:
+            origins = self.allowed_origin_list
+            if not origins:
+                raise ValueError("SNAKE_ALLOWED_ORIGINS must contain at least one HTTPS origin in production")
+            for origin in origins:
+                if origin == "*" or "*" in origin:
+                    raise ValueError("Wildcard CORS origins are forbidden in production")
+                parsed = urlsplit(origin)
+                if (
+                    parsed.scheme != "https"
+                    or not parsed.netloc
+                    or parsed.username is not None
+                    or parsed.password is not None
+                    or parsed.path not in {"", "/"}
+                    or parsed.query
+                    or parsed.fragment
+                    or parsed.hostname in {"localhost", "127.0.0.1", "::1"}
+                ):
+                    raise ValueError("Production CORS origins must be exact HTTPS origins without paths or localhost")
         return self
 
     @model_validator(mode="after")

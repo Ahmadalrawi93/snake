@@ -52,3 +52,5 @@ implementation; it is accessible to same-origin JavaScript and must be replaced
 with a server-managed HttpOnly, Secure, SameSite cookie session before a
 production deployment. Use HTTPS and a strong backend JWT secret outside local
 development.
+
+- Project-scoped candidate similarity is shown as a human-review aid. Possible duplicates can be linked through the append-only lifecycle only after a reviewer records a matching `duplicate` decision; no automatic merge occurs.

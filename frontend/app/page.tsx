@@ -70,12 +70,19 @@ export default function Home() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const api = useCallback(async (path: string, options: RequestInit = {}, accessToken = token) => {
+  const api = useCallback(async (path: string, options: RequestInit = {}, _legacyAccessToken = "") => {
+    const csrfCookie = typeof document === "undefined"
+      ? ""
+      : document.cookie.split("; ").find(item => item.startsWith("snake_csrf="))?.split("=").slice(1).join("=") || "";
+    const method = (options.method || "GET").toUpperCase();
     const response = await fetch(`${API_BASE}${path}`, {
       ...options,
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        ...(csrfCookie && ["POST", "PUT", "PATCH", "DELETE"].includes(method)
+          ? { "X-SNAKE-CSRF": decodeURIComponent(csrfCookie) }
+          : {}),
         ...options.headers
       }
     });
@@ -85,7 +92,7 @@ export default function Home() {
       throw new Error(detail);
     }
     return body;
-  }, [token]);
+  }, []);
 
   const loadWorkspace = useCallback(async (accessToken: string) => {
     const [currentUser, projectList] = await Promise.all([
@@ -436,11 +443,7 @@ export default function Home() {
   }
 
   useEffect(() => {
-    const saved = window.localStorage.getItem("snake_access_token");
-    if (!saved) return;
-    setToken(saved);
-    loadWorkspace(saved).catch(() => {
-      window.localStorage.removeItem("snake_access_token");
+    loadWorkspace("").catch(() => {
       setToken("");
       setUser(null);
       setProjects([]);
@@ -456,12 +459,11 @@ export default function Home() {
           method: "POST", body: JSON.stringify({ email, password })
         }, "");
       }
-      const result = await api("/api/v1/auth/login", {
+      await api("/api/v1/auth/login", {
         method: "POST", body: JSON.stringify({ email, password })
       }, "");
-      window.localStorage.setItem("snake_access_token", result.access_token);
-      setToken(result.access_token);
-      await loadWorkspace(result.access_token);
+      setToken("");
+      await loadWorkspace("");
       setPassword("");
       setMessage(authMode === "register" ? "Account created. Workspace ready." : "Signed in successfully.");
     } catch (err) {
@@ -492,8 +494,12 @@ export default function Home() {
     }
   }
 
-  function signOut() {
-    window.localStorage.removeItem("snake_access_token");
+  async function signOut() {
+    try {
+      await api("/api/v1/auth/logout", { method: "POST" }, "");
+    } catch {
+      // Clear local workspace even if the server-side logout request fails.
+    }
     setToken(""); setUser(null); setProjects([]); setSelectedProjectId(null); setTargets([]); setAuthorizations([]); setSnapshots([]); setSnapshotValidity({}); setAnalysisRuns([]); setSelectedAnalysisRunId(null); setCandidates([]); setPendingAuthorizations([]); setReviewNotes({}); setReviewScopes({}); setMessage(""); setError("");
   }
 

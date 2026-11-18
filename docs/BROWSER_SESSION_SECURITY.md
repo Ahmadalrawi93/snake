@@ -57,3 +57,16 @@ This intentionally invalidates stateless bearer tokens issued by older
 versions of `/auth/token`; API clients must authenticate again to obtain a
 registered token. This prevents an untracked legacy credential from bypassing
 server-side revocation.
+
+
+## Credential inventory
+
+Authenticated users can list active browser sessions with `GET /api/v1/auth/sessions`
+and revoke a specific owned session with
+`POST /api/v1/auth/sessions/{session_record_id}/revoke`. They can list active
+API tokens with `GET /api/v1/auth/api-tokens` and revoke a specific owned
+record with `POST /api/v1/auth/api-tokens/{token_record_id}/revoke`.
+Inventory responses expose only record IDs and timestamps; they never return
+JWTs, raw token identifiers, or stored digests. Lists are limited to the
+100 most recently created active records. Ownership is enforced in each
+database query.

@@ -8,9 +8,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_user
 from app.core.config import get_settings
-from app.core.security import (hash_password, verify_password, create_access_token, create_browser_session_token, token_id_digest, decode_access_token_claims)
+from app.core.security import (hash_password, verify_password, create_access_token, create_browser_session_token, create_api_access_token, token_id_digest, decode_access_token_claims)
 from app.db.database import get_db
-from app.db.models import User, UserSession
+from app.db.models import User, UserSession, ApiAccessToken
 
 router = APIRouter(prefix="/api/v1/auth", tags=["authentication"])
 
@@ -84,7 +84,14 @@ def issue_api_token(payload: LoginRequest, db: Session = Depends(get_db)):
     if user is None or not user.is_active or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Incorrect email or password",
                             headers={"WWW-Authenticate": "Bearer"})
-    return TokenResponse(access_token=create_access_token(str(user.id)))
+    access_token, token_id, expires_at = create_api_access_token(str(user.id))
+    db.add(ApiAccessToken(
+        user_id=user.id,
+        token_id_sha256=token_id_digest(token_id),
+        expires_at=expires_at,
+    ))
+    db.commit()
+    return TokenResponse(access_token=access_token)
 
 
 @router.get("/csrf")
@@ -141,6 +148,47 @@ def logout_all(response: Response, user: User = Depends(get_current_user),
     _clear_session_cookies(response)
     response.status_code = 204
     return response
+
+def _current_api_token(request: Request, user: User) -> str:
+    authorization = request.headers.get("authorization", "")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(status_code=400, detail="A bearer API token is required")
+    claims = decode_access_token_claims(token)
+    if not claims or claims.get("token_use") != "api_access" or claims.get("sub") != str(user.id):
+        raise HTTPException(status_code=400, detail="Current credential is not an API access token")
+    token_id = claims.get("jti")
+    if not isinstance(token_id, str):
+        raise HTTPException(status_code=400, detail="API token identifier is missing")
+    return token_id
+
+
+@router.post("/api-tokens/revoke", status_code=204)
+def revoke_api_token(request: Request, user: User = Depends(get_current_user),
+                     db: Session = Depends(get_db)):
+    token_id = _current_api_token(request, user)
+    record = db.query(ApiAccessToken).filter(
+        ApiAccessToken.user_id == user.id,
+        ApiAccessToken.token_id_sha256 == token_id_digest(token_id),
+        ApiAccessToken.revoked_at.is_(None),
+    ).first()
+    if record is not None:
+        record.revoked_at = datetime.now(timezone.utc)
+        db.commit()
+    return Response(status_code=204)
+
+
+@router.post("/api-tokens/revoke-all", status_code=204)
+def revoke_all_api_tokens(request: Request, user: User = Depends(get_current_user),
+                          db: Session = Depends(get_db)):
+    _current_api_token(request, user)
+    db.query(ApiAccessToken).filter(
+        ApiAccessToken.user_id == user.id,
+        ApiAccessToken.revoked_at.is_(None),
+    ).update({ApiAccessToken.revoked_at: datetime.now(timezone.utc)}, synchronize_session=False)
+    db.commit()
+    return Response(status_code=204)
+
 
 @router.get("/me", response_model=UserResponse)
 def me(user: User = Depends(get_current_user)):

@@ -44,13 +44,24 @@ working dashboard actions until their workflows are explicitly connected. A
 scope snapshot is an authorization boundary record, not a scan command; its
 execution flag remains disabled.
 
-## Security note
+## Session and CSRF security
 
-The current local dashboard stores its short-lived bearer access token in
-browser local storage. This is acceptable only as a development-stage
-implementation; it is accessible to same-origin JavaScript and must be replaced
-with a server-managed HttpOnly, Secure, SameSite cookie session before a
-production deployment. Use HTTPS and a strong backend JWT secret outside local
-development.
+The dashboard authenticates with a server-set HttpOnly session cookie; it does
+not persist bearer tokens in local or session storage. The backend also sets a
+separate readable CSRF cookie. For state-changing requests, the dashboard sends
+that value in the configured CSRF header. The backend checks the header/cookie
+match and requires an exact allowed Origin.
+
+For production, configure a strong random `SNAKE_JWT_SECRET_KEY`, set
+`SNAKE_ENVIRONMENT=production`, and set `SNAKE_SESSION_COOKIE_SECURE=true`.
+Use HTTPS. The backend refuses production startup when secure session cookies
+are disabled. Keep `SNAKE_SESSION_COOKIE_SAMESITE=lax` when the frontend and API
+are same-site; a genuinely cross-site deployment needs `none` plus Secure and
+a carefully reviewed origin/CSRF configuration.
+
+Bearer authentication remains supported for existing non-browser API clients.
+The login response still includes the legacy token during this compatibility
+period; browser code ignores it and uses the HttpOnly cookie. This compatibility
+response should be removed in a later breaking API version.
 
 - Project-scoped candidate similarity is shown as a human-review aid. Possible duplicates can be linked through the append-only lifecycle only after a reviewer records a matching `duplicate` decision; no automatic merge occurs.

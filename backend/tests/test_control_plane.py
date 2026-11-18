@@ -65,6 +65,7 @@ def test_users_can_list_and_revoke_individual_sessions_and_api_tokens():
     session_inventory = client.get("/api/v1/auth/sessions")
     assert session_inventory.status_code == 200
     assert len(session_inventory.json()) == 2
+    assert sum(1 for item in session_inventory.json() if item["is_current"]) == 1
     first_session_id = session_inventory.json()[-1]["id"]
 
     revoke_session = client.post(

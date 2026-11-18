@@ -24,9 +24,9 @@ app = FastAPI(title=settings.app_name, version="0.3.0",
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origin_list,
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_headers=["Content-Type", "Authorization", settings.csrf_header_name],
 )
 app.include_router(scope_router)
 app.include_router(auth_router)

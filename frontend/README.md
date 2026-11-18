@@ -66,6 +66,12 @@ configured CSRF header for state-changing requests. The backend checks the
 header/cookie match and requires an exact allowed Origin. This works when the
 frontend cannot directly read cookies scoped to a separate API host.
 
+For production, also configure `SNAKE_ALLOWED_HOSTS` with the exact API
+hostname(s), and `SNAKE_ALLOWED_ORIGINS` with exact HTTPS frontend origins.
+The backend rejects unlisted Host headers, caps HTTP request bodies (2 MiB by
+default), adds security response headers, and disables Swagger/ReDoc/OpenAPI
+routes in production. Evidence files have a separate decoded 1 MiB limit.
+
 For production, configure a strong random `SNAKE_JWT_SECRET_KEY`, set
 `SNAKE_ENVIRONMENT=production`, and set `SNAKE_SESSION_COOKIE_SECURE=true`.
 Use HTTPS. The backend refuses production startup when secure session cookies

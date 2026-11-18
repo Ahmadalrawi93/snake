@@ -51,22 +51,22 @@ def list_evaluations(
     db: Session = Depends(get_db),
     actor: User = Depends(get_current_user),
 ):
-    record = db.query(AIAnalysisEvaluation).join(
-        Project, Project.id == AIAnalysisEvaluation.project_id
+    from app.db.models import AIAnalysisRun
+    owned_run = db.query(AIAnalysisRun.id, AIAnalysisRun.project_id).join(
+        Project, Project.id == AIAnalysisRun.project_id
+    ).filter(
+        AIAnalysisRun.id == analysis_run_id,
+        Project.owner_id == actor.id,
+    ).first()
+    if owned_run is None:
+        raise HTTPException(status_code=404, detail="Analysis run not found")
+
+    # Bind every evaluation to the same project as its parent run. This also
+    # prevents inconsistent legacy rows from crossing a tenant boundary.
+    return db.query(AIAnalysisEvaluation).join(
+        AIAnalysisRun, AIAnalysisRun.id == AIAnalysisEvaluation.analysis_run_id
     ).filter(
         AIAnalysisEvaluation.analysis_run_id == analysis_run_id,
-        Project.owner_id == actor.id,
+        AIAnalysisEvaluation.project_id == owned_run.project_id,
+        AIAnalysisRun.project_id == owned_run.project_id,
     ).order_by(AIAnalysisEvaluation.id.asc()).all()
-    if not record:
-        # Avoid leaking whether a run exists outside this user's project.
-        exists = db.query(AIAnalysisEvaluation.id).filter_by(analysis_run_id=analysis_run_id).first()
-        if exists is None:
-            # An empty list is valid only if the analysis run itself is owned.
-            from app.db.models import AIAnalysisRun
-            owned = db.query(AIAnalysisRun.id).join(Project).filter(
-                AIAnalysisRun.id == analysis_run_id, Project.owner_id == actor.id
-            ).first()
-            if owned:
-                return []
-        raise HTTPException(status_code=404, detail="Analysis run not found")
-    return record

@@ -513,6 +513,10 @@ class LocalReconRun(Base):
             "pages_requested >= 0 AND pages_requested <= 10",
             name="ck_local_recon_pages_requested",
         ),
+        CheckConstraint(
+            "observation_count >= 0 AND observation_count <= 250",
+            name="ck_local_recon_observation_count",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

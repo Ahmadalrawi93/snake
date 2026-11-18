@@ -22,6 +22,7 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").re
 
 export default function Home() {
   const [token, setToken] = useState("");
+  const [csrfToken, setCsrfToken] = useState("");
   const [user, setUser] = useState<User | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
@@ -71,17 +72,14 @@ export default function Home() {
   const [error, setError] = useState("");
 
   const api = useCallback(async (path: string, options: RequestInit = {}, _legacyAccessToken = "") => {
-    const csrfCookie = typeof document === "undefined"
-      ? ""
-      : document.cookie.split("; ").find(item => item.startsWith("snake_csrf="))?.split("=").slice(1).join("=") || "";
     const method = (options.method || "GET").toUpperCase();
     const response = await fetch(`${API_BASE}${path}`, {
       ...options,
       credentials: "include",
       headers: {
         "Content-Type": "application/json",
-        ...(csrfCookie && ["POST", "PUT", "PATCH", "DELETE"].includes(method)
-          ? { "X-SNAKE-CSRF": decodeURIComponent(csrfCookie) }
+        ...(csrfToken && ["POST", "PUT", "PATCH", "DELETE"].includes(method)
+          ? { "X-SNAKE-CSRF": csrfToken }
           : {}),
         ...options.headers
       }
@@ -92,7 +90,7 @@ export default function Home() {
       throw new Error(detail);
     }
     return body;
-  }, []);
+  }, [csrfToken]);
 
   const loadWorkspace = useCallback(async (accessToken: string) => {
     const [currentUser, projectList] = await Promise.all([
@@ -443,12 +441,16 @@ export default function Home() {
   }
 
   useEffect(() => {
-    loadWorkspace("").catch(() => {
+    api("/api/v1/auth/csrf", {}, "").then(result => {
+      setCsrfToken(result.csrf_token);
+      return loadWorkspace("");
+    }).catch(() => {
+      setCsrfToken("");
       setToken("");
       setUser(null);
       setProjects([]);
     });
-  }, [loadWorkspace]);
+  }, [api, loadWorkspace]);
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -459,9 +461,10 @@ export default function Home() {
           method: "POST", body: JSON.stringify({ email, password })
         }, "");
       }
-      await api("/api/v1/auth/login", {
+      const session = await api("/api/v1/auth/login", {
         method: "POST", body: JSON.stringify({ email, password })
       }, "");
+      setCsrfToken(session.csrf_token);
       setToken("");
       await loadWorkspace("");
       setPassword("");
@@ -500,7 +503,7 @@ export default function Home() {
     } catch {
       // Clear local workspace even if the server-side logout request fails.
     }
-    setToken(""); setUser(null); setProjects([]); setSelectedProjectId(null); setTargets([]); setAuthorizations([]); setSnapshots([]); setSnapshotValidity({}); setAnalysisRuns([]); setSelectedAnalysisRunId(null); setCandidates([]); setPendingAuthorizations([]); setReviewNotes({}); setReviewScopes({}); setMessage(""); setError("");
+    setCsrfToken(""); setToken(""); setUser(null); setProjects([]); setSelectedProjectId(null); setTargets([]); setAuthorizations([]); setSnapshots([]); setSnapshotValidity({}); setAnalysisRuns([]); setSelectedAnalysisRunId(null); setCandidates([]); setPendingAuthorizations([]); setReviewNotes({}); setReviewScopes({}); setMessage(""); setError("");
   }
 
   return (

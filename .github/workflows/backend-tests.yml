@@ -31,6 +31,26 @@ jobs:
         env:
           SNAKE_DATABASE_URL: sqlite:///./migration-ci.db
         run: alembic upgrade head
+      - name: Validate production Compose security settings
+        env:
+          SNAKE_JWT_SECRET_KEY: ci-only-placeholder-secret-not-for-deployment
+          SNAKE_ALLOWED_ORIGINS: https://app.example.com
+        run: |
+          docker compose -f ../infrastructure/docker-compose.yml config --format json > /tmp/snake-compose.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          config = json.loads(Path("/tmp/snake-compose.json").read_text())
+          backend = config["services"]["backend"]
+          environment = backend["environment"]
+          assert environment["SNAKE_ENVIRONMENT"] == "production"
+          assert environment["SNAKE_SESSION_COOKIE_SECURE"] == "true"
+          assert environment["SNAKE_ALLOWED_ORIGINS"] == "https://app.example.com"
+          assert backend["ports"][0]["host_ip"] == "127.0.0.1"
+          assert backend["ports"][0]["published"] == "8000"
+          print("production Compose security settings OK")
+          PY
       - name: Build validation-only worker image
         run: docker build -f worker.Dockerfile -t snake-worker-validator:test .
       - name: Smoke-test worker runtime imports

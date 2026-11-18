@@ -1,7 +1,7 @@
-"""Local, read-only MCP interface for the single-user SNAKE installation.
+"""Local MCP interface for the single-user SNAKE installation.
 
-The MCP process is intended to be launched by OpenCode over stdio. It does not
-listen on a network socket and does not perform target-network requests.
+The MCP process is launched by OpenCode over stdio. It has no network listener;
+its single bounded HTTP collection tool is constrained by active scope snapshots.
 """
 from __future__ import annotations
 
@@ -74,7 +74,7 @@ def _snapshot_status(db: Session, snapshot: ScopeSnapshot, operator_id: int) -> 
         data = {}
         reasons.append("snapshot_integrity_mismatch")
 
-    if snapshot.status != "active":
+    if snapshot.status != "active" or snapshot.revoked_at is not None:
         reasons.append("snapshot_not_active")
     if data.get("execution_enabled") is not False:
         reasons.append("unexpected_snapshot_execution_flag")

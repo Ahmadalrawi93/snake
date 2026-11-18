@@ -57,6 +57,11 @@ def _json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"), default=str)
 
 
+def _redact_url_query(value: str) -> str:
+    parsed = urlsplit(value)
+    return parsed._replace(query="", fragment="").geturl()
+
+
 def _snapshot_status(db: Session, snapshot: ScopeSnapshot, operator_id: int) -> dict[str, Any]:
     reasons: list[str] = []
     project = db.query(Project).filter_by(
@@ -179,7 +184,7 @@ def snake_list_authorized_targets(project_id: int) -> str:
             seen.add(target.id)
             result.append({
                 "target_id": target.id,
-                "target": target.value,
+                "target": _redact_url_query(target.value) if target.target_type == "url" else target.value,
                 "target_type": target.target_type,
                 "scope_snapshot_id": snapshot.id,
                 "scope_snapshot_sha256": snapshot.sha256,
@@ -424,7 +429,7 @@ def snake_collect_http(target_id: int, scope_snapshot_id: int, max_pages: int = 
             "scope_snapshot_id": run.scope_snapshot_id,
             "pages_requested": run.pages_requested,
             "observation_count": run.observation_count,
-            "skipped": list(report.skipped)[:20] if report else [],
+            "skipped": [(_redact_url_query(url), reason) for url, reason in report.skipped[:20]] if report else [],
             "error": collection_error,
             "execution_enabled": False,
             "note": "Metadata-only evidence; response bodies and cookie values are never stored.",

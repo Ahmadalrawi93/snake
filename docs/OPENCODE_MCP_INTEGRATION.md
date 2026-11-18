@@ -95,10 +95,11 @@ HTTP metadata collector:
   origin, and limited to three hops.
 - HTML discovery is same-origin only and bounded to at most 10 pages per run.
 - One-second minimum interval between requests to the same host within the
-  local MCP process; five-second socket timeout; response bodies capped at
-  256 KiB and never persisted.
+  local MCP process and a persisted 30-second cooldown per target; five-second
+  socket timeout; response bodies capped at 256 KiB and never persisted.
 - Only selected response headers and metadata are stored. Set-Cookie values
-  are redacted; Location values are used for redirect decisions but not stored.
+  and URL query values are redacted; Location values are used for redirect
+  decisions but not stored.
 - Every run is persisted separately from worker scan jobs and has an audit
   event. All observations remain unconfirmed and signal severity stays
   unassessed.

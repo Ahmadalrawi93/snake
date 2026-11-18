@@ -114,6 +114,14 @@ class _PinnedHTTPSConnection(_PinnedHTTPConnection):
             raise
 
 
+def _origin(url: str) -> tuple[str, str, int]:
+    parsed = urlsplit(url)
+    scheme = parsed.scheme.lower()
+    host = (parsed.hostname or "").lower().rstrip(".")
+    port = parsed.port or (443 if scheme == "https" else 80)
+    return scheme, host, port
+
+
 def _safe_url(url: str, policy: ScopePolicy) -> tuple[str, str, int, str]:
     decision = policy.check_url(url)
     if not decision.allowed or not decision.hostname:
@@ -222,6 +230,8 @@ def collect_http(
     initial, initial_host, _port, _path = _safe_url(target_url, policy)
     queue = [initial]
     visited: set[str] = set()
+    redirect_hops = 0
+    initial_origin = _origin(initial)
     observations: list[HttpObservation] = []
     skipped: list[tuple[str, str]] = []
 
@@ -244,9 +254,10 @@ def collect_http(
             redirect = urljoin(current, location)
             try:
                 _normalized, redirect_host, _p, _path = _safe_url(redirect, policy)
-                if redirect_host != initial_host:
-                    skipped.append((redirect, "cross_host_redirect_skipped"))
-                elif len(visited) <= MAX_REDIRECTS:
+                if _origin(redirect) != initial_origin:
+                    skipped.append((redirect, "cross_origin_redirect_skipped"))
+                elif redirect_hops < MAX_REDIRECTS:
+                    redirect_hops += 1
                     queue.insert(0, redirect)
                 else:
                     skipped.append((redirect, "redirect_limit_reached"))
@@ -269,7 +280,8 @@ def collect_http(
                 parsed_candidate = urlsplit(normalized)
                 parsed_initial = urlsplit(initial)
                 if (
-                    candidate_host == initial_host
+                    _origin(normalized) == initial_origin
+                    and candidate_host == initial_host
                     and parsed_candidate.scheme == parsed_initial.scheme
                     and normalized not in visited
                     and normalized not in queue

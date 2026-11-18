@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta, timezone
+import hashlib
+import secrets
 import jwt
 from pwdlib import PasswordHash
 from app.core.config import get_settings
@@ -25,3 +27,33 @@ def decode_access_token(token: str) -> str | None:
         return subject if isinstance(subject, str) else None
     except jwt.PyJWTError:
         return None
+
+
+def create_browser_session_token(subject: str) -> tuple[str, str, datetime]:
+    """Create a JWT with a unique jti for server-side revocation."""
+    settings = get_settings()
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(minutes=settings.access_token_minutes)
+    token_id = secrets.token_urlsafe(32)
+    payload = {
+        "sub": subject,
+        "iat": now,
+        "exp": expires_at,
+        "jti": token_id,
+        "token_use": "browser_session",
+    }
+    return jwt.encode(payload, settings.jwt_secret_key, algorithm=ALGORITHM), token_id, expires_at
+
+
+def decode_access_token_claims(token: str) -> dict | None:
+    try:
+        payload = jwt.decode(token, get_settings().jwt_secret_key, algorithms=[ALGORITHM])
+        if not isinstance(payload, dict):
+            return None
+        return payload
+    except jwt.PyJWTError:
+        return None
+
+
+def token_id_digest(token_id: str) -> str:
+    return hashlib.sha256(token_id.encode("utf-8")).hexdigest()

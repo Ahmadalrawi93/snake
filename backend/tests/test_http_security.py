@@ -2,6 +2,7 @@ import asyncio
 
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.core.http_security import RequestBodyLimitMiddleware, SecurityHeadersMiddleware
 
@@ -79,3 +80,18 @@ def test_request_body_limit_rejects_chunked_body_without_content_length():
     ))
     assert response_messages[0]["status"] == 413
     assert b"Request body too large" in response_messages[1]["body"]
+
+
+def test_trusted_host_middleware_rejects_unlisted_host_header():
+    app = FastAPI()
+
+    @app.get("/")
+    def root():
+        return {"ok": True}
+
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=["api.example.com"])
+    client = TestClient(app)
+    denied = client.get("/", headers={"Host": "attacker.example"})
+    assert denied.status_code == 400
+    accepted = client.get("/", headers={"Host": "api.example.com"})
+    assert accepted.status_code == 200

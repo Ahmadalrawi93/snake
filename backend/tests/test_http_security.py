@@ -28,6 +28,7 @@ def test_security_headers_are_applied_and_hsts_is_production_only():
     production_response = TestClient(production_app).get("/")
     assert production_response.headers["strict-transport-security"] == "max-age=63072000; includeSubDomains"
     assert "default-src 'none'" in production_response.headers["content-security-policy"]
+    assert "default-src 'none'" in production_response.headers["content-security-policy"]
 
 
 def test_request_body_limit_rejects_declared_oversized_body():

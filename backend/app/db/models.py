@@ -6,6 +6,21 @@ from app.db.database import Base
 def utcnow():
     return datetime.now(timezone.utc)
 
+class UserSession(Base):
+    """Revocable browser session; only a digest of the JWT jti is stored."""
+    __tablename__ = "user_sessions"
+    __table_args__ = (
+        UniqueConstraint("token_id_sha256", name="uq_user_sessions_token_digest"),
+        CheckConstraint("length(token_id_sha256) = 64", name="ck_user_sessions_token_digest_length"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    token_id_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

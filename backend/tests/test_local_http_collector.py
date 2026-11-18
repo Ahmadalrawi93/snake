@@ -69,6 +69,7 @@ def test_collector_follows_only_same_host_links(local_server):
         ["127.0.0.1"],
         max_pages=5,
         allow_private_networks=True,
+        allow_nonstandard_ports=True,
     )
     assert [item.status_code for item in report.observations] == [200, 200]
     assert report.pages_requested == 2
@@ -76,7 +77,7 @@ def test_collector_follows_only_same_host_links(local_server):
 
 
 def test_collector_refuses_non_public_dns_by_default(local_server):
-    report = collect_http(local_server, ["127.0.0.1"], max_pages=1)
+    report = collect_http(local_server, ["127.0.0.1"], max_pages=1, allow_nonstandard_ports=True)
     assert report.pages_requested == 0
     assert report.skipped[0][1] == "dns_resolved_to_non_public_address"
 
@@ -87,6 +88,7 @@ def test_collector_does_not_follow_out_of_scope_redirect(local_server):
         ["127.0.0.1"],
         max_pages=3,
         allow_private_networks=True,
+        allow_nonstandard_ports=True,
     )
     assert len(report.observations) == 1
     assert report.observations[0].status_code == 302
@@ -100,6 +102,7 @@ def test_collector_caps_response_body(local_server):
         max_pages=1,
         max_body_bytes=1024,
         allow_private_networks=True,
+        allow_nonstandard_ports=True,
     )
     assert report.pages_requested == 1
     assert report.observations[0].body_bytes == 1024
@@ -117,7 +120,15 @@ def test_collector_redacts_cookie_values(local_server):
         ["127.0.0.1"],
         max_pages=1,
         allow_private_networks=True,
+        allow_nonstandard_ports=True,
     )
     cookie = next(value for name, value in report.observations[0].headers if name == "set-cookie")
     assert cookie == "session=<redacted>; HttpOnly"
     assert "super-secret-value" not in cookie
+
+
+def test_collector_rejects_nonstandard_ports_by_default():
+    from app.core.local_http_collector import CollectionError
+
+    with pytest.raises(CollectionError, match="unsupported_target_port"):
+        collect_http("https://example.com:8443", ["example.com"], max_pages=1)

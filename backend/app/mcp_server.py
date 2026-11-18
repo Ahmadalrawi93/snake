@@ -70,8 +70,19 @@ def _snapshot_status(db: Session, snapshot: ScopeSnapshot, operator_id: int) -> 
 
     if snapshot.status != "active":
         reasons.append("snapshot_not_active")
-    auth = db.get(Authorization, snapshot.authorization_id)
+    if data.get("execution_enabled") is not False:
+        reasons.append("unexpected_snapshot_execution_flag")
     now = datetime.now(timezone.utc)
+    if snapshot.expires_at:
+        try:
+            snapshot_expiry = datetime.fromisoformat(snapshot.expires_at.replace("Z", "+00:00"))
+            if snapshot_expiry.tzinfo is None:
+                snapshot_expiry = snapshot_expiry.replace(tzinfo=timezone.utc)
+            if now >= snapshot_expiry.astimezone(timezone.utc):
+                reasons.append("authorization_expired")
+        except ValueError:
+            reasons.append("invalid_snapshot_expiry")
+    auth = db.get(Authorization, snapshot.authorization_id)
     if auth is None or auth.project_id != snapshot.project_id or auth.status != "approved":
         reasons.append("authorization_not_approved")
     else:

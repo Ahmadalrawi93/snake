@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     api_host: str = "127.0.0.1"
     api_port: int = 8000
     allowed_origins: str = "http://localhost:3000"
+    allowed_hosts: str = "localhost,127.0.0.1,testserver"
+    max_request_body_bytes: int = 2097152
     scope_allowlist: str = ""
     database_url: str = "sqlite:///./snake.db"
     jwt_secret_key: str = "CHANGE_ME_FOR_LOCAL_DEVELOPMENT_ONLY"
@@ -26,6 +28,38 @@ class Settings(BaseSettings):
         if self.environment.lower() in {"production", "prod"}:
             if self.jwt_secret_key == "CHANGE_ME_FOR_LOCAL_DEVELOPMENT_ONLY" or len(self.jwt_secret_key) < 32:
                 raise ValueError("SNAKE_JWT_SECRET_KEY must be a random secret of at least 32 characters in production")
+        return self
+
+    @model_validator(mode="after")
+    def validate_request_limits(self):
+        if self.max_request_body_bytes < 1024 or self.max_request_body_bytes > 10 * 1024 * 1024:
+            raise ValueError("SNAKE_MAX_REQUEST_BODY_BYTES must be between 1024 and 10485760")
+        return self
+
+    @model_validator(mode="after")
+    def validate_production_hosts(self):
+        if self.environment.lower() in {"production", "prod"}:
+            hosts = self.allowed_host_list
+            if not hosts:
+                raise ValueError("SNAKE_ALLOWED_HOSTS must contain exact production hostnames")
+            for host in hosts:
+                if "*" in host:
+                    raise ValueError("Wildcard allowed hosts are forbidden in production")
+                parsed = urlsplit("//" + host)
+                try:
+                    parsed.port
+                except ValueError as exc:
+                    raise ValueError("Production allowed hosts must use valid ports") from exc
+                if (
+                    not parsed.hostname
+                    or parsed.username is not None
+                    or parsed.password is not None
+                    or parsed.path
+                    or parsed.query
+                    or parsed.fragment
+                    or parsed.hostname in {"localhost", "127.0.0.1", "::1"}
+                ):
+                    raise ValueError("Production allowed hosts must be exact hostnames without schemes or paths")
         return self
 
     @model_validator(mode="after")
@@ -64,6 +98,10 @@ class Settings(BaseSettings):
         if self.environment.lower() in {"production", "prod"} and not self.session_cookie_secure:
             raise ValueError("SNAKE_SESSION_COOKIE_SECURE must be true in production")
         return self
+
+    @property
+    def allowed_host_list(self) -> list[str]:
+        return [item.strip().lower() for item in self.allowed_hosts.split(",") if item.strip()]
 
     @property
     def allowed_origin_list(self) -> list[str]:

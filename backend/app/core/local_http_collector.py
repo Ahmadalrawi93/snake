@@ -136,7 +136,8 @@ def _safe_url(url: str, policy: ScopePolicy, *, allow_nonstandard_ports: bool = 
     scheme = parsed.scheme.lower()
     host = decision.hostname
     port = parsed.port or (443 if scheme == "https" else 80)
-    if port not in {80, 443} and not allow_nonstandard_ports:
+    expected_port = 443 if scheme == "https" else 80
+    if port != expected_port and not allow_nonstandard_ports:
         raise CollectionError("unsupported_target_port")
     path = parsed.path or "/"
     if parsed.query:
@@ -214,8 +215,9 @@ def _request_once(url: str, policy: ScopePolicy, *, timeout: float,
                 for name, value in headers
             )
             content_type = next((v for k, v in headers if k == "content-type"), "")
+            evidence_url = urlunsplit((parsed.scheme, parsed.netloc, parsed.path or "/", "", ""))
             observation = HttpObservation(
-                url=normalized,
+                url=evidence_url,
                 status_code=response.status,
                 content_type=content_type[:200],
                 body_bytes=min(len(body), max_body_bytes),

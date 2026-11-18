@@ -44,6 +44,15 @@ working dashboard actions until their workflows are explicitly connected. A
 scope snapshot is an authorization boundary record, not a scan command; its
 execution flag remains disabled.
 
+## Account security
+
+Authenticated users can change their password from the Account Security panel.
+The current password is verified, the new password must contain at least 12
+characters, and the backend revokes all active browser sessions and API tokens
+when the password is changed. The dashboard clears its local workspace and
+requires a fresh sign-in. Forgotten-password recovery is not exposed until a
+verified email delivery and single-use reset-token flow are implemented.
+
 ## Session and CSRF security
 
 The dashboard authenticates with a server-set HttpOnly session cookie; it does

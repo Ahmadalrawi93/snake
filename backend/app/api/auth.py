@@ -163,6 +163,73 @@ def _current_api_token(request: Request, user: User) -> str:
     return token_id
 
 
+@router.get("/sessions")
+def list_active_sessions(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    now = datetime.now(timezone.utc)
+    records = db.query(UserSession).filter(
+        UserSession.user_id == user.id,
+        UserSession.revoked_at.is_(None),
+        UserSession.expires_at > now,
+    ).order_by(UserSession.created_at.desc()).limit(100).all()
+    return [{
+        "id": record.id,
+        "created_at": record.created_at,
+        "expires_at": record.expires_at,
+    } for record in records]
+
+
+@router.post("/sessions/{session_record_id}/revoke", status_code=204)
+def revoke_session_by_id(session_record_id: int, request: Request, response: Response,
+                          user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    record = db.query(UserSession).filter(
+        UserSession.id == session_record_id,
+        UserSession.user_id == user.id,
+        UserSession.revoked_at.is_(None),
+    ).first()
+    if record is None:
+        raise HTTPException(status_code=404, detail="Active session not found")
+    record.revoked_at = datetime.now(timezone.utc)
+    db.commit()
+    cookie_token = request.cookies.get(get_settings().session_cookie_name)
+    claims = decode_access_token_claims(cookie_token) if cookie_token else None
+    token_id = claims.get("jti") if claims else None
+    if isinstance(token_id, str) and token_id_digest(token_id) == record.token_id_sha256:
+        _clear_session_cookies(response)
+        response.status_code = 204
+        return response
+    return Response(status_code=204)
+
+
+@router.get("/api-tokens")
+def list_active_api_tokens(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    now = datetime.now(timezone.utc)
+    records = db.query(ApiAccessToken).filter(
+        ApiAccessToken.user_id == user.id,
+        ApiAccessToken.revoked_at.is_(None),
+        ApiAccessToken.expires_at > now,
+    ).order_by(ApiAccessToken.created_at.desc()).limit(100).all()
+    return [{
+        "id": record.id,
+        "created_at": record.created_at,
+        "expires_at": record.expires_at,
+    } for record in records]
+
+
+@router.post("/api-tokens/{token_record_id}/revoke", status_code=204)
+def revoke_api_token_by_id(token_record_id: int, user: User = Depends(get_current_user),
+                           db: Session = Depends(get_db)):
+    record = db.query(ApiAccessToken).filter(
+        ApiAccessToken.id == token_record_id,
+        ApiAccessToken.user_id == user.id,
+        ApiAccessToken.revoked_at.is_(None),
+    ).first()
+    if record is None:
+        raise HTTPException(status_code=404, detail="Active API token not found")
+    record.revoked_at = datetime.now(timezone.utc)
+    db.commit()
+    return Response(status_code=204)
+
+
 @router.post("/api-tokens/revoke", status_code=204)
 def revoke_api_token(request: Request, user: User = Depends(get_current_user),
                      db: Session = Depends(get_db)):

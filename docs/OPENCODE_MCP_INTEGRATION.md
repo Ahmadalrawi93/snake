@@ -2,10 +2,11 @@
 
 ## Current implementation
 
-SNAKE now includes a **read-only local MCP server** at `app.mcp_server`.
-OpenCode is the MCP client/host; SNAKE exposes the tools. The server uses
-MCP over standard input/output (stdio), does not open a TCP listener, and
-does not make target-network requests.
+SNAKE includes a local MCP server at `app.mcp_server`. OpenCode is the MCP
+client/host; SNAKE exposes the tools. The server uses MCP over standard
+input/output (stdio) and does not open a TCP listener. Most tools are
+read-only; one explicit tool performs bounded, unauthenticated HTTP GET
+collection against a currently approved target.
 
 The initial tools are deliberately limited:
 
@@ -17,6 +18,10 @@ The initial tools are deliberately limited:
 - `snake_get_job_observations`: read stored, unconfirmed worker observations.
 - `snake_get_security_signals`: run the existing deterministic signal engine
   over stored observations.
+- `snake_collect_http`: collect a bounded same-origin set of HTTP pages for a
+  target ID and active scope-snapshot ID; the model cannot supply a URL.
+- `snake_get_local_recon_evidence`: read persisted, redacted metadata and
+  deterministic security signals from a local collection run.
 
 All project, job, and evidence reads are constrained to the operator ID
 configured for this local MCP process. The process fails closed if
@@ -63,22 +68,43 @@ credentials in tool arguments.
 - The configured user ID is trusted local configuration. Anyone able to edit
   the OpenCode configuration or launch environment as that OS user is inside
   this local trust boundary.
-- The initial MCP surface is read-only. It has no arbitrary URL, shell,
-  filesystem, exploit, or target-request tool.
+- There is no arbitrary URL, shell, filesystem, exploit, or arbitrary-request
+  tool. The sole network-capable tool resolves the target from an owned,
+  currently valid scope snapshot.
 - Scope snapshots are revalidated against project ownership, snapshot digest,
   authorization state/window/rules, and the current target before a target is
   listed as authorized.
 - Evidence is returned as unconfirmed observations. Security signals are
   leads requiring independent validation, not findings.
-- Existing scan jobs remain persisted records; this MCP release does not make
-  queued jobs execute.
+- The existing worker scan-job queue remains non-executable. Local recon runs
+  are stored separately and never set worker execution flags.
 
-## Next engineering milestone
+## Local HTTP collection boundary
 
-Add a bounded local HTTP collector behind a separate explicit tool only after
-implementing and testing per-request scope checks, redirect revalidation,
-DNS/IP destination controls, response-size/time limits, and audit records.
-The model must never supply an unrestricted URL or shell command. The collector
-must resolve its destination from a currently valid approved target/snapshot
-and remain limited to low-impact collection. Until that work and local-lab
-tests are complete, SNAKE does not perform live reconnaissance.
+The first live-collection milestone is implemented as a deliberately small
+HTTP metadata collector:
+
+- GET only; no authentication, cookies, forms, POST, payloads, fuzzing, or
+  brute force.
+- Starts from a target ID plus its active snapshot ID; the model never passes
+  an arbitrary URL.
+- Only HTTP/HTTPS on ports 80 and 443. DNS results must all be globally
+  routable; the socket connects to the validated, pinned IP while HTTPS keeps
+  normal certificate and hostname verification.
+- Redirects are manually handled, revalidated, restricted to the exact original
+  origin, and limited to three hops.
+- HTML discovery is same-origin only and bounded to at most 10 pages per run.
+- One-second minimum interval between requests to the same host within the
+  local MCP process; five-second socket timeout; response bodies capped at
+  256 KiB and never persisted.
+- Only selected response headers and metadata are stored. Set-Cookie values
+  are redacted; Location values are used for redirect decisions but not stored.
+- Every run is persisted separately from worker scan jobs and has an audit
+  event. All observations remain unconfirmed and signal severity stays
+  unassessed.
+
+The collector is a low-impact reconnaissance primitive, not a vulnerability
+scanner. It does not prove that a discovered path is accessible or vulnerable.
+Its network controls have unit coverage against a local test server; a full
+end-to-end SNAKE/OpenCode lab run is still required before describing the
+workflow as ready for operational bug bounty use.

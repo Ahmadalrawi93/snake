@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_user
 from app.core.config import get_settings
+from app.core.auth_rate_limit import assert_auth_not_blocked, record_failed_auth_attempt, clear_auth_failures
 from app.core.security import (hash_password, verify_password, create_browser_session_token, create_api_access_token, token_id_digest, decode_access_token_claims)
 from app.db.database import get_db
 from app.db.models import User, UserSession, ApiAccessToken, AuditEvent
@@ -53,10 +54,13 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
 @router.post("/login", response_model=SessionResponse)
 def login(payload: LoginRequest, response: Response, db: Session = Depends(get_db)):
     email = str(payload.email).lower()
+    assert_auth_not_blocked(db, email)
     user = db.scalar(select(User).where(User.email == email))
     if user is None or not user.is_active or not verify_password(payload.password, user.password_hash):
+        record_failed_auth_attempt(db, email)
         raise HTTPException(status_code=401, detail="Incorrect email or password",
                             headers={"WWW-Authenticate": "Bearer"})
+    clear_auth_failures(db, email)
     settings = get_settings()
     access_token, token_id, expires_at = create_browser_session_token(str(user.id))
     csrf_token = secrets.token_urlsafe(32)
@@ -85,10 +89,13 @@ def login(payload: LoginRequest, response: Response, db: Session = Depends(get_d
 def issue_api_token(payload: LoginRequest, db: Session = Depends(get_db)):
     """Issue a bearer token for non-browser API clients; browser login uses HttpOnly cookies."""
     email = str(payload.email).lower()
+    assert_auth_not_blocked(db, email)
     user = db.scalar(select(User).where(User.email == email))
     if user is None or not user.is_active or not verify_password(payload.password, user.password_hash):
+        record_failed_auth_attempt(db, email)
         raise HTTPException(status_code=401, detail="Incorrect email or password",
                             headers={"WWW-Authenticate": "Bearer"})
+    clear_auth_failures(db, email)
     access_token, token_id, expires_at = create_api_access_token(str(user.id))
     db.add(ApiAccessToken(
         user_id=user.id,

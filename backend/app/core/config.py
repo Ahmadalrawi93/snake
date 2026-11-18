@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     scope_allowlist: str = ""
     database_url: str = "sqlite:///./snake.db"
     jwt_secret_key: str = "CHANGE_ME_FOR_LOCAL_DEVELOPMENT_ONLY"
+    jwt_previous_secret_keys: str = ""
     access_token_minutes: int = 30
     session_cookie_name: str = "snake_session"
     csrf_cookie_name: str = "snake_csrf"
@@ -28,6 +29,18 @@ class Settings(BaseSettings):
         if self.environment.lower() in {"production", "prod"}:
             if self.jwt_secret_key == "CHANGE_ME_FOR_LOCAL_DEVELOPMENT_ONLY" or len(self.jwt_secret_key) < 32:
                 raise ValueError("SNAKE_JWT_SECRET_KEY must be a random secret of at least 32 characters in production")
+        return self
+
+    @model_validator(mode="after")
+    def validate_jwt_rotation_keys(self):
+        previous = self.jwt_previous_secret_list
+        if len(previous) != len(set(previous)):
+            raise ValueError("SNAKE_JWT_PREVIOUS_SECRET_KEYS must not contain duplicates")
+        if self.jwt_secret_key in previous:
+            raise ValueError("SNAKE_JWT_PREVIOUS_SECRET_KEYS must not repeat the active key")
+        if self.environment.lower() in {"production", "prod"}:
+            if any(len(key) < 32 for key in previous):
+                raise ValueError("Every previous production JWT secret must be at least 32 characters")
         return self
 
     @model_validator(mode="after")
@@ -98,6 +111,10 @@ class Settings(BaseSettings):
         if self.environment.lower() in {"production", "prod"} and not self.session_cookie_secure:
             raise ValueError("SNAKE_SESSION_COOKIE_SECURE must be true in production")
         return self
+
+    @property
+    def jwt_previous_secret_list(self) -> list[str]:
+        return [item.strip() for item in self.jwt_previous_secret_keys.split(",") if item.strip()]
 
     @property
     def allowed_host_list(self) -> list[str]:

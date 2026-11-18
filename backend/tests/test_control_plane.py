@@ -221,6 +221,8 @@ def test_password_change_revokes_all_sessions_and_api_tokens():
         json={"email": payload["email"], "password": new_password},
     )
     assert new_login.status_code == 200
+    audit_events = client.get("/api/v1/audit").json()
+    assert any(item["action"] == "auth.password.changed" for item in audit_events)
     client.cookies.clear()
 
 

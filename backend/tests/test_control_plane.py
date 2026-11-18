@@ -25,7 +25,7 @@ def register_and_auth(email="tester@example.org"):
     response = client.post("/api/v1/auth/register",
         json={"email": email, "password": "a-strong-test-password-123"})
     assert response.status_code == 201
-    login = client.post("/api/v1/auth/login",
+    login = client.post("/api/v1/auth/token",
         json={"email": email, "password": "a-strong-test-password-123"})
     assert login.status_code == 200
     headers = {"Authorization": f"Bearer {login.json()['access_token']}"}

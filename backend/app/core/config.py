@@ -43,7 +43,7 @@ class Settings(BaseSettings):
                     or not parsed.netloc
                     or parsed.username is not None
                     or parsed.password is not None
-                    or parsed.path not in {"", "/"}
+                    or parsed.path != ""
                     or parsed.query
                     or parsed.fragment
                     or parsed.hostname in {"localhost", "127.0.0.1", "::1"}

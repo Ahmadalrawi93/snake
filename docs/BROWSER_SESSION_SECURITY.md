@@ -101,19 +101,20 @@ revocation. Bulk events include only the number of records revoked.
 ## Failed password-attempt throttling
 
 Browser password login and non-browser API-token issuance share a persistent
-account-level failed-attempt bucket. Eight failed password checks within a
+failed-attempt bucket scoped to the normalized account email and the server-observed
+client address. Eight failed password checks within a
 15-minute window trigger a 15-minute temporary block. The same generic
 credential error is returned for unknown email addresses and incorrect
 passwords; an active block returns HTTP 429 with a `Retry-After` header.
 A successful password authentication clears the account's failure bucket.
 
-The bucket key is an HMAC digest derived from the normalized email and the
-server secret. Raw email addresses and passwords are not stored in the
-throttling table. Updates use database-native atomic upserts for SQLite and
+The bucket key is an HMAC digest derived from the normalized email, the
+server-observed client address, and the server secret. Raw email addresses,
+client addresses, and passwords are not stored in the throttling table. Updates use database-native atomic upserts for SQLite and
 PostgreSQL, so counters are not dependent on a single application process.
 Old buckets are opportunistically pruned after seven days.
 
-This is an account-level control, not a substitute for edge/WAF controls,
+This per-account/per-source control is not a substitute for edge/WAF controls,
 credential-stuffing detection, or trusted-proxy IP throttling. Deployments
 should add network-level rate limits at their reverse proxy and must not trust
 client-supplied forwarding headers unless they are overwritten by a trusted

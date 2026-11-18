@@ -42,8 +42,14 @@ def read_candidate_lifecycle(candidate_id: int, db: Session = Depends(get_db),
         candidate = _owned_candidate(db, candidate_id, actor)
     except LookupError:
         raise HTTPException(status_code=404, detail="Candidate not found")
-    from app.db.models import FindingLifecycleEvent
-    events = db.query(FindingLifecycleEvent).filter_by(candidate_id=candidate.id).order_by(FindingLifecycleEvent.id.asc()).all()
+    from app.db.models import FindingLifecycleEvent, Project
+    events = db.query(FindingLifecycleEvent).join(
+        Project, Project.id == FindingLifecycleEvent.project_id
+    ).filter(
+        FindingLifecycleEvent.candidate_id == candidate.id,
+        FindingLifecycleEvent.project_id == candidate.project_id,
+        Project.owner_id == actor.id,
+    ).order_by(FindingLifecycleEvent.id.asc()).all()
     return {"candidate_id": candidate.id, "current_status": current_finding_status(db, candidate.id), "events": [FindingLifecycleRead.model_validate(e) for e in events]}
 
 
@@ -70,12 +76,18 @@ def upload_evidence(candidate_id: int, payload: EvidenceArtifactCreate,
 def list_evidence(candidate_id: int, db: Session = Depends(get_db),
                   actor: User = Depends(get_current_user)):
     from app.core.finding_lifecycle import _owned_candidate
-    from app.db.models import EvidenceArtifact
+    from app.db.models import EvidenceArtifact, Project
     try:
         candidate = _owned_candidate(db, candidate_id, actor)
     except LookupError:
         raise HTTPException(status_code=404, detail="Candidate not found")
-    return db.query(EvidenceArtifact).filter_by(candidate_id=candidate.id).order_by(EvidenceArtifact.id.asc()).all()
+    return db.query(EvidenceArtifact).join(
+        Project, Project.id == EvidenceArtifact.project_id
+    ).filter(
+        EvidenceArtifact.candidate_id == candidate.id,
+        EvidenceArtifact.project_id == candidate.project_id,
+        Project.owner_id == actor.id,
+    ).order_by(EvidenceArtifact.id.asc()).all()
 
 
 @router.get("/finding-evidence/{artifact_id}/content")

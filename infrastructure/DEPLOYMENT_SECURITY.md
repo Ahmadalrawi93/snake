@@ -13,7 +13,8 @@ same private Compose network and publish only the proxy's TLS ports.
 
 Set these values in the deployment environment (do not commit secrets):
 
-- `SNAKE_JWT_SECRET_KEY`: cryptographically random secret, at least 32 characters.
+- `SNAKE_JWT_SECRET_KEY`: cryptographically random active signing secret, at least 32 characters.
+- `SNAKE_JWT_PREVIOUS_SECRET_KEYS`: optional comma-separated previous signing keys during a planned rotation; each must be at least 32 characters and no more than five may be retained.
 - `SNAKE_ALLOWED_HOSTS`: comma-separated exact API hostnames (for example `api.example.com`), without schemes, paths, wildcards, or localhost.
 - `SNAKE_MAX_REQUEST_BODY_BYTES`: API request-body cap; defaults to 2 MiB and is constrained to 1 KiB–10 MiB.
 - `SNAKE_ALLOWED_ORIGINS`: comma-separated exact HTTPS origins, without paths,

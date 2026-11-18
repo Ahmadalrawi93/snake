@@ -194,3 +194,33 @@ def test_candidate_similarity_rejects_tampered_candidate_evidence(candidate_deta
             f"/api/v1/projects/{candidate.project_id}/finding-candidates/{candidate.id}/similarity"
         )
     assert response.status_code == 409
+
+
+def test_candidate_similarity_compares_integrity_checked_records(candidate_detail_context):
+    db, _owner, _other, candidate = candidate_detail_context
+    qualification = json.loads(candidate.qualification_json)
+    qualification["candidate_fingerprint"] = "e" * 64
+    qualification["title"] = "Cross-account object access in another invoice"
+    second = FindingCandidateRecord(
+        analysis_run_id=candidate.analysis_run_id,
+        project_id=candidate.project_id,
+        created_by=candidate.created_by,
+        candidate_fingerprint="e" * 64,
+        qualification="human_review_candidate",
+        finding_status="unconfirmed",
+        evidence_bundle_sha256=candidate.evidence_bundle_sha256,
+        evidence_bundle_json=candidate.evidence_bundle_json,
+        qualification_json=canonical(qualification),
+        execution_enabled=False,
+    )
+    db.add(second)
+    db.commit()
+    with TestClient(app) as client:
+        response = client.get(
+            f"/api/v1/projects/{candidate.project_id}/finding-candidates/{candidate.id}/similarity"
+        )
+    assert response.status_code == 200, response.text
+    assert len(response.json()) == 1
+    assert response.json()[0]["disposition"] == "possible_duplicate"
+    assert response.json()[0]["auto_merge"] is False
+    assert response.json()[0]["requires_human_review"] is True

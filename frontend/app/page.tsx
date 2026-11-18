@@ -15,7 +15,8 @@ type LifecycleEvent = { id: number; from_status: string; to_status: string; rati
 type EvidenceArtifact = { id: number; filename: string; media_type: string; content_sha256: string; size_bytes: number; description: string; created_at: string };
 type HumanDecision = { id: number; candidate_fingerprint: string; outcome: string; evidence_sha256: string | null; validation_method: string; notes: string; created_at: string };
 type ImpactAssessmentRecord = { id: number; assessment_sha256: string; final_severity: "not_assessed"; cvss_vector: null; execution_enabled: false; assessment: { assessment_status: string; severity_suggestion: string; blockers: string[]; rationale: string[] }; created_at: string };
-type CandidateSimilarity = { candidate_fingerprint: string; compared_fingerprint: string; disposition: "exact_duplicate" | "possible_duplicate" | "distinct"; category_match: boolean; category_family_match: boolean; title_similarity: number; evidence_similarity: number; shared_observation_count: number; shared_route_count: number; rationale: string[]; requires_human_review: true; auto_merge: false };\ntype ReportPreview = { report: { title: string; severity: "not_assessed"; cvss_vector: null; confirmation_status: string; execution_enabled: false; requires_human_edit_and_independent_validation: true }; markdown: string };
+type CandidateSimilarity = { candidate_fingerprint: string; compared_fingerprint: string; disposition: "exact_duplicate" | "possible_duplicate" | "distinct"; category_match: boolean; category_family_match: boolean; title_similarity: number; evidence_similarity: number; shared_observation_count: number; shared_route_count: number; rationale: string[]; requires_human_review: true; auto_merge: false };
+type ReportPreview = { report: { title: string; severity: "not_assessed"; cvss_vector: null; confirmation_status: string; execution_enabled: false; requires_human_edit_and_independent_validation: true }; markdown: string };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
@@ -44,7 +45,8 @@ export default function Home() {
   const [impactScope, setImpactScope] = useState("unknown");
   const [impactSensitivity, setImpactSensitivity] = useState("unknown");
   const [impactStatement, setImpactStatement] = useState("");
-  const [reportPreview, setReportPreview] = useState<ReportPreview | null>(null);\n  const [candidateSimilarities, setCandidateSimilarities] = useState<CandidateSimilarity[]>([]);
+  const [reportPreview, setReportPreview] = useState<ReportPreview | null>(null);
+  const [candidateSimilarities, setCandidateSimilarities] = useState<CandidateSimilarity[]>([]);
   const [decisionOutcome, setDecisionOutcome] = useState("inconclusive");
   const [decisionMethod, setDecisionMethod] = useState("manual_reproduction");
   const [decisionNotes, setDecisionNotes] = useState("");
@@ -146,16 +148,18 @@ export default function Home() {
     setBusy(true); setError(""); setSelectedCandidate(null); setReportPreview(null);
     try {
       const detail = await api(`/api/v1/finding-candidates/${candidateId}`);
-      const [lifecycle, artifacts, impacts] = await Promise.all([
+      const [lifecycle, artifacts, impacts, similarities] = await Promise.all([
         api(`/api/v1/finding-candidates/${candidateId}/lifecycle`),
         api(`/api/v1/finding-candidates/${candidateId}/evidence`),
-        api(`/api/v1/finding-candidates/${candidateId}/impact-assessments`)
+        api(`/api/v1/finding-candidates/${candidateId}/impact-assessments`),
+        api(`/api/v1/projects/${detail.project_id}/finding-candidates/${candidateId}/similarity`)
       ]);
       const decisions = await api(`/api/v1/analysis-runs/${detail.analysis_run_id}/finding-decisions?candidate_fingerprint=${detail.candidate_fingerprint}`);
       setSelectedCandidate(detail);
       setLifecycleEvents(lifecycle.events || []);
       setEvidenceArtifacts(artifacts);
       setImpactAssessments(impacts);
+      setCandidateSimilarities(similarities);
       setDecisionEvidenceSha(artifacts[0]?.content_sha256 || "");
       setImpactEvidenceId(detail.evidence_bundle.items.find((item: { evidence_type: string }) => item.evidence_type === "impact_context")?.evidence_id || "");
       setHumanDecisions(decisions);
@@ -255,9 +259,9 @@ export default function Home() {
             observation_ids: evidence.observation_ids,
             dimension: impactDimension,
             level: impactLevel,
-            verification: "observed",
-            scope: "unknown",
-            data_sensitivity: "unknown",
+            verification: impactVerification,
+            scope: impactScope,
+            data_sensitivity: impactSensitivity,
             statement: impactStatement.trim(),
             human_attested: true
           }]

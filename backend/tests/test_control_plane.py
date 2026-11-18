@@ -794,6 +794,43 @@ def test_persisted_candidate_similarity_is_project_scoped_and_non_destructive():
     assert denied.status_code == 404
 
 
+def test_revoked_browser_session_cannot_be_reused_and_logout_all_revokes_sessions():
+    from app.core.config import get_settings
+
+    client.cookies.clear()
+    payload = {"email": "revocable-session@example.org", "password": "a-strong-test-password-123"}
+    assert client.post("/api/v1/auth/register", json=payload).status_code == 201
+    settings = get_settings()
+
+    first = client.post("/api/v1/auth/login", json=payload)
+    assert first.status_code == 200
+    first_cookie = first.cookies.get(settings.session_cookie_name)
+    first_csrf = first.json()["csrf_token"]
+    assert client.get("/api/v1/auth/me").status_code == 200
+    logout = client.post("/api/v1/auth/logout", headers={
+        "Origin": settings.allowed_origin_list[0],
+        settings.csrf_header_name: first_csrf,
+    })
+    assert logout.status_code == 204
+    client.cookies.set(settings.session_cookie_name, first_cookie)
+    assert client.get("/api/v1/auth/me").status_code == 401
+    client.cookies.clear()
+
+    second = client.post("/api/v1/auth/login", json=payload)
+    assert second.status_code == 200
+    second_cookie = second.cookies.get(settings.session_cookie_name)
+    second_csrf = second.json()["csrf_token"]
+    assert client.get("/api/v1/auth/me").status_code == 200
+    revoke_all = client.post("/api/v1/auth/logout-all", headers={
+        "Origin": settings.allowed_origin_list[0],
+        settings.csrf_header_name: second_csrf,
+    })
+    assert revoke_all.status_code == 204
+    client.cookies.set(settings.session_cookie_name, second_cookie)
+    assert client.get("/api/v1/auth/me").status_code == 401
+    client.cookies.clear()
+
+
 def test_cookie_session_requires_csrf_for_state_changes_and_supports_logout():
     from app.core.config import get_settings
 

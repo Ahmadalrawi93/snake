@@ -50,8 +50,11 @@ Authenticated users can change their password from the Account Security panel.
 The current password is verified, the new password must contain at least 12
 characters, and the backend revokes all active browser sessions and API tokens
 when the password is changed. The dashboard clears its local workspace and
-requires a fresh sign-in. Forgotten-password recovery is not exposed until a
-verified email delivery and single-use reset-token flow are implemented.
+requires a fresh sign-in. The same panel lists active browser sessions and API
+token records and allows an owner to revoke an individual record. The current
+browser session is identified so revoking it clears the local workspace.
+Forgotten-password recovery is not exposed until verified email delivery and
+single-use reset tokens are implemented.
 
 ## Session and CSRF security
 

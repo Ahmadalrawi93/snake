@@ -156,7 +156,7 @@ def analyze_security_signals(observations: list[dict], *, max_signals: int = 500
                     "Request only within the approved scope and verify status, content type, and whether the response contains non-public material.")
             elif path.endswith(_BACKUP_SUFFIXES):
                 add(host, "possible_backup_file", "Potential backup-file URL observed",
-                    "low", "A discovered URL has a conventional backup or archive suffix; existence and exposure are unverified.",
+                    "low", "A discovered URL has a conventional backup or archive suffix; this is not proof that the resource exists or is exposed.",
                     {str(item.get("observation_id", ""))},
                     "Verify the exact resource safely and confirm that it contains sensitive application data before reporting.")
 

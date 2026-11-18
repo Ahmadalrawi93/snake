@@ -27,6 +27,14 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(302)
             self.send_header("Location", "http://example.com/escape")
             self.end_headers()
+        elif self.path == "/cookie":
+            body = b"ok"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.send_header("Set-Cookie", "session=super-secret-value; HttpOnly")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
         elif self.path == "/large":
             body = b"x" * 4096
             self.send_response(200)
@@ -82,7 +90,7 @@ def test_collector_does_not_follow_out_of_scope_redirect(local_server):
     )
     assert len(report.observations) == 1
     assert report.observations[0].status_code == 302
-    assert report.skipped == (("http://example.com/escape", "url_out_of_scope"),)
+    assert report.skipped == (("http://example.com/escape", "cross_origin_redirect_skipped"),)
 
 
 def test_collector_caps_response_body(local_server):
@@ -101,3 +109,15 @@ def test_collector_caps_response_body(local_server):
 def test_collector_rejects_invalid_timeout(value):
     with pytest.raises(ValueError):
         collect_http("https://example.com", ["example.com"], timeout=value)
+
+
+def test_collector_redacts_cookie_values(local_server):
+    report = collect_http(
+        local_server + "/cookie",
+        ["127.0.0.1"],
+        max_pages=1,
+        allow_private_networks=True,
+    )
+    cookie = next(value for name, value in report.observations[0].headers if name == "set-cookie")
+    assert cookie == "session=<redacted>; HttpOnly"
+    assert "super-secret-value" not in cookie

@@ -66,10 +66,10 @@ and revoke a specific owned session with
 `POST /api/v1/auth/sessions/{session_record_id}/revoke`. They can list active
 API tokens with `GET /api/v1/auth/api-tokens` and revoke a specific owned
 record with `POST /api/v1/auth/api-tokens/{token_record_id}/revoke`.
-Inventory responses expose only record IDs and timestamps; they never return
-JWTs, raw token identifiers, or stored digests. Lists are limited to the
-100 most recently created active records. Ownership is enforced in each
-database query.
+Inventory responses expose only record IDs, timestamps, and a boolean marker
+for the current browser session; they never return JWTs, raw token identifiers,
+or stored digests. Lists are limited to the 100 most recently created active
+records. Ownership is enforced in each database query.
 
 
 ## Password changes

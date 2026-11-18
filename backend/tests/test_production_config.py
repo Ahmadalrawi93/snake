@@ -9,6 +9,7 @@ def production_settings(**overrides):
         "environment": "production",
         "jwt_secret_key": "production-secret-that-is-at-least-32-bytes-long",
         "allowed_origins": "https://app.example.com",
+        "allowed_hosts": "api.example.com",
         "session_cookie_secure": True,
     }
     values.update(overrides)
@@ -57,3 +58,23 @@ def test_production_configuration_requires_secure_cookie_for_samesite_none():
 def test_production_configuration_rejects_short_jwt_secret():
     with pytest.raises(ValidationError, match="JWT_SECRET_KEY"):
         production_settings(jwt_secret_key="too-short")
+
+
+def test_production_configuration_accepts_exact_api_host():
+    assert production_settings().allowed_host_list == ["api.example.com"]
+
+
+@pytest.mark.parametrize(
+    "host",
+    ["", "*", "*.example.com", "https://api.example.com", "api.example.com/path",
+     "localhost", "127.0.0.1", "api.example.com:invalid"],
+)
+def test_production_configuration_rejects_unsafe_api_hosts(host):
+    with pytest.raises(ValidationError):
+        production_settings(allowed_hosts=host)
+
+
+@pytest.mark.parametrize("limit", [0, 512, 10 * 1024 * 1024 + 1])
+def test_request_body_limit_must_be_within_safe_bounds(limit):
+    with pytest.raises(ValidationError, match="MAX_REQUEST_BODY_BYTES"):
+        production_settings(max_request_body_bytes=limit)

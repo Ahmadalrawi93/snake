@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_user
 from app.core.config import get_settings
-from app.core.security import (hash_password, verify_password, create_access_token, create_browser_session_token, create_api_access_token, token_id_digest, decode_access_token_claims)
+from app.core.security import (hash_password, verify_password, create_browser_session_token, create_api_access_token, token_id_digest, decode_access_token_claims)
 from app.db.database import get_db
 from app.db.models import User, UserSession, ApiAccessToken
 

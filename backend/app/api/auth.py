@@ -22,6 +22,11 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)
 
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=12, max_length=128)
+
 class UserResponse(BaseModel):
     id: int
     email: EmailStr
@@ -255,6 +260,37 @@ def revoke_all_api_tokens(request: Request, user: User = Depends(get_current_use
     ).update({ApiAccessToken.revoked_at: datetime.now(timezone.utc)}, synchronize_session=False)
     db.commit()
     return Response(status_code=204)
+
+
+@router.post("/password/change", status_code=204)
+def change_password(
+    payload: PasswordChangeRequest,
+    request: Request,
+    response: Response,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not verify_password(payload.current_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if verify_password(payload.new_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="New password must be different")
+
+    now = datetime.now(timezone.utc)
+    user.password_hash = hash_password(payload.new_password)
+    db.query(UserSession).filter(
+        UserSession.user_id == user.id,
+        UserSession.revoked_at.is_(None),
+    ).update({UserSession.revoked_at: now}, synchronize_session=False)
+    db.query(ApiAccessToken).filter(
+        ApiAccessToken.user_id == user.id,
+        ApiAccessToken.revoked_at.is_(None),
+    ).update({ApiAccessToken.revoked_at: now}, synchronize_session=False)
+    db.commit()
+
+    # The credential used for this request is revoked with every other credential.
+    _clear_session_cookies(response)
+    response.status_code = 204
+    return response
 
 
 @router.get("/me", response_model=UserResponse)

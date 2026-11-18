@@ -47,6 +47,7 @@ export default function Home() {
   const [impactStatement, setImpactStatement] = useState("");
   const [reportPreview, setReportPreview] = useState<ReportPreview | null>(null);
   const [candidateSimilarities, setCandidateSimilarities] = useState<CandidateSimilarity[]>([]);
+  const [relatedCandidateFingerprint, setRelatedCandidateFingerprint] = useState("");
   const [decisionOutcome, setDecisionOutcome] = useState("inconclusive");
   const [decisionMethod, setDecisionMethod] = useState("manual_reproduction");
   const [decisionNotes, setDecisionNotes] = useState("");
@@ -165,6 +166,7 @@ export default function Home() {
       setEvidenceArtifacts(artifacts);
       setImpactAssessments(impacts);
       setCandidateSimilarities(similarities);
+      setRelatedCandidateFingerprint(similarities.find((item: CandidateSimilarity) => item.disposition !== "distinct")?.compared_fingerprint || "");
       setDecisionEvidenceSha(artifacts[0]?.content_sha256 || "");
       setImpactEvidenceId(detail.evidence_bundle.items.find((item: { evidence_type: string }) => item.evidence_type === "impact_context")?.evidence_id || "");
       setHumanDecisions(decisions);
@@ -297,14 +299,14 @@ export default function Home() {
     }
   }
 
-  async function transitionCandidate(newStatus: string, rationale: string) {
+  async function transitionCandidate(newStatus: string, rationale: string, relatedFingerprint?: string) {
     if (!selectedCandidate) return;
     const currentStatus = lifecycleEvents.length ? lifecycleEvents[lifecycleEvents.length - 1].to_status : "new";
     setBusy(true); setError(""); setMessage("");
     try {
       await api(`/api/v1/finding-candidates/${selectedCandidate.id}/lifecycle`, {
         method: "POST",
-        body: JSON.stringify({ expected_status: currentStatus, new_status: newStatus, rationale })
+        body: JSON.stringify({ expected_status: currentStatus, new_status: newStatus, rationale, ...(relatedFingerprint ? { related_candidate_fingerprint: relatedFingerprint } : {}) })
       });
       const lifecycle = await api(`/api/v1/finding-candidates/${selectedCandidate.id}/lifecycle`);
       setLifecycleEvents(lifecycle.events || []);
@@ -670,6 +672,7 @@ export default function Home() {
                         {lifecycleEvents.length > 0 && lifecycleEvents[lifecycleEvents.length - 1].to_status === "under_review" && <button className="primary-button" disabled={busy} onClick={() => transitionCandidate("needs_more_evidence", "Additional evidence is required.")}>REQUEST MORE EVIDENCE</button>}
                         {lifecycleEvents.length > 0 && lifecycleEvents[lifecycleEvents.length - 1].to_status === "under_review" && humanDecisions.some(item => item.outcome === "confirmed" && item.evidence_sha256 && evidenceArtifacts.some(artifact => artifact.content_sha256 === item.evidence_sha256)) && <button className="primary-button" disabled={busy} onClick={() => transitionCandidate("confirmed", "Human reviewer confirmed the candidate with encrypted evidence.")}>CONFIRM FINDING</button>}
                         {lifecycleEvents.length > 0 && lifecycleEvents[lifecycleEvents.length - 1].to_status === "under_review" && humanDecisions.some(item => item.outcome === "false_positive") && <button className="danger-button" disabled={busy} onClick={() => transitionCandidate("rejected", "Human reviewer rejected the candidate as a false positive.")}>REJECT AS FALSE POSITIVE</button>}
+                        {lifecycleEvents.length > 0 && lifecycleEvents[lifecycleEvents.length - 1].to_status === "under_review" && humanDecisions.some(item => item.outcome === "duplicate") && candidateSimilarities.some(item => item.disposition !== "distinct") && <><select aria-label="Related candidate" value={relatedCandidateFingerprint} onChange={e => setRelatedCandidateFingerprint(e.target.value)}><option value="">Select related candidate</option>{candidateSimilarities.filter(item => item.disposition !== "distinct").map(item => <option key={item.compared_fingerprint} value={item.compared_fingerprint}>{item.disposition.replaceAll("_", " ")} · {item.compared_fingerprint.slice(0, 16)}…</option>)}</select><button className="primary-button" disabled={busy || !relatedCandidateFingerprint} onClick={() => transitionCandidate("duplicate", "Human reviewer linked this candidate to an existing project finding.", relatedCandidateFingerprint)}>LINK AS DUPLICATE</button></>}
                         {lifecycleEvents.length > 0 && lifecycleEvents[lifecycleEvents.length - 1].to_status === "needs_more_evidence" && <button className="primary-button" disabled={busy} onClick={() => transitionCandidate("under_review", "Additional evidence review resumed.")}>RESUME REVIEW</button>}
                       </div>
                       {lifecycleEvents.map(item => <div className="record-row" key={item.id}><div><b>{item.from_status.toUpperCase()} → {item.to_status.toUpperCase()}</b><p>{item.rationale}</p></div><time>{new Date(item.created_at).toLocaleString()}</time></div>)}

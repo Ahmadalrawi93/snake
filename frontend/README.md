@@ -48,9 +48,11 @@ execution flag remains disabled.
 
 The dashboard authenticates with a server-set HttpOnly session cookie; it does
 not persist bearer tokens in local or session storage. The backend also sets a
-separate readable CSRF cookie. For state-changing requests, the dashboard sends
-that value in the configured CSRF header. The backend checks the header/cookie
-match and requires an exact allowed Origin.
+separate CSRF cookie. The dashboard obtains its value through a no-store
+session bootstrap endpoint and keeps it in memory; it sends that value in the
+configured CSRF header for state-changing requests. The backend checks the
+header/cookie match and requires an exact allowed Origin. This works when the
+frontend cannot directly read cookies scoped to a separate API host.
 
 For production, configure a strong random `SNAKE_JWT_SECRET_KEY`, set
 `SNAKE_ENVIRONMENT=production`, and set `SNAKE_SESSION_COOKIE_SECURE=true`.

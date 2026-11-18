@@ -68,7 +68,7 @@ def record_human_finding_decision(
 def list_human_finding_decisions(
     db: Session, *, analysis_run_id: int, candidate_fingerprint: str, actor: User
 ) -> list[HumanFindingDecision]:
-    owned = db.query(AIAnalysisRun.id).join(
+    owned = db.query(AIAnalysisRun.id, AIAnalysisRun.project_id).join(
         Project, Project.id == AIAnalysisRun.project_id
     ).filter(
         AIAnalysisRun.id == analysis_run_id,
@@ -76,7 +76,8 @@ def list_human_finding_decisions(
     ).first()
     if owned is None:
         raise LookupError("analysis run not found")
-    return db.query(HumanFindingDecision).filter_by(
-        analysis_run_id=analysis_run_id,
-        candidate_fingerprint=candidate_fingerprint,
+    return db.query(HumanFindingDecision).filter(
+        HumanFindingDecision.analysis_run_id == analysis_run_id,
+        HumanFindingDecision.project_id == owned.project_id,
+        HumanFindingDecision.candidate_fingerprint == candidate_fingerprint,
     ).order_by(HumanFindingDecision.id.asc()).all()

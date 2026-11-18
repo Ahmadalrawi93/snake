@@ -28,3 +28,10 @@
 .account-security-panel .stack-form input{width:100%;background:#0b1118;border:1px solid #2b3742;border-radius:3px;padding:12px;color:var(--text);font:12px Manrope;outline:none}
 .account-security-panel .stack-form input:focus{border-color:var(--lime)}
 @media(max-width:760px){.account-security-panel{padding:18px}}
+
+
+.credential-inventory{margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
+.credential-inventory .review-meta{align-items:center}
+.credential-inventory .review-meta b{font:10px 'DM Mono';letter-spacing:.7px;color:#b7c2cb}
+.credential-inventory .record-row{align-items:center}
+.credential-inventory .record-row .danger-button{white-space:nowrap;padding:9px 11px}

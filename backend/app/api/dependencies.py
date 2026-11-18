@@ -50,23 +50,22 @@ def get_current_user(
     if not isinstance(subject, str) or not subject.isdigit():
         raise HTTPException(status_code=401, detail="Invalid or expired access token", headers={"WWW-Authenticate": "Bearer"})
     token_id = claims.get("jti")
-    if token_id is not None:
-        token_use = claims.get("token_use")
-        if not isinstance(token_id, str):
-            raise HTTPException(status_code=401, detail="Invalid token identifier")
-        token_model = UserSession if token_use == "browser_session" else (
-            ApiAccessToken if token_use == "api_access" else None
-        )
-        if token_model is None:
-            raise HTTPException(status_code=401, detail="Invalid token type")
-        token_record = db.query(token_model).filter(
-            token_model.token_id_sha256 == token_id_digest(token_id),
-            token_model.user_id == int(subject),
-            token_model.revoked_at.is_(None),
-            token_model.expires_at > datetime.now(timezone.utc),
-        ).first()
-        if token_record is None:
-            raise HTTPException(status_code=401, detail="Token expired or revoked")
+    token_use = claims.get("token_use")
+    if not isinstance(token_id, str):
+        raise HTTPException(status_code=401, detail="Token identifier is required")
+    token_model = UserSession if token_use == "browser_session" else (
+        ApiAccessToken if token_use == "api_access" else None
+    )
+    if token_model is None:
+        raise HTTPException(status_code=401, detail="Invalid token type")
+    token_record = db.query(token_model).filter(
+        token_model.token_id_sha256 == token_id_digest(token_id),
+        token_model.user_id == int(subject),
+        token_model.revoked_at.is_(None),
+        token_model.expires_at > datetime.now(timezone.utc),
+    ).first()
+    if token_record is None:
+        raise HTTPException(status_code=401, detail="Token expired or revoked")
     user = db.get(User, int(subject))
     if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="User is unavailable")

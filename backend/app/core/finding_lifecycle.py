@@ -3,6 +3,7 @@ import base64
 import hashlib
 import os
 import re
+from urllib.parse import quote
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy.orm import Session
 from app.core.analysis_redaction import redact_text
@@ -20,6 +21,12 @@ _ALLOWED_TRANSITIONS = {
     "rejected": set(),
     "duplicate": set(),
 }
+
+
+
+def evidence_content_disposition(filename: str) -> str:
+    """Return an ASCII-safe RFC 5987 attachment header value."""
+    return 'attachment; filename="evidence"; filename*=UTF-8\'\'' + quote(filename, safe="")
 
 
 def _fernet() -> Fernet:

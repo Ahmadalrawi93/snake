@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_jwt_rotation_keys(self):
         previous = self.jwt_previous_secret_list
+        if len(previous) > 5:
+            raise ValueError("SNAKE_JWT_PREVIOUS_SECRET_KEYS may contain at most five keys")
         if len(previous) != len(set(previous)):
             raise ValueError("SNAKE_JWT_PREVIOUS_SECRET_KEYS must not contain duplicates")
         if self.jwt_secret_key in previous:

@@ -20,6 +20,7 @@ AI-assisted security assessment platform for **authorized** bug bounty work.
 - Immutable signed worker observation records with owner-scoped read access; no direct API path to fabricate worker observations.
 - Bounded deterministic analysis context, provenance-preserving deduplication, and passive evidence correlation.
 - Target-scoped application intelligence inventory of observed hosts, technology clues, and route surfaces, with source IDs and no active probing.
+- Deterministic security-signal engine for version disclosure, risky CORS combinations, cookie attributes, cleartext HTTP, and sensitive/backup path indicators; all outputs retain evidence IDs and require independent validation.
 - Explicit DeepSeek-compatible JSON triage adapter with fixed HTTPS provider URL, bounded requests/responses, no tools or retries, strict output validation, and evidence-reference checks.
 - Deterministic pre-provider redaction of common credential patterns; this is not a complete DLP system.
 - Evidence-only cross-surface reasoning links authentication, object-resource, and sensitive-action route observations on the same host; it never infers shared controls or confirms vulnerabilities.
@@ -142,5 +143,7 @@ The provenance-safe analysis path rebuilds context from signed worker observatio
 
 
 See [Offline Passive Recon Producer](docs/WORKER_RESULT_INGESTION.md) for the bounded feed format, signed scope filtering, replay behavior, and limitations.
+
+See [Deterministic Security Signal Engine](docs/SECURITY_SIGNAL_ENGINE.md) for signal rules, evidence requirements, and limitations.
 
 Tenant isolation rules and regression coverage: [Tenant Isolation](docs/TENANT_ISOLATION.md).

@@ -148,12 +148,17 @@ export default function Home() {
     setBusy(true); setError(""); setSelectedCandidate(null); setReportPreview(null);
     try {
       const detail = await api(`/api/v1/finding-candidates/${candidateId}`);
-      const [lifecycle, artifacts, impacts, similarities] = await Promise.all([
+      const [lifecycle, artifacts, impacts] = await Promise.all([
         api(`/api/v1/finding-candidates/${candidateId}/lifecycle`),
         api(`/api/v1/finding-candidates/${candidateId}/evidence`),
-        api(`/api/v1/finding-candidates/${candidateId}/impact-assessments`),
-        api(`/api/v1/projects/${detail.project_id}/finding-candidates/${candidateId}/similarity`)
+        api(`/api/v1/finding-candidates/${candidateId}/impact-assessments`)
       ]);
+      let similarities: CandidateSimilarity[] = [];
+      try {
+        similarities = await api(`/api/v1/projects/${detail.project_id}/finding-candidates/${candidateId}/similarity`);
+      } catch {
+        setError("Candidate details loaded, but duplicate comparison was withheld because one or more project records failed integrity checks.");
+      }
       const decisions = await api(`/api/v1/analysis-runs/${detail.analysis_run_id}/finding-decisions?candidate_fingerprint=${detail.candidate_fingerprint}`);
       setSelectedCandidate(detail);
       setLifecycleEvents(lifecycle.events || []);

@@ -1070,3 +1070,70 @@ def test_cookie_session_requires_csrf_for_state_changes_and_supports_logout():
     assert logout.status_code == 204
     assert client.get("/api/v1/auth/me").status_code == 401
     client.cookies.clear()
+
+def test_failed_password_attempts_are_throttled_across_browser_and_api_login():
+    from datetime import datetime, timedelta, timezone
+    from app.core.auth_rate_limit import auth_attempt_key
+    from app.db.models import AuthFailedAttemptBucket
+
+    client.cookies.clear()
+    email = "throttled-auth@example.org"
+    password = "a-strong-test-password-123"
+    payload = {"email": email, "password": password}
+    assert client.post("/api/v1/auth/register", json=payload).status_code == 201
+
+    for attempt in range(8):
+        failed = client.post("/api/v1/auth/login", json={
+            "email": email, "password": f"wrong-password-{attempt}",
+        })
+        assert failed.status_code == 401
+
+    # The browser and non-browser login routes share one account-level bucket.
+    blocked_browser = client.post("/api/v1/auth/login", json=payload)
+    assert blocked_browser.status_code == 429
+    assert int(blocked_browser.headers["retry-after"]) > 0
+    blocked_api = client.post("/api/v1/auth/token", json=payload)
+    assert blocked_api.status_code == 429
+
+    db = TestingSession()
+    try:
+        bucket = db.get(AuthFailedAttemptBucket, auth_attempt_key(email))
+        assert bucket is not None
+        assert bucket.attempts == 8
+        assert len(bucket.key_sha256) == 64
+        assert email not in bucket.key_sha256
+        now = datetime.now(timezone.utc)
+        bucket.window_started_at = now - timedelta(minutes=16)
+        bucket.blocked_until = now - timedelta(seconds=1)
+        db.commit()
+    finally:
+        db.close()
+
+    recovered_login = client.post("/api/v1/auth/login", json=payload)
+    assert recovered_login.status_code == 200
+    db = TestingSession()
+    try:
+        assert db.get(AuthFailedAttemptBucket, auth_attempt_key(email)) is None
+    finally:
+        db.close()
+
+    # A successful browser login resets the shared failure counter for API clients too.
+    issued = client.post("/api/v1/auth/token", json=payload)
+    assert issued.status_code == 200
+    client.cookies.clear()
+
+
+def test_unknown_email_failed_attempts_use_the_same_generic_lockout():
+    email = "nonexistent-throttled@example.org"
+    for attempt in range(8):
+        response = client.post("/api/v1/auth/token", json={
+            "email": email, "password": f"wrong-password-{attempt}",
+        })
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Incorrect email or password"
+
+    blocked = client.post("/api/v1/auth/login", json={
+        "email": email, "password": "a-strong-test-password-123",
+    })
+    assert blocked.status_code == 429
+

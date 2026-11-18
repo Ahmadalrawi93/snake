@@ -499,3 +499,58 @@ class InvestigationMemoryRecord(Base):
     observation_ids_json: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     execution_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class LocalReconRun(Base):
+    """Persisted result of one bounded local HTTP collection pass."""
+    __tablename__ = "local_recon_runs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('completed', 'partial', 'failed')",
+            name="ck_local_recon_run_status",
+        ),
+        CheckConstraint(
+            "pages_requested >= 0 AND pages_requested <= 10",
+            name="ck_local_recon_pages_requested",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    target_id: Mapped[int] = mapped_column(ForeignKey("targets.id"), nullable=False, index=True)
+    scope_snapshot_id: Mapped[int] = mapped_column(ForeignKey("scope_snapshots.id"), nullable=False, index=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    pages_requested: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    observation_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    execution_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class LocalReconObservation(Base):
+    """Redacted metadata-only HTTP evidence from a local recon run."""
+    __tablename__ = "local_recon_observations"
+    __table_args__ = (
+        UniqueConstraint("observation_id", name="uq_local_recon_observation_id"),
+        CheckConstraint(
+            "kind IN ('url', 'http_header')",
+            name="ck_local_recon_observation_kind",
+        ),
+        CheckConstraint(
+            "classification = 'unconfirmed_observation'",
+            name="ck_local_recon_observation_unconfirmed",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("local_recon_runs.id"), nullable=False, index=True)
+    observation_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    value: Mapped[str] = mapped_column(String(2048), nullable=False)
+    evidence: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    host_key: Mapped[str] = mapped_column(String(253), nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    classification: Mapped[str] = mapped_column(
+        String(40), nullable=False, default="unconfirmed_observation"
+    )
